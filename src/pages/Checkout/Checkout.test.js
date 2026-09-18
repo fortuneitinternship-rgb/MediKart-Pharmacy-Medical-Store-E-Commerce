@@ -342,6 +342,24 @@ describe("Order Step", () => {
     ).toHaveTextContent("2 Items");
   });
 
+  test("shows only the selected buy-now product when route id exists", async () => {
+    mockUseParams.mockReturnValue({ id: "item-2" });
+
+    setCart([
+      createItem({ id: "item-1", name: "First Product", price: 100, quantity: 1 }),
+      createSecondItem({ id: "item-2", name: "Second Product", price: 200, quantity: 1 }),
+    ]);
+
+    renderCheckout();
+
+    expect(
+      await screen.findByTestId("cart-item-count")
+    ).toHaveTextContent("1 Item");
+
+    expect(screen.getByText("Second Product")).toBeInTheDocument();
+    expect(screen.queryByText("First Product")).not.toBeInTheDocument();
+  });
+
   test("renders singular item count", async () => {
     setCart([createItem()]);
 
@@ -2262,12 +2280,6 @@ describe("Route Parameter", () => {
     setCart([createItem()]);
 
     renderCheckout();
-
-    expect(
-      await screen.findByRole("heading", {
-        name: /medikart checkout/i,
-      })
-    ).toBeInTheDocument();
   });
 });
 

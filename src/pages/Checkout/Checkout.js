@@ -27,6 +27,11 @@ const Checkout = () => {
 
     const [step, setStep] = useState(1);
     const [cartItems, setCartItems] = useState([]);
+    const visibleCartItems = routeProductId
+        ? cartItems.filter(
+            (item) => String(item.id) === String(routeProductId)
+        )
+        : cartItems;
 
     const [address, setAddress] = useState({
         name: "",
@@ -119,7 +124,7 @@ const Checkout = () => {
 
     // ======================= PRODUCT TOTAL =======================
 
-    const productTotal = cartItems.reduce(
+    const productTotal = visibleCartItems.reduce(
         (total, item) => {
             const price = getPrice(item);
             const quantity = Number(
@@ -160,7 +165,7 @@ const Checkout = () => {
 
     // ======================= SPECIAL ITEM =======================
 
-    const hasSpecialItem = cartItems.some((item) =>
+    const hasSpecialItem = visibleCartItems.some((item) =>
         isSpecialCategory(item.category)
     );
 
@@ -542,7 +547,7 @@ const Checkout = () => {
     // ======================= STEP 1 → STEP 2 =======================
 
     const continueToAddress = () => {
-        if (cartItems.length === 0) {
+        if (visibleCartItems.length === 0) {
             alert(
                 "Your cart is empty."
             );
@@ -587,7 +592,7 @@ const Checkout = () => {
             return;
         }
 
-        if (cartItems.length === 0) {
+        if (visibleCartItems.length === 0) {
             alert(
                 "Your cart is empty."
             );
@@ -613,7 +618,7 @@ const Checkout = () => {
                     "en-IN"
                 ),
 
-            items: cartItems,
+            items: visibleCartItems,
 
             address,
 
@@ -706,7 +711,7 @@ const Checkout = () => {
     // ======================= EMPTY CART =======================
 
     if (
-        cartItems.length === 0 &&
+        visibleCartItems.length === 0 &&
         step !== 5
     ) {
         return (
@@ -928,10 +933,10 @@ const Checkout = () => {
                             }}
                         >
                             {
-                                cartItems.length
+                                visibleCartItems.length
                             }{" "}
                             {
-                                cartItems.length ===
+                                visibleCartItems.length ===
                                     1
                                     ? "Item"
                                     : "Items"
@@ -956,7 +961,7 @@ const Checkout = () => {
                         }}
                     >
 
-                        {cartItems.map(
+                        {visibleCartItems.map(
                             (item) => {
 
                                 const unitPrice =

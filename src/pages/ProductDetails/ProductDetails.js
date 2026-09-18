@@ -404,26 +404,18 @@ const ProductDetails = () => {
       localStorage.getItem("cart") || "[]"
     );
 
-    const productExists = existingCart.find(
-      (item) => Number(item.id) === Number(buyNowProduct.id)
+    const nextCart = existingCart.filter(
+      (item) => Number(item.id) !== Number(buyNowProduct.id)
     );
 
-    if (!productExists) {
-      existingCart.push(buyNowProduct);
-    } else {
-      // Update quantity if product already in cart
-      const index = existingCart.findIndex(
-        (item) => Number(item.id) === Number(buyNowProduct.id)
-      );
-      if (index !== -1) {
-        existingCart[index].quantity = 
-          (existingCart[index].quantity || 1) + quantity;
-      }
-    }
+    nextCart.push({
+      ...buyNowProduct,
+      quantity: Number(quantity) || 1,
+    });
 
     localStorage.setItem(
       "cart",
-      JSON.stringify(existingCart)
+      JSON.stringify(nextCart)
     );
 
     // ==========================================
