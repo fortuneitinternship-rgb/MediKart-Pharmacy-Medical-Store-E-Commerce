@@ -14,6 +14,7 @@ import {
 
 import image from "../../assets/Login.png";
 import "./Login.css";
+import { getCurrentUser, loginUser } from "../../api/authApi";
 
 const Login = ({
   onClose,
@@ -98,7 +99,7 @@ const Login = ({
   /* =====================================================
      LOGIN
   ===================================================== */
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
 
     const enteredEmail = email.trim().toLowerCase();
@@ -112,81 +113,25 @@ const Login = ({
       return;
     }
 
-    let registeredUser = null;
-
-    /* =================================================
-       GET REGISTERED USER
-    ================================================= */
     try {
-      const storedUser = localStorage.getItem("registeredUser");
+      const tokenResponse = await loginUser(
+        enteredEmail,
+        enteredPassword
+      );
 
-      if (storedUser) {
-        registeredUser = JSON.parse(storedUser);
-      }
+      localStorage.setItem(
+        "access_token",
+        tokenResponse.access_token
+      );
+
+      const currentUser = await getCurrentUser();
+      saveLoginSession(currentUser);
+      alert("Login successful!");
+      handleClose();
     } catch (error) {
-      console.error("Error reading registered user:", error);
+      localStorage.removeItem("access_token");
+      alert(error.message || "Unable to login. Please try again.");
     }
-
-    /* =================================================
-       REGISTERED USER LOGIN
-    ================================================= */
-    if (registeredUser) {
-      const registeredEmail =
-        registeredUser.email?.trim().toLowerCase() || "";
-
-      const registeredUsername =
-        registeredUser.username?.trim().toLowerCase() || "";
-
-      const isEmailOrUsernameCorrect =
-        enteredEmail === registeredEmail ||
-        enteredEmail === registeredUsername;
-
-      if (!isEmailOrUsernameCorrect) {
-        alert("Email or username is incorrect.");
-        return;
-      }
-
-      if (enteredPassword !== registeredUser.password) {
-        alert("Incorrect password.");
-        return;
-      }
-
-      /* LOGIN SUCCESS */
-      saveLoginSession(registeredUser);
-
-      alert("Login successful!");
-
-      handleClose();
-
-      return;
-    }
-
-    /* =================================================
-       DEMO LOGIN
-    ================================================= */
-    if (
-      enteredEmail === "admin@medikart.com" &&
-      enteredPassword === "123456"
-    ) {
-      const demoUser = {
-        name: "Satender",
-        username: "Satender",
-        email: "admin@medikart.com",
-      };
-
-      saveLoginSession(demoUser);
-
-      alert("Login successful!");
-
-      handleClose();
-
-      return;
-    }
-
-    /* =================================================
-       INVALID LOGIN
-    ================================================= */
-    alert("Invalid email/username or password.");
   };
 
   return (
@@ -264,7 +209,7 @@ const Login = ({
 
                 <input
                   type="text"
-                  placeholder="Email or Username"
+                  placeholder="Email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   autoComplete="username"

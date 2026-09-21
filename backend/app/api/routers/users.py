@@ -16,6 +16,10 @@ router = APIRouter(
 )
 
 
+# ============================================================
+# GET MY PROFILE
+# ============================================================
+
 @router.get(
     "/me",
     response_model=UserResponse
@@ -23,8 +27,13 @@ router = APIRouter(
 def get_profile(
     current_user: User = Depends(get_current_user)
 ):
+
     return current_user
 
+
+# ============================================================
+# UPDATE MY PROFILE
+# ============================================================
 
 @router.put(
     "/me",
@@ -35,13 +44,17 @@ def update_profile(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+
     if data.name is not None:
-        current_user.name = data.name
+
+        current_user.name = data.name.strip()
 
     if data.phone is not None:
-        current_user.phone = data.phone
+
+        current_user.phone = data.phone.strip()
 
     db.commit()
+
     db.refresh(current_user)
 
     return current_user

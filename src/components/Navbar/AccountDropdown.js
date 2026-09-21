@@ -30,6 +30,8 @@ const AccountDropdown = ({ username = "Satender" }) => {
   const handleLogout = () => {
     localStorage.removeItem("username");
     localStorage.removeItem("isLoggedIn");
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("user");
 
     window.dispatchEvent(new Event("userUpdated"));
 

@@ -1,791 +1,1337 @@
 import React from "react";
-import { render, screen, fireEvent } from "@testing-library/react";
-import { BrowserRouter } from "react-router-dom";
+import {
+    render,
+    screen,
+    fireEvent,
+    waitFor,
+} from "@testing-library/react";
 import "@testing-library/jest-dom";
 
 import Login from "./Login";
 
+import {
+    loginUser,
+    getCurrentUser,
+} from "../../api/authApi";
+
+
+// ======================================================
+// MOCK API
+// ======================================================
+
+jest.mock("../../api/authApi", () => ({
+    loginUser: jest.fn(),
+    getCurrentUser: jest.fn(),
+}));
+
+
+// ======================================================
+// MOCK REACT ROUTER
+// ======================================================
+
 const mockNavigate = jest.fn();
 
 jest.mock("react-router-dom", () => ({
-  ...jest.requireActual("react-router-dom"),
-  useNavigate: () => mockNavigate,
+    useNavigate: () => mockNavigate,
 }));
+
+
+// ======================================================
+// MOCK IMAGE
+// ======================================================
 
 jest.mock("../../assets/Login.png", () => "login-image.png");
 
-const renderLogin = (props = {}) => {
-  return render(
-    <BrowserRouter>
-      <Login {...props} />
-    </BrowserRouter>
-  );
-};
+
+// ======================================================
+// TEST SUITE
+// ======================================================
 
 describe("Login Component", () => {
-  beforeEach(() => {
-    localStorage.clear();
-    jest.clearAllMocks();
+    const mockOnClose = jest.fn();
+    const mockOnLoginSuccess = jest.fn();
+    const mockOnSwitchToRegister = jest.fn();
+    const mockOnSwitchToForgotPassword = jest.fn();
 
-    window.alert = jest.fn();
-  });
+    beforeEach(() => {
+        jest.clearAllMocks();
 
-  // --------------------------------------------------
-  // RENDERING
-  // --------------------------------------------------
+        localStorage.clear();
 
-  test("renders login heading", () => {
-    renderLogin();
+        jest.spyOn(window, "alert").mockImplementation(() => {});
 
-    expect(
-      screen.getByRole("heading", {
-        name: /^login$/i,
-      })
-    ).toBeInTheDocument();
-  });
-
-  test("renders MEDIKART logo", () => {
-    renderLogin();
-
-    expect(screen.getByText("MEDI")).toBeInTheDocument();
-    expect(screen.getByText("KART")).toBeInTheDocument();
-  });
-
-  test("renders login subtitle", () => {
-    renderLogin();
-
-    expect(
-      screen.getByText(
-        /login to continue shopping with medikart/i
-      )
-    ).toBeInTheDocument();
-  });
-
-  test("renders email or username input", () => {
-    renderLogin();
-
-    expect(
-      screen.getByPlaceholderText(/email or username/i)
-    ).toBeInTheDocument();
-  });
-
-  test("renders password input", () => {
-    renderLogin();
-
-    expect(
-      screen.getByPlaceholderText(/^password$/i)
-    ).toBeInTheDocument();
-  });
-
-  test("renders login button", () => {
-    renderLogin();
-
-    expect(
-      screen.getByRole("button", {
-        name: /^login$/i,
-      })
-    ).toBeInTheDocument();
-  });
-
-  test("renders remember me checkbox", () => {
-    renderLogin();
-
-    expect(
-      screen.getByRole("checkbox")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByText(/remember me/i)
-    ).toBeInTheDocument();
-  });
-
-  test("renders forgot password button", () => {
-    renderLogin();
-
-    expect(
-      screen.getByRole("button", {
-        name: /forgot password/i,
-      })
-    ).toBeInTheDocument();
-  });
-
-  test("renders create account button", () => {
-    renderLogin();
-
-    expect(
-      screen.getByRole("button", {
-        name: /create account/i,
-      })
-    ).toBeInTheDocument();
-  });
-
-  test("renders social login buttons", () => {
-    renderLogin();
-
-    expect(
-      screen.getByRole("button", {
-        name: /google login/i,
-      })
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByRole("button", {
-        name: /facebook login/i,
-      })
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByRole("button", {
-        name: /apple login/i,
-      })
-    ).toBeInTheDocument();
-  });
-
-  test("renders login image", () => {
-    renderLogin();
-
-    const image = screen.getByAltText(/medikart login/i);
-
-    expect(image).toBeInTheDocument();
-    expect(image).toHaveAttribute(
-      "src",
-      "login-image.png"
-    );
-  });
-
-  // --------------------------------------------------
-  // INPUT TESTS
-  // --------------------------------------------------
-
-  test("updates email or username input", () => {
-    renderLogin();
-
-    const input = screen.getByPlaceholderText(
-      /email or username/i
-    );
-
-    fireEvent.change(input, {
-      target: {
-        value: "test",
-      },
+        loginUser.mockReset();
+        getCurrentUser.mockReset();
     });
 
-    expect(input).toHaveValue("test");
-  });
-
-  test("updates password input", () => {
-    renderLogin();
-
-    const input = screen.getByPlaceholderText(
-      /^password$/i
-    );
-
-    fireEvent.change(input, {
-      target: {
-        value: "test",
-      },
+    afterEach(() => {
+        jest.restoreAllMocks();
     });
 
-    expect(input).toHaveValue("test");
-  });
 
-  // --------------------------------------------------
-  // PASSWORD VISIBILITY
-  // --------------------------------------------------
+    // ==================================================
+    // RENDERING TESTS
+    // ==================================================
 
-  test("password is hidden by default", () => {
-    renderLogin();
+    test("renders login popup", () => {
+        render(<Login />);
 
-    const passwordInput = screen.getByPlaceholderText(
-      /^password$/i
-    );
-
-    expect(passwordInput).toHaveAttribute(
-      "type",
-      "password"
-    );
-  });
-
-  test("shows password when eye button is clicked", () => {
-    renderLogin();
-
-    const passwordInput = screen.getByPlaceholderText(
-      /^password$/i
-    );
-
-    const showButton = screen.getByRole("button", {
-      name: /show password/i,
+        expect(
+            document.querySelector(".login-popup-overlay")
+        ).toBeInTheDocument();
     });
 
-    fireEvent.click(showButton);
 
-    expect(passwordInput).toHaveAttribute(
-      "type",
-      "text"
-    );
-  });
+    test("renders login popup container", () => {
+        render(<Login />);
 
-  test("hides password again when eye button is clicked", () => {
-    renderLogin();
-
-    const passwordInput = screen.getByPlaceholderText(
-      /^password$/i
-    );
-
-    const showButton = screen.getByRole("button", {
-      name: /show password/i,
+        expect(
+            document.querySelector(".login-popup")
+        ).toBeInTheDocument();
     });
 
-    fireEvent.click(showButton);
 
-    expect(passwordInput).toHaveAttribute(
-      "type",
-      "text"
-    );
+    test("renders Login heading", () => {
+        render(<Login />);
 
-    const hideButton = screen.getByRole("button", {
-      name: /hide password/i,
+        expect(
+            screen.getByRole("heading", {
+                name: "Login",
+            })
+        ).toBeInTheDocument();
     });
 
-    fireEvent.click(hideButton);
 
-    expect(passwordInput).toHaveAttribute(
-      "type",
-      "password"
-    );
-  });
+    test("renders MEDIKART logo", () => {
+        render(<Login />);
 
-  // --------------------------------------------------
-  // REMEMBER ME
-  // --------------------------------------------------
+        expect(
+            screen.getByText("MEDI")
+        ).toBeInTheDocument();
 
-  test("remember me is unchecked by default", () => {
-    renderLogin();
-
-    expect(
-      screen.getByRole("checkbox")
-    ).not.toBeChecked();
-  });
-
-  test("checks remember me", () => {
-    renderLogin();
-
-    const checkbox = screen.getByRole("checkbox");
-
-    fireEvent.click(checkbox);
-
-    expect(checkbox).toBeChecked();
-  });
-
-  test("unchecks remember me", () => {
-    renderLogin();
-
-    const checkbox = screen.getByRole("checkbox");
-
-    fireEvent.click(checkbox);
-    expect(checkbox).toBeChecked();
-
-    fireEvent.click(checkbox);
-    expect(checkbox).not.toBeChecked();
-  });
-
-  // --------------------------------------------------
-  // EMPTY LOGIN VALIDATION
-  // --------------------------------------------------
-
-  test("shows alert when login fields are empty", () => {
-    renderLogin();
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: /^login$/i,
-      })
-    );
-
-    expect(window.alert).toHaveBeenCalledWith(
-      "Please enter email/username and password."
-    );
-  });
-
-  test("does not login when only email is entered", () => {
-    renderLogin();
-
-    fireEvent.change(
-      screen.getByPlaceholderText(/email or username/i),
-      {
-        target: {
-          value: "test",
-        },
-      }
-    );
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: /^login$/i,
-      })
-    );
-
-    expect(window.alert).toHaveBeenCalledWith(
-      "Please enter email/username and password."
-    );
-  });
-
-  test("does not login when only password is entered", () => {
-    renderLogin();
-
-    fireEvent.change(
-      screen.getByPlaceholderText(/^password$/i),
-      {
-        target: {
-          value: "test",
-        },
-      }
-    );
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: /^login$/i,
-      })
-    );
-
-    expect(window.alert).toHaveBeenCalledWith(
-      "Please enter email/username and password."
-    );
-  });
-
-  // --------------------------------------------------
-  // FORGOT PASSWORD
-  // --------------------------------------------------
-
-  test("calls onSwitchToForgotPassword", () => {
-    const onSwitchToForgotPassword = jest.fn();
-
-    renderLogin({
-      onSwitchToForgotPassword,
+        expect(
+            screen.getByText("KART")
+        ).toBeInTheDocument();
     });
 
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: /forgot password/i,
-      })
-    );
 
-    expect(
-      onSwitchToForgotPassword
-    ).toHaveBeenCalledTimes(1);
-  });
+    test("renders login subtitle", () => {
+        render(<Login />);
 
-  // --------------------------------------------------
-  // REGISTER
-  // --------------------------------------------------
-
-  test("calls onSwitchToRegister", () => {
-    const onSwitchToRegister = jest.fn();
-
-    renderLogin({
-      onSwitchToRegister,
+        expect(
+            screen.getByText(
+                /Login to continue shopping with MEDIKART/i
+            )
+        ).toBeInTheDocument();
     });
 
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: /create account/i,
-      })
-    );
 
-    expect(
-      onSwitchToRegister
-    ).toHaveBeenCalledTimes(1);
-  });
+    test("renders welcome text", () => {
+        render(<Login />);
 
-  // --------------------------------------------------
-  // CLOSE
-  // --------------------------------------------------
-
-  test("calls onClose when close button is clicked", () => {
-    const onClose = jest.fn();
-
-    renderLogin({
-      onClose,
+        expect(
+            screen.getByText("Welcome to MEDIKART")
+        ).toBeInTheDocument();
     });
 
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: /close login/i,
-      })
-    );
 
-    expect(onClose).toHaveBeenCalledTimes(1);
-  });
+    test("renders healthcare description", () => {
+        render(<Login />);
 
-  // --------------------------------------------------
-  // INVALID LOGIN
-  // --------------------------------------------------
-
-  test("shows invalid login message when no registered user exists", () => {
-    renderLogin();
-
-    fireEvent.change(
-      screen.getByPlaceholderText(/email or username/i),
-      {
-        target: {
-          value: "test",
-        },
-      }
-    );
-
-    fireEvent.change(
-      screen.getByPlaceholderText(/^password$/i),
-      {
-        target: {
-          value: "test",
-        },
-      }
-    );
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: /^login$/i,
-      })
-    );
-
-    expect(window.alert).toHaveBeenCalledWith(
-      "Invalid email/username or password."
-    );
-  });
-
-  // --------------------------------------------------
-  // INVALID STORED USER
-  // --------------------------------------------------
-
-  test("handles incorrect email or username", () => {
-    localStorage.setItem(
-      "registeredUser",
-      JSON.stringify({
-        email: "registered@test.com",
-        username: "registered",
-        password: "password",
-      })
-    );
-
-    renderLogin();
-
-    fireEvent.change(
-      screen.getByPlaceholderText(/email or username/i),
-      {
-        target: {
-          value: "wrong",
-        },
-      }
-    );
-
-    fireEvent.change(
-      screen.getByPlaceholderText(/^password$/i),
-      {
-        target: {
-          value: "password",
-        },
-      }
-    );
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: /^login$/i,
-      })
-    );
-
-    expect(window.alert).toHaveBeenCalledWith(
-      "Email or username is incorrect."
-    );
-  });
-
-  test("handles incorrect password", () => {
-    localStorage.setItem(
-      "registeredUser",
-      JSON.stringify({
-        email: "registered@test.com",
-        username: "registered",
-        password: "correct",
-      })
-    );
-
-    renderLogin();
-
-    fireEvent.change(
-      screen.getByPlaceholderText(/email or username/i),
-      {
-        target: {
-          value: "registered@test.com",
-        },
-      }
-    );
-
-    fireEvent.change(
-      screen.getByPlaceholderText(/^password$/i),
-      {
-        target: {
-          value: "wrong",
-        },
-      }
-    );
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: /^login$/i,
-      })
-    );
-
-    expect(window.alert).toHaveBeenCalledWith(
-      "Incorrect password."
-    );
-  });
-
-  // --------------------------------------------------
-  // REGISTERED USER LOGIN
-  // --------------------------------------------------
-
-  test("successfully logs in with registered user", () => {
-    const onClose = jest.fn();
-
-    localStorage.setItem(
-      "registeredUser",
-      JSON.stringify({
-        email: "registered@test.com",
-        username: "registered",
-        password: "password",
-        name: "test",
-      })
-    );
-
-    renderLogin({
-      onClose,
+        expect(
+            screen.getByText(
+                /Your trusted online healthcare/i
+            )
+        ).toBeInTheDocument();
     });
 
-    fireEvent.change(
-      screen.getByPlaceholderText(/email or username/i),
-      {
-        target: {
-          value: "registered@test.com",
-        },
-      }
-    );
 
-    fireEvent.change(
-      screen.getByPlaceholderText(/^password$/i),
-      {
-        target: {
-          value: "password",
-        },
-      }
-    );
+    // ==================================================
+    // IMAGE TESTS
+    // ==================================================
 
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: /^login$/i,
-      })
-    );
+    test("renders login image", () => {
+        render(<Login />);
 
-    expect(
-      localStorage.getItem("isLoggedIn")
-    ).toBe("true");
+        const image = screen.getByAltText(
+            "MEDIKART Login"
+        );
 
-    expect(
-      localStorage.getItem("user")
-    ).not.toBeNull();
+        expect(image).toBeInTheDocument();
 
-    expect(window.alert).toHaveBeenCalledWith(
-      "Login successful!"
-    );
-
-    expect(onClose).toHaveBeenCalled();
-  });
-
-  // --------------------------------------------------
-  // REMEMBER ME STORAGE
-  // --------------------------------------------------
-
-  test("stores rememberMe when checkbox is selected", () => {
-    localStorage.setItem(
-      "registeredUser",
-      JSON.stringify({
-        email: "registered@test.com",
-        username: "registered",
-        password: "password",
-        name: "test",
-      })
-    );
-
-    renderLogin();
-
-    fireEvent.change(
-      screen.getByPlaceholderText(/email or username/i),
-      {
-        target: {
-          value: "registered@test.com",
-        },
-      }
-    );
-
-    fireEvent.change(
-      screen.getByPlaceholderText(/^password$/i),
-      {
-        target: {
-          value: "password",
-        },
-      }
-    );
-
-    fireEvent.click(
-      screen.getByRole("checkbox")
-    );
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: /^login$/i,
-      })
-    );
-
-    expect(
-      localStorage.getItem("rememberMe")
-    ).toBe("true");
-  });
-
-  test("removes rememberMe when checkbox is not selected", () => {
-    localStorage.setItem("rememberMe", "true");
-
-    localStorage.setItem(
-      "registeredUser",
-      JSON.stringify({
-        email: "registered@test.com",
-        username: "registered",
-        password: "password",
-        name: "test",
-      })
-    );
-
-    renderLogin();
-
-    fireEvent.change(
-      screen.getByPlaceholderText(/email or username/i),
-      {
-        target: {
-          value: "registered@test.com",
-        },
-      }
-    );
-
-    fireEvent.change(
-      screen.getByPlaceholderText(/^password$/i),
-      {
-        target: {
-          value: "password",
-        },
-      }
-    );
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: /^login$/i,
-      })
-    );
-
-    expect(
-      localStorage.getItem("rememberMe")
-    ).toBeNull();
-  });
-
-  // --------------------------------------------------
-  // USER UPDATED EVENT
-  // --------------------------------------------------
-
-  test("dispatches userUpdated event after successful login", () => {
-    const dispatchSpy = jest.spyOn(
-      window,
-      "dispatchEvent"
-    );
-
-    localStorage.setItem(
-      "registeredUser",
-      JSON.stringify({
-        email: "registered@test.com",
-        username: "registered",
-        password: "password",
-        name: "test",
-      })
-    );
-
-    renderLogin();
-
-    fireEvent.change(
-      screen.getByPlaceholderText(/email or username/i),
-      {
-        target: {
-          value: "registered@test.com",
-        },
-      }
-    );
-
-    fireEvent.change(
-      screen.getByPlaceholderText(/^password$/i),
-      {
-        target: {
-          value: "password",
-        },
-      }
-    );
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: /^login$/i,
-      })
-    );
-
-    const eventWasDispatched =
-      dispatchSpy.mock.calls.some(
-        ([event]) => event.type === "userUpdated"
-      );
-
-    expect(eventWasDispatched).toBe(true);
-
-    dispatchSpy.mockRestore();
-  });
-
-  // --------------------------------------------------
-  // SOCIAL BUTTONS
-  // --------------------------------------------------
-
-  test("Google login button is clickable", () => {
-    renderLogin();
-
-    const button = screen.getByRole("button", {
-      name: /google login/i,
+        expect(image).toHaveAttribute(
+            "src",
+            "login-image.png"
+        );
     });
 
-    expect(button).toBeEnabled();
 
-    fireEvent.click(button);
-  });
+    test("login image has correct CSS class", () => {
+        render(<Login />);
 
-  test("Facebook login button is clickable", () => {
-    renderLogin();
+        const image = screen.getByAltText(
+            "MEDIKART Login"
+        );
 
-    const button = screen.getByRole("button", {
-      name: /facebook login/i,
+        expect(image).toHaveClass("auth-image");
     });
 
-    expect(button).toBeEnabled();
 
-    fireEvent.click(button);
-  });
+    // ==================================================
+    // INPUT TESTS
+    // ==================================================
 
-  test("Apple login button is clickable", () => {
-    renderLogin();
+    test("renders email or username input", () => {
+        render(<Login />);
 
-    const button = screen.getByRole("button", {
-      name: /apple login/i,
+        expect(
+            screen.getByRole("textbox", {
+                name: "Email or Username",
+            })
+        ).toBeInTheDocument();
     });
 
-    expect(button).toBeEnabled();
 
-    fireEvent.click(button);
-  });
+    test("renders password input", () => {
+        render(<Login />);
+
+        expect(
+            screen.getByLabelText("Password")
+        ).toBeInTheDocument();
+    });
+
+
+    test("email input has correct autocomplete", () => {
+        render(<Login />);
+
+        const input = screen.getByRole("textbox", {
+            name: "Email or Username",
+        });
+
+        expect(input).toHaveAttribute(
+            "autocomplete",
+            "username"
+        );
+    });
+
+
+    test("password input has correct autocomplete", () => {
+        render(<Login />);
+
+        const input = screen.getByLabelText("Password");
+
+        expect(input).toHaveAttribute(
+            "autocomplete",
+            "current-password"
+        );
+    });
+
+
+    test("email input accepts text", () => {
+        render(<Login />);
+
+        const input = screen.getByRole("textbox", {
+            name: "Email or Username",
+        });
+
+        fireEvent.change(input, {
+            target: {
+                value: "test@example.com",
+            },
+        });
+
+        expect(input).toHaveValue(
+            "test@example.com"
+        );
+    });
+
+
+    test("password input accepts text", () => {
+        render(<Login />);
+
+        const input = screen.getByLabelText("Password");
+
+        fireEvent.change(input, {
+            target: {
+                value: "test-password",
+            },
+        });
+
+        expect(input).toHaveValue(
+            "test-password"
+        );
+    });
+
+
+    // ==================================================
+    // PASSWORD VISIBILITY TESTS
+    // ==================================================
+
+    test("password is hidden initially", () => {
+        render(<Login />);
+
+        const passwordInput =
+            screen.getByLabelText("Password");
+
+        expect(passwordInput).toHaveAttribute(
+            "type",
+            "password"
+        );
+    });
+
+
+    test("shows password when eye button is clicked", () => {
+        render(<Login />);
+
+        const passwordInput =
+            screen.getByLabelText("Password");
+
+        const showButton =
+            screen.getByRole("button", {
+                name: "Show password",
+            });
+
+        fireEvent.click(showButton);
+
+        expect(passwordInput).toHaveAttribute(
+            "type",
+            "text"
+        );
+    });
+
+
+    test("hides password again when eye button is clicked", () => {
+        render(<Login />);
+
+        const passwordInput =
+            screen.getByLabelText("Password");
+
+        const showButton =
+            screen.getByRole("button", {
+                name: "Show password",
+            });
+
+        fireEvent.click(showButton);
+
+        expect(
+            screen.getByRole("button", {
+                name: "Hide password",
+            })
+        ).toBeInTheDocument();
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "Hide password",
+            })
+        );
+
+        expect(passwordInput).toHaveAttribute(
+            "type",
+            "password"
+        );
+    });
+
+
+    // ==================================================
+    // REMEMBER ME TESTS
+    // ==================================================
+
+    test("renders Remember me checkbox", () => {
+        render(<Login />);
+
+        expect(
+            screen.getByRole("checkbox")
+        ).toBeInTheDocument();
+    });
+
+
+    test("Remember me is unchecked initially", () => {
+        render(<Login />);
+
+        expect(
+            screen.getByRole("checkbox")
+        ).not.toBeChecked();
+    });
+
+
+    test("can select Remember me", () => {
+        render(<Login />);
+
+        const checkbox =
+            screen.getByRole("checkbox");
+
+        fireEvent.click(checkbox);
+
+        expect(checkbox).toBeChecked();
+    });
+
+
+    test("can unselect Remember me", () => {
+        render(<Login />);
+
+        const checkbox =
+            screen.getByRole("checkbox");
+
+        fireEvent.click(checkbox);
+
+        expect(checkbox).toBeChecked();
+
+        fireEvent.click(checkbox);
+
+        expect(checkbox).not.toBeChecked();
+    });
+
+
+    // ==================================================
+    // FORGOT PASSWORD TESTS
+    // ==================================================
+
+    test("renders Forgot Password button", () => {
+        render(<Login />);
+
+        expect(
+            screen.getByRole("button", {
+                name: "Forgot Password?",
+            })
+        ).toBeInTheDocument();
+    });
+
+
+    test("calls forgot password callback", () => {
+        render(
+            <Login
+                onSwitchToForgotPassword={
+                    mockOnSwitchToForgotPassword
+                }
+            />
+        );
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "Forgot Password?",
+            })
+        );
+
+        expect(
+            mockOnSwitchToForgotPassword
+        ).toHaveBeenCalledTimes(1);
+    });
+
+
+    test("navigates to forgot password when callback is not provided", () => {
+        render(<Login />);
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "Forgot Password?",
+            })
+        );
+
+        expect(mockNavigate).toHaveBeenCalledWith(
+            "/forgot-password"
+        );
+    });
+
+
+    // ==================================================
+    // REGISTER TESTS
+    // ==================================================
+
+    test("renders Create Account button", () => {
+        render(<Login />);
+
+        expect(
+            screen.getByRole("button", {
+                name: "Create Account",
+            })
+        ).toBeInTheDocument();
+    });
+
+
+    test("calls register callback", () => {
+        render(
+            <Login
+                onSwitchToRegister={
+                    mockOnSwitchToRegister
+                }
+            />
+        );
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "Create Account",
+            })
+        );
+
+        expect(
+            mockOnSwitchToRegister
+        ).toHaveBeenCalledTimes(1);
+    });
+
+
+    test("navigates to register when callback is not provided", () => {
+        render(<Login />);
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "Create Account",
+            })
+        );
+
+        expect(mockNavigate).toHaveBeenCalledWith(
+            "/register"
+        );
+    });
+
+
+    // ==================================================
+    // CLOSE BUTTON TESTS
+    // ==================================================
+
+    test("renders close login button", () => {
+        render(<Login />);
+
+        expect(
+            screen.getByRole("button", {
+                name: "Close login",
+            })
+        ).toBeInTheDocument();
+    });
+
+
+    test("calls onClose when close button is clicked", () => {
+        render(
+            <Login
+                onClose={mockOnClose}
+            />
+        );
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "Close login",
+            })
+        );
+
+        expect(
+            mockOnClose
+        ).toHaveBeenCalledTimes(1);
+    });
+
+
+    test("calls onLoginSuccess when onClose is not provided", () => {
+        render(
+            <Login
+                onLoginSuccess={
+                    mockOnLoginSuccess
+                }
+            />
+        );
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "Close login",
+            })
+        );
+
+        expect(
+            mockOnLoginSuccess
+        ).toHaveBeenCalledTimes(1);
+    });
+
+
+    test("navigates home when no close callback is provided", () => {
+        render(<Login />);
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "Close login",
+            })
+        );
+
+        expect(mockNavigate).toHaveBeenCalledWith(
+            "/"
+        );
+    });
+
+
+    // ==================================================
+    // OVERLAY TESTS
+    // ==================================================
+
+    test("closes when clicking outside popup", () => {
+        render(
+            <Login
+                onClose={mockOnClose}
+            />
+        );
+
+        const overlay =
+            document.querySelector(
+                ".login-popup-overlay"
+            );
+
+        fireEvent.mouseDown(overlay);
+
+        expect(
+            mockOnClose
+        ).toHaveBeenCalledTimes(1);
+    });
+
+
+    test("does not close when clicking inside popup", () => {
+        render(
+            <Login
+                onClose={mockOnClose}
+            />
+        );
+
+        const popup =
+            document.querySelector(".login-popup");
+
+        fireEvent.mouseDown(popup);
+
+        expect(
+            mockOnClose
+        ).not.toHaveBeenCalled();
+    });
+
+
+    // ==================================================
+    // SOCIAL LOGIN TESTS
+    // ==================================================
+
+    test("renders Google login button", () => {
+        render(<Login />);
+
+        expect(
+            screen.getByRole("button", {
+                name: "Google login",
+            })
+        ).toBeInTheDocument();
+    });
+
+
+    test("renders Facebook login button", () => {
+        render(<Login />);
+
+        expect(
+            screen.getByRole("button", {
+                name: "Facebook login",
+            })
+        ).toBeInTheDocument();
+    });
+
+
+    test("renders Apple login button", () => {
+        render(<Login />);
+
+        expect(
+            screen.getByRole("button", {
+                name: "Apple login",
+            })
+        ).toBeInTheDocument();
+    });
+
+
+    test("social login buttons have correct titles", () => {
+        render(<Login />);
+
+        expect(
+            screen.getByTitle("Google")
+        ).toBeInTheDocument();
+
+        expect(
+            screen.getByTitle("Facebook")
+        ).toBeInTheDocument();
+
+        expect(
+            screen.getByTitle("Apple")
+        ).toBeInTheDocument();
+    });
+
+
+    // ==================================================
+    // VALIDATION TESTS
+    // ==================================================
+
+    test("shows validation alert when fields are empty", async () => {
+        render(<Login />);
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "Login",
+            })
+        );
+
+        await waitFor(() => {
+            expect(window.alert).toHaveBeenCalledWith(
+                "Please enter email/username and password."
+            );
+        });
+
+        expect(loginUser).not.toHaveBeenCalled();
+    });
+
+
+    test("shows validation alert when email is empty", async () => {
+        render(<Login />);
+
+        fireEvent.change(
+            screen.getByLabelText("Password"),
+            {
+                target: {
+                    value: "test-password",
+                },
+            }
+        );
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "Login",
+            })
+        );
+
+        await waitFor(() => {
+            expect(window.alert).toHaveBeenCalledWith(
+                "Please enter email/username and password."
+            );
+        });
+
+        expect(loginUser).not.toHaveBeenCalled();
+    });
+
+
+    test("shows validation alert when password is empty", async () => {
+        render(<Login />);
+
+        fireEvent.change(
+            screen.getByRole("textbox", {
+                name: "Email or Username",
+            }),
+            {
+                target: {
+                    value: "test@example.com",
+                },
+            }
+        );
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "Login",
+            })
+        );
+
+        await waitFor(() => {
+            expect(window.alert).toHaveBeenCalledWith(
+                "Please enter email/username and password."
+            );
+        });
+
+        expect(loginUser).not.toHaveBeenCalled();
+    });
+
+
+    // ==================================================
+    // SUCCESSFUL LOGIN TESTS
+    // ==================================================
+
+    test("calls loginUser with entered credentials", async () => {
+        loginUser.mockResolvedValue({
+            access_token: "test-token",
+        });
+
+        getCurrentUser.mockResolvedValue({
+            name: "Test User",
+        });
+
+        render(
+            <Login
+                onClose={mockOnClose}
+            />
+        );
+
+        fireEvent.change(
+            screen.getByRole("textbox", {
+                name: "Email or Username",
+            }),
+            {
+                target: {
+                    value: "TEST@EXAMPLE.COM",
+                },
+            }
+        );
+
+        fireEvent.change(
+            screen.getByLabelText("Password"),
+            {
+                target: {
+                    value: "test-password",
+                },
+            }
+        );
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "Login",
+            })
+        );
+
+        await waitFor(() => {
+            expect(loginUser).toHaveBeenCalledWith(
+                "test@example.com",
+                "test-password"
+            );
+        });
+    });
+
+
+    test("stores access token after successful login", async () => {
+        loginUser.mockResolvedValue({
+            access_token: "test-token",
+        });
+
+        getCurrentUser.mockResolvedValue({
+            name: "Test User",
+        });
+
+        render(<Login />);
+
+        fireEvent.change(
+            screen.getByRole("textbox", {
+                name: "Email or Username",
+            }),
+            {
+                target: {
+                    value: "test@example.com",
+                },
+            }
+        );
+
+        fireEvent.change(
+            screen.getByLabelText("Password"),
+            {
+                target: {
+                    value: "test-password",
+                },
+            }
+        );
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "Login",
+            })
+        );
+
+        await waitFor(() => {
+            expect(
+                localStorage.getItem("access_token")
+            ).toBe("test-token");
+        });
+    });
+
+
+    test("gets current user after successful login", async () => {
+        loginUser.mockResolvedValue({
+            access_token: "test-token",
+        });
+
+        getCurrentUser.mockResolvedValue({
+            name: "Test User",
+        });
+
+        render(<Login />);
+
+        fireEvent.change(
+            screen.getByRole("textbox", {
+                name: "Email or Username",
+            }),
+            {
+                target: {
+                    value: "test@example.com",
+                },
+            }
+        );
+
+        fireEvent.change(
+            screen.getByLabelText("Password"),
+            {
+                target: {
+                    value: "test-password",
+                },
+            }
+        );
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "Login",
+            })
+        );
+
+        await waitFor(() => {
+            expect(
+                getCurrentUser
+            ).toHaveBeenCalledTimes(1);
+        });
+    });
+
+
+    test("stores login state after successful login", async () => {
+        loginUser.mockResolvedValue({
+            access_token: "test-token",
+        });
+
+        getCurrentUser.mockResolvedValue({
+            name: "Test User",
+        });
+
+        render(<Login />);
+
+        fireEvent.change(
+            screen.getByRole("textbox", {
+                name: "Email or Username",
+            }),
+            {
+                target: {
+                    value: "test@example.com",
+                },
+            }
+        );
+
+        fireEvent.change(
+            screen.getByLabelText("Password"),
+            {
+                target: {
+                    value: "test-password",
+                },
+            }
+        );
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "Login",
+            })
+        );
+
+        await waitFor(() => {
+            expect(
+                localStorage.getItem("isLoggedIn")
+            ).toBe("true");
+        });
+    });
+
+
+    test("stores generic user session data after login", async () => {
+        loginUser.mockResolvedValue({
+            access_token: "test-token",
+        });
+
+        getCurrentUser.mockResolvedValue({
+            name: "Test User",
+        });
+
+        render(<Login />);
+
+        fireEvent.change(
+            screen.getByRole("textbox", {
+                name: "Email or Username",
+            }),
+            {
+                target: {
+                    value: "test@example.com",
+                },
+            }
+        );
+
+        fireEvent.change(
+            screen.getByLabelText("Password"),
+            {
+                target: {
+                    value: "test-password",
+                },
+            }
+        );
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "Login",
+            })
+        );
+
+        await waitFor(() => {
+            expect(
+                localStorage.getItem("user")
+            ).toBeTruthy();
+        });
+    });
+
+
+    test("shows successful login alert", async () => {
+        loginUser.mockResolvedValue({
+            access_token: "test-token",
+        });
+
+        getCurrentUser.mockResolvedValue({
+            name: "Test User",
+        });
+
+        render(<Login />);
+
+        fireEvent.change(
+            screen.getByRole("textbox", {
+                name: "Email or Username",
+            }),
+            {
+                target: {
+                    value: "test@example.com",
+                },
+            }
+        );
+
+        fireEvent.change(
+            screen.getByLabelText("Password"),
+            {
+                target: {
+                    value: "test-password",
+                },
+            }
+        );
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "Login",
+            })
+        );
+
+        await waitFor(() => {
+            expect(window.alert).toHaveBeenCalledWith(
+                "Login successful!"
+            );
+        });
+    });
+
+
+    test("calls onClose after successful login", async () => {
+        loginUser.mockResolvedValue({
+            access_token: "test-token",
+        });
+
+        getCurrentUser.mockResolvedValue({
+            name: "Test User",
+        });
+
+        render(
+            <Login
+                onClose={mockOnClose}
+            />
+        );
+
+        fireEvent.change(
+            screen.getByRole("textbox", {
+                name: "Email or Username",
+            }),
+            {
+                target: {
+                    value: "test@example.com",
+                },
+            }
+        );
+
+        fireEvent.change(
+            screen.getByLabelText("Password"),
+            {
+                target: {
+                    value: "test-password",
+                },
+            }
+        );
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "Login",
+            })
+        );
+
+        await waitFor(() => {
+            expect(
+                mockOnClose
+            ).toHaveBeenCalled();
+        });
+    });
+
+
+    // ==================================================
+    // REMEMBER ME LOGIN TESTS
+    // ==================================================
+
+    test("stores rememberMe when Remember me is selected", async () => {
+        loginUser.mockResolvedValue({
+            access_token: "test-token",
+        });
+
+        getCurrentUser.mockResolvedValue({
+            name: "Test User",
+        });
+
+        render(<Login />);
+
+        fireEvent.click(
+            screen.getByRole("checkbox")
+        );
+
+        fireEvent.change(
+            screen.getByRole("textbox", {
+                name: "Email or Username",
+            }),
+            {
+                target: {
+                    value: "test@example.com",
+                },
+            }
+        );
+
+        fireEvent.change(
+            screen.getByLabelText("Password"),
+            {
+                target: {
+                    value: "test-password",
+                },
+            }
+        );
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "Login",
+            })
+        );
+
+        await waitFor(() => {
+            expect(
+                localStorage.getItem("rememberMe")
+            ).toBe("true");
+        });
+    });
+
+
+    test("does not store rememberMe when checkbox is unchecked", async () => {
+        loginUser.mockResolvedValue({
+            access_token: "test-token",
+        });
+
+        getCurrentUser.mockResolvedValue({
+            name: "Test User",
+        });
+
+        render(<Login />);
+
+        fireEvent.change(
+            screen.getByRole("textbox", {
+                name: "Email or Username",
+            }),
+            {
+                target: {
+                    value: "test@example.com",
+                },
+            }
+        );
+
+        fireEvent.change(
+            screen.getByLabelText("Password"),
+            {
+                target: {
+                    value: "test-password",
+                },
+            }
+        );
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "Login",
+            })
+        );
+
+        await waitFor(() => {
+            expect(
+                localStorage.getItem("rememberMe")
+            ).toBeNull();
+        });
+    });
+
+
+    // ==================================================
+    // API ERROR TESTS
+    // ==================================================
+
+    test("shows API error message when login fails", async () => {
+        loginUser.mockRejectedValue(
+            new Error("Invalid login")
+        );
+
+        render(<Login />);
+
+        fireEvent.change(
+            screen.getByRole("textbox", {
+                name: "Email or Username",
+            }),
+            {
+                target: {
+                    value: "test@example.com",
+                },
+            }
+        );
+
+        fireEvent.change(
+            screen.getByLabelText("Password"),
+            {
+                target: {
+                    value: "test-password",
+                },
+            }
+        );
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "Login",
+            })
+        );
+
+        await waitFor(() => {
+            expect(window.alert).toHaveBeenCalledWith(
+                "Invalid login"
+            );
+        });
+    });
+
+
+    test("removes access token when login fails", async () => {
+        localStorage.setItem(
+            "access_token",
+            "old-token"
+        );
+
+        loginUser.mockRejectedValue(
+            new Error("Invalid login")
+        );
+
+        render(<Login />);
+
+        fireEvent.change(
+            screen.getByRole("textbox", {
+                name: "Email or Username",
+            }),
+            {
+                target: {
+                    value: "test@example.com",
+                },
+            }
+        );
+
+        fireEvent.change(
+            screen.getByLabelText("Password"),
+            {
+                target: {
+                    value: "test-password",
+                },
+            }
+        );
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "Login",
+            })
+        );
+
+        await waitFor(() => {
+            expect(
+                localStorage.getItem("access_token")
+            ).toBeNull();
+        });
+    });
+
+
+    test("shows default error when API error has no message", async () => {
+        loginUser.mockRejectedValue({});
+
+        render(<Login />);
+
+        fireEvent.change(
+            screen.getByRole("textbox", {
+                name: "Email or Username",
+            }),
+            {
+                target: {
+                    value: "test@example.com",
+                },
+            }
+        );
+
+        fireEvent.change(
+            screen.getByLabelText("Password"),
+            {
+                target: {
+                    value: "test-password",
+                },
+            }
+        );
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "Login",
+            })
+        );
+
+        await waitFor(() => {
+            expect(window.alert).toHaveBeenCalledWith(
+                "Unable to login. Please try again."
+            );
+        });
+    });
+
+
+    // ==================================================
+    // FORM TEST
+    // ==================================================
+
+    test("Login button is a submit button", () => {
+        render(<Login />);
+
+        const loginButton =
+            screen.getByRole("button", {
+                name: "Login",
+            });
+
+        expect(loginButton).toHaveAttribute(
+            "type",
+            "submit"
+        );
+    });
+
+
+    test("password eye button is not a submit button", () => {
+        render(<Login />);
+
+        const eyeButton =
+            screen.getByRole("button", {
+                name: "Show password",
+            });
+
+        expect(eyeButton).toHaveAttribute(
+            "type",
+            "button"
+        );
+    });
+
+
+    test("close button is not a submit button", () => {
+        render(<Login />);
+
+        const closeButton =
+            screen.getByRole("button", {
+                name: "Close login",
+            });
+
+        expect(closeButton).toHaveAttribute(
+            "type",
+            "button"
+        );
+    });
 });

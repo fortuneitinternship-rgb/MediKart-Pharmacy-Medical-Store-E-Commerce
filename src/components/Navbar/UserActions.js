@@ -86,6 +86,8 @@ function UserActions() {
   const handleLogout = () => {
     localStorage.removeItem("username");
     localStorage.removeItem("isLoggedIn");
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("user");
 
     setUsername("");
     setShowAccountDropdown(false);

@@ -50,5 +50,5 @@ class Card(Base):
 
     user = relationship(
         "User",
-        back_populates="card"
+        back_populates="cards"
     )

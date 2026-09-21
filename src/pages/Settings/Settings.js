@@ -9,6 +9,9 @@ const Settings = () => {
 
   const handleLogout = () => {
     localStorage.removeItem("isLoggedIn");
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("user");
+    localStorage.removeItem("username");
     localStorage.removeItem("user");
 
     alert("Logged out successfully!");

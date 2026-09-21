@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
     FaUserCircle,
     FaEnvelope,
@@ -8,6 +8,10 @@ import {
     FaSave,
 } from "react-icons/fa";
 import "./Profile.css";
+import {
+    getCurrentUser,
+    updateCurrentUser,
+} from "../../api/authApi";
 
 const Profile = () => {
     const [editing, setEditing] = useState(false);
@@ -15,9 +19,26 @@ const Profile = () => {
     const [user, setUser] = useState({
         name: "Satender Kashyap",
         email: "satender@example.com",
-        phone: "+91 9876543210",
+        phone: "",
         address: "Delhi, India",
     });
+
+    useEffect(() => {
+        const loadUser = async () => {
+            try {
+                const currentUser = await getCurrentUser();
+
+                setUser((previousUser) => ({
+                    ...previousUser,
+                    ...currentUser,
+                }));
+            } catch (error) {
+                console.error("Unable to load profile:", error);
+            }
+        };
+
+        loadUser();
+    }, []);
 
     const handleChange = (e) => {
         setUser({
@@ -26,10 +47,22 @@ const Profile = () => {
         });
     };
 
-    const handleSave = () => {
-        localStorage.setItem("userProfile", JSON.stringify(user));
-        setEditing(false);
-        alert("Profile Updated Successfully!");
+    const handleSave = async () => {
+        try {
+            const updatedUser = await updateCurrentUser(user);
+
+            setUser((previousUser) => ({
+                ...previousUser,
+                ...updatedUser,
+            }));
+            localStorage.setItem("user", JSON.stringify(updatedUser));
+            localStorage.setItem("username", updatedUser.name);
+            setEditing(false);
+            window.dispatchEvent(new Event("userUpdated"));
+            alert("Profile Updated Successfully!");
+        } catch (error) {
+            alert(error.message || "Unable to update profile.");
+        }
     };
 
     return (

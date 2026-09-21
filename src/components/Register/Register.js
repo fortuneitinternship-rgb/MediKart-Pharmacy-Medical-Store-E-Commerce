@@ -10,6 +10,7 @@ import {
 } from "react-icons/fa";
 
 import "./Register.css";
+import { registerUser } from "../../api/authApi";
 
 import registerImage from "../../assets/register/register.png";
 
@@ -55,7 +56,7 @@ const Register = ({ onClose, onSwitchToLogin }) => {
     navigate("/login");
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     const { name, email, password, confirmPassword } = formData;
@@ -65,8 +66,8 @@ const Register = ({ onClose, onSwitchToLogin }) => {
       return;
     }
 
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
       return;
     }
 
@@ -75,34 +76,21 @@ const Register = ({ onClose, onSwitchToLogin }) => {
       return;
     }
 
-    const registeredUser = {
-      name,
-      email,
-      password,
-      username: name,
-    };
+    try {
+      await registerUser({ name, email, password });
 
-    localStorage.setItem(
-      "registeredUser",
-      JSON.stringify(registeredUser)
-    );
+      alert("Registration successful! Please login.");
 
-    localStorage.setItem(
-      "user",
-      JSON.stringify(registeredUser)
-    );
-
-    localStorage.setItem("isLoggedIn", "true");
-    localStorage.setItem("username", name);
-
-    window.dispatchEvent(new Event("userUpdated"));
-
-    alert("Registration successful!");
-
-    if (typeof onSwitchToLogin === "function") {
-      onSwitchToLogin();
-    } else {
-      navigate("/login");
+      if (typeof onSwitchToLogin === "function") {
+        onSwitchToLogin();
+      } else {
+        navigate("/login");
+      }
+    } catch (submitError) {
+      setError(
+        submitError.message ||
+        "Unable to create account. Please try again."
+      );
     }
   };
 

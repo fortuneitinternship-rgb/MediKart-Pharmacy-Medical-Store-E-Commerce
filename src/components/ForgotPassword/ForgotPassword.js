@@ -8,6 +8,11 @@ import {
 } from "react-icons/fa";
 
 import "./ForgotPassword.css";
+import {
+  forgotPassword,
+  resetPassword,
+  verifyOTP,
+} from "../../api/authApi";
 
 const ForgotPassword = ({ onClose, onSwitchToLogin }) => {
   const navigate = useNavigate();
@@ -39,36 +44,7 @@ const ForgotPassword = ({ onClose, onSwitchToLogin }) => {
     setError("");
 
     try {
-      const response = await fetch(
-        "http://127.0.0.1:8000/api/auth/forgot-password",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            email: email,
-          }),
-        }
-      );
-
-      // Check if response is OK
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.message ||
-          errorData.detail ||
-          `Server error: ${response.status}`
-        );
-      }
-
-      const data = await response.json();
-
-      // For development - simulate OTP sending
-      if (process.env.NODE_ENV === 'development') {
-        console.log('OTP sent to:', email);
-        console.log('OTP:', data.otp || '123456');
-      }
+      await forgotPassword(email);
 
       setStep("otp");
       setError("");
@@ -104,28 +80,7 @@ const ForgotPassword = ({ onClose, onSwitchToLogin }) => {
     setError("");
 
     try {
-      const response = await fetch(
-        "http://127.0.0.1:8000/api/auth/verify-otp",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            email: email,
-            otp: otp,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.message ||
-          errorData.detail ||
-          `Server error: ${response.status}`
-        );
-      }
+      await verifyOTP(email, otp);
 
       setStep("reset");
       setError("");
@@ -156,8 +111,8 @@ const ForgotPassword = ({ onClose, onSwitchToLogin }) => {
       return;
     }
 
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
       return;
     }
 
@@ -170,29 +125,7 @@ const ForgotPassword = ({ onClose, onSwitchToLogin }) => {
     setError("");
 
     try {
-      const response = await fetch(
-        "http://127.0.0.1:8000/api/auth/reset-password",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            email: email,
-            otp: otp,
-            password: password,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.message ||
-          errorData.detail ||
-          `Server error: ${response.status}`
-        );
-      }
+      await resetPassword(email, otp, password);
 
 
       // Clear password fields

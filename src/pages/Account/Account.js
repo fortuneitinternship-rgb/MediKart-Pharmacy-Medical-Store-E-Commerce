@@ -85,6 +85,9 @@ const Account = () => {
 
   const handleLogout = () => {
     localStorage.removeItem("isLoggedIn");
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("user");
+    localStorage.removeItem("username");
 
     navigate("/login");
   };
