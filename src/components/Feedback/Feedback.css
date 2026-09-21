@@ -1,0 +1,372 @@
+.feedback-overlay {
+    position: fixed;
+
+    inset: 0;
+
+    background: rgba(0, 0, 0, 0.6);
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    padding: 20px;
+
+    z-index: 9999;
+}
+
+
+/* POPUP */
+
+.feedback-popup {
+    width: 100%;
+
+    max-width: 470px;
+
+    background: #fff;
+
+    border-radius: 12px;
+
+    padding: 30px;
+
+    position: relative;
+
+    box-sizing: border-box;
+
+    box-shadow:
+        0 20px 60px rgba(0, 0, 0, 0.3);
+
+    animation: feedbackPopup 0.25s ease;
+}
+
+
+@keyframes feedbackPopup {
+
+    from {
+        opacity: 0;
+
+        transform:
+            translateY(30px) scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+
+        transform:
+            translateY(0) scale(1);
+    }
+
+}
+
+
+/* CLOSE */
+
+.feedback-close {
+    position: absolute;
+
+    top: 15px;
+
+    right: 15px;
+
+    width: 35px;
+
+    height: 35px;
+
+    border: none;
+
+    border-radius: 50%;
+
+    background: #f3f3f3;
+
+    cursor: pointer;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    color: #555;
+}
+
+
+.feedback-close:hover {
+    background: #e5e5e5;
+}
+
+
+/* HEADER */
+
+.feedback-header {
+    text-align: center;
+}
+
+
+.feedback-icon {
+    font-size: 42px;
+
+    margin-bottom: 8px;
+}
+
+
+.feedback-header h2 {
+    margin: 0;
+
+    font-size: 23px;
+
+    color: #222;
+}
+
+
+.feedback-header p {
+    margin: 7px 0;
+
+    color: #777;
+
+    font-size: 13px;
+}
+
+
+.feedback-header span {
+    display: block;
+
+    color: #999;
+
+    font-size: 13px;
+}
+
+
+/* RATING */
+
+.rating-section {
+    text-align: center;
+
+    margin-top: 25px;
+}
+
+
+.rating-section h3 {
+    font-size: 15px;
+
+    margin-bottom: 12px;
+}
+
+
+.feedback-stars {
+    display: flex;
+
+    justify-content: center;
+
+    gap: 8px;
+}
+
+
+.feedback-stars button {
+    border: none;
+
+    background: transparent;
+
+    font-size: 32px;
+
+    color: #d5d5d5;
+
+    cursor: pointer;
+
+    padding: 2px;
+
+    transition: 0.2s;
+}
+
+
+.feedback-stars button:hover {
+    transform: scale(1.15);
+}
+
+
+.feedback-stars button.selected {
+    color: #ffc107;
+}
+
+
+.rating-text {
+    margin-top: 8px;
+
+    font-size: 13px;
+
+    font-weight: 600;
+
+    color: #666;
+}
+
+
+/* REVIEW */
+
+.review-section {
+    margin-top: 20px;
+}
+
+
+.review-section h3 {
+    font-size: 14px;
+
+    margin-bottom: 8px;
+}
+
+
+.review-section h3 span {
+    color: #999;
+
+    font-weight: normal;
+}
+
+
+.review-section textarea {
+    width: 100%;
+
+    height: 110px;
+
+    resize: none;
+
+    box-sizing: border-box;
+
+    border: 1px solid #ddd;
+
+    border-radius: 7px;
+
+    padding: 12px;
+
+    font-family: inherit;
+
+    font-size: 14px;
+
+    outline: none;
+}
+
+
+.review-section textarea:focus {
+    border-color: #555;
+}
+
+
+.character-count {
+    text-align: right;
+
+    color: #999;
+
+    font-size: 11px;
+
+    margin-top: 4px;
+}
+
+
+/* BUTTONS */
+
+.feedback-buttons {
+    display: flex;
+
+    gap: 10px;
+
+    margin-top: 20px;
+}
+
+
+.feedback-buttons button {
+    flex: 1;
+
+    height: 44px;
+
+    border-radius: 6px;
+
+    font-weight: 600;
+
+    cursor: pointer;
+
+    font-size: 13px;
+}
+
+
+.later-button {
+    background: #fff;
+
+    border: 1px solid #ccc;
+
+    color: #444;
+}
+
+
+.submit-button {
+    background: #222;
+
+    color: #fff;
+
+    border: 1px solid #222;
+}
+
+
+.submit-button:hover {
+    background: #000;
+}
+
+
+/* SUCCESS */
+
+.feedback-success {
+    min-height: 260px;
+
+    display: flex;
+
+    flex-direction: column;
+
+    justify-content: center;
+
+    align-items: center;
+
+    text-align: center;
+}
+
+
+.feedback-success svg {
+    font-size: 55px;
+
+    color: #222;
+
+    margin-bottom: 15px;
+}
+
+
+.feedback-success h2 {
+    margin: 0 0 8px;
+
+    font-size: 24px;
+}
+
+
+.feedback-success p {
+    color: #777;
+
+    font-size: 14px;
+}
+
+
+/* MOBILE */
+
+@media (max-width: 480px) {
+
+    .feedback-popup {
+        padding: 25px 18px;
+    }
+
+    .feedback-header h2 {
+        font-size: 20px;
+    }
+
+    .feedback-stars button {
+        font-size: 28px;
+    }
+
+    .feedback-buttons {
+        flex-direction: column;
+    }
+
+}

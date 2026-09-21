@@ -1,0 +1,32 @@
+.logo-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo {
+  width: 80px;
+  height: 56px;
+  object-fit: contain;
+}
+
+.brand-name {
+  font-size: 28px;
+  font-weight: bold;
+  margin: 0;
+}
+
+@media (max-width: 480px) {
+  .logo-container {
+    gap: 6px;
+  }
+
+  .logo {
+    width: 58px;
+    height: 44px;
+  }
+
+  .brand-name {
+    font-size: 20px;
+  }
+}

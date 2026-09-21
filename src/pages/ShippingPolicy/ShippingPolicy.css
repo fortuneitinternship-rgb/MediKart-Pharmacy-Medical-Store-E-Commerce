@@ -1,0 +1,87 @@
+.shipping-container {
+  max-width: 1200px;
+  margin: 40px auto;
+  padding: 20px;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.shipping-header {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.shipping-header h1 {
+  font-size: 40px;
+  color: #0f9d58;
+  margin-bottom: 15px;
+}
+
+.shipping-header p {
+  max-width: 850px;
+  margin: auto;
+  color: #555;
+  font-size: 17px;
+  line-height: 1.8;
+}
+
+.shipping-content {
+  display: grid;
+  gap: 25px;
+}
+
+.shipping-card {
+  background: #ffffff;
+  padding: 25px;
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+  transition: 0.3s;
+}
+
+.shipping-card:hover {
+  transform: translateY(-5px);
+}
+
+.shipping-card h2 {
+  color: #0f9d58;
+  margin-bottom: 15px;
+  font-size: 24px;
+}
+
+.shipping-card p {
+  color: #555;
+  font-size: 16px;
+  line-height: 1.8;
+}
+
+.shipping-card ul {
+  margin-left: 20px;
+}
+
+.shipping-card li {
+  color: #555;
+  margin-bottom: 10px;
+  line-height: 1.7;
+}
+
+@media (max-width: 768px) {
+  .shipping-header h1 {
+    font-size: 30px;
+  }
+
+  .shipping-header p {
+    font-size: 15px;
+  }
+
+  .shipping-card {
+    padding: 20px;
+  }
+
+  .shipping-card h2 {
+    font-size: 21px;
+  }
+
+  .shipping-card p,
+  .shipping-card li {
+    font-size: 15px;
+  }
+}

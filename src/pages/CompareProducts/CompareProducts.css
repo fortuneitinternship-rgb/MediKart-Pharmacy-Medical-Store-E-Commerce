@@ -1,0 +1,98 @@
+.compare-container {
+    max-width: 1200px;
+    margin: auto;
+    padding: 40px 20px;
+    font-family: Arial, sans-serif;
+}
+
+.compare-header {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.compare-header h1 {
+    font-size: 42px;
+    color: #0f9d58;
+    margin-bottom: 10px;
+}
+
+.compare-header p {
+    color: #666;
+    font-size: 18px;
+}
+
+.compare-table {
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, .08);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+thead {
+    background: #0f9d58;
+    color: #fff;
+}
+
+th,
+td {
+    padding: 18px;
+    text-align: center;
+    border: 1px solid #eee;
+}
+
+tbody tr:nth-child(even) {
+    background: #f8f8f8;
+}
+
+tbody tr:hover {
+    background: #eefcf4;
+}
+
+th:first-child,
+td:first-child {
+    font-weight: bold;
+    background: #f5f5f5;
+}
+
+button {
+    background: #0f9d58;
+    color: #fff;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: .3s;
+}
+
+button:hover {
+    background: #087f45;
+}
+
+@media(max-width:768px) {
+
+    .compare-header h1 {
+        font-size: 32px;
+    }
+
+    .compare-header p {
+        font-size: 16px;
+    }
+
+    th,
+    td {
+        padding: 12px;
+        font-size: 14px;
+    }
+
+    button {
+        padding: 8px 14px;
+        font-size: 13px;
+    }
+
+}

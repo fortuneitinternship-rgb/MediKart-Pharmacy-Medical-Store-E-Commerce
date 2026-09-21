@@ -1,0 +1,295 @@
+/* Shared phone layout rules for pages that use the app's plain CSS classes. */
+@media (max-width: 768px) {
+  .about-page,
+  .account-page,
+  .addresses-page,
+  .blog-container,
+  .careers,
+  .categories-page,
+  .contact-page,
+  .compare-container,
+  .faq-container,
+  .gallery-container,
+  .health-page,
+  .notifications-page,
+  .offers-page,
+  .order-page,
+  .order-details-page,
+  .order-history-page,
+  .order-summary-page,
+  .payments-page,
+  .privacy-container,
+  .profile-page,
+  .reviews-page,
+  .settings-container,
+  .shipping-container,
+  .terms-container,
+  .track-page,
+  .upload-page {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .listing-page,
+  .product-page,
+  .checkout-page,
+  .cartPage,
+  .confirmationCard,
+  .error-page {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .about-container,
+  .contact-container,
+  .track-container,
+  .order-history-container,
+  .order-details-container,
+  .order-summary-container {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .about-page > *,
+  .account-page > *,
+  .blog-container > *,
+  .contact-page > *,
+  .gallery-container > *,
+  .health-page > *,
+  .notifications-page > *,
+  .offers-page > *,
+  .order-page > *,
+  .payments-page > *,
+  .reviews-page > *,
+  .settings-container > * {
+    min-width: 0;
+  }
+
+  .about-page [class*="header"],
+  .account-header,
+  .address-header,
+  .blog-header,
+  .checkout-header,
+  .compare-header,
+  .faq-header,
+  .gallery-header,
+  .health-header,
+  .notifications-header,
+  .offers-header,
+  .order-header,
+  .order-history-header,
+  .payments-header,
+  .reviews-header,
+  .settings-header,
+  .track-header {
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .features-grid,
+  .account-menu-grid,
+  .blog-grid,
+  .gallery-grid,
+  .offers-grid,
+  .reviews-grid,
+  .products-grid,
+  .product-grid,
+  .products-section .grid,
+  .category-grid,
+  .benefits {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .form-row,
+  .address-form .form-row,
+  .payment-form .form-row {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .listing-page,
+  .product-wrapper,
+  .checkout-content,
+  .checkout-layout,
+  .cartContainer,
+  .product-details,
+  .details-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .listing-sidebar,
+  .shop-filter,
+  .rightSection,
+  .checkout-sidebar,
+  .left-column,
+  .right-column {
+    width: 100%;
+    max-width: 100%;
+    position: static;
+  }
+
+  .product-topbar,
+  .listing-top-bar,
+  .order-header-actions,
+  .checkout-actions,
+  .deliveryAddress,
+  .address-header {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .product-topbar > *,
+  .listing-top-bar > *,
+  .checkout-actions > *,
+  .order-header-actions > * {
+    max-width: 100%;
+  }
+
+  .searchBox,
+  .search-wrapper,
+  .shop-search,
+  .order-search {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .auth-image-section,
+  .auth-form-section,
+  .register-form-section,
+  .register-image-section {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .auth-image-section,
+  .register-image-section {
+    display: none;
+  }
+
+  .map-wrapper,
+  .map {
+    width: 100%;
+    max-width: 100%;
+    min-height: 260px;
+  }
+
+  .mobile-menu-btn,
+  .mobile-close-btn,
+  .search-btn-mobile,
+  .back-button,
+  .back-btn,
+  .add-btn,
+  .add-address-btn,
+  .changeAddressBtn,
+  .continue-btn,
+  .track-id-button {
+    min-height: 44px;
+  }
+
+  .contact-form,
+  .address-form,
+  .payment-form,
+  .settings-content,
+  .profile-content {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .compare-table,
+  .orders-table,
+  .order-table,
+  .table-wrapper {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .compare-table table,
+  .orders-table table,
+  .order-table table,
+  .table-wrapper table {
+    min-width: 620px;
+  }
+
+  .modalOverlay,
+  .cancel-modal-overlay,
+  .popup-overlay {
+    padding: 12px;
+  }
+
+  .modal,
+  .cancel-modal,
+  .popup-box {
+    width: 100%;
+    max-width: 100%;
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
+  }
+
+  .page-title,
+  .section-title,
+  .checkout-header h1,
+  .order-header h1 {
+    overflow-wrap: anywhere;
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .features-grid,
+  .account-menu-grid,
+  .blog-grid,
+  .gallery-grid,
+  .offers-grid,
+  .reviews-grid,
+  .products-grid,
+  .product-grid,
+  .category-grid,
+  .benefits {
+    grid-template-columns: 1fr;
+  }
+
+  .about-page,
+  .account-page,
+  .addresses-page,
+  .blog-container,
+  .careers,
+  .categories-page,
+  .contact-page,
+  .compare-container,
+  .faq-container,
+  .gallery-container,
+  .health-page,
+  .notifications-page,
+  .offers-page,
+  .order-page,
+  .order-details-page,
+  .order-history-page,
+  .order-summary-page,
+  .payments-page,
+  .privacy-container,
+  .profile-page,
+  .reviews-page,
+  .settings-container,
+  .shipping-container,
+  .terms-container,
+  .track-page,
+  .upload-page {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+}

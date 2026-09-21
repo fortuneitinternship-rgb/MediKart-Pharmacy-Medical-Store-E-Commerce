@@ -1,0 +1,124 @@
+.careers {
+    max-width: 1200px;
+    margin: auto;
+    padding: 40px 20px;
+    font-family: Arial, sans-serif;
+}
+
+.career-banner {
+    background: linear-gradient(135deg, #0f9d58, #22c55e);
+    color: white;
+    text-align: center;
+    padding: 70px 20px;
+    border-radius: 15px;
+    margin-bottom: 40px;
+}
+
+.career-banner h1 {
+    font-size: 42px;
+    margin-bottom: 15px;
+}
+
+.career-banner p {
+    font-size: 18px;
+}
+
+.why-join h2,
+.jobs h2,
+.career-contact h2 {
+    text-align: center;
+    color: #0f9d58;
+    margin-bottom: 30px;
+}
+
+.benefits {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 25px;
+    margin-bottom: 50px;
+}
+
+.benefit-card {
+    background: #fff;
+    padding: 25px;
+    border-radius: 12px;
+    text-align: center;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, .08);
+    transition: .3s;
+}
+
+.benefit-card:hover {
+    transform: translateY(-8px);
+}
+
+.benefit-card h3 {
+    color: #0f9d58;
+    margin-bottom: 15px;
+}
+
+.job-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 25px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, .08);
+}
+
+.job-card h3 {
+    color: #222;
+    margin-bottom: 10px;
+}
+
+.job-card p {
+    color: #555;
+    margin: 5px 0;
+}
+
+.apply-btn {
+    background: #0f9d58;
+    color: white;
+    border: none;
+    padding: 12px 25px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: .3s;
+}
+
+.apply-btn:hover {
+    background: #087f45;
+}
+
+.career-contact {
+    margin-top: 60px;
+    text-align: center;
+    background: #f8f9fa;
+    padding: 40px;
+    border-radius: 12px;
+}
+
+.career-contact h3 {
+    color: #0f9d58;
+    margin-top: 15px;
+}
+
+@media(max-width:768px) {
+
+    .job-card {
+        flex-direction: column;
+        text-align: center;
+        gap: 20px;
+    }
+
+    .career-banner h1 {
+        font-size: 32px;
+    }
+
+    .career-banner p {
+        font-size: 16px;
+    }
+
+}

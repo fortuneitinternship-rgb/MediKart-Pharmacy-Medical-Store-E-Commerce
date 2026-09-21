@@ -1,0 +1,413 @@
+/* ============================================================
+   MEDIKART SHOP
+============================================================ */
+
+.shop-page {
+    width: 100%;
+    min-height: 100vh;
+    padding: 30px 40px 60px;
+    background: #f7f8fa;
+    box-sizing: border-box;
+}
+
+/* ============================================================
+   HEADER
+============================================================ */
+
+.shop-header {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 2fr auto;
+    gap: 20px;
+    align-items: center;
+    padding: 20px;
+    margin-bottom: 25px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    box-sizing: border-box;
+}
+
+/* ============================================================
+   TITLE
+============================================================ */
+
+.shop-title {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.shop-title h1 {
+    margin: 0;
+    color: #1f2937;
+    font-size: 25px;
+    font-weight: 700;
+}
+
+.shop-title span {
+    color: #6b7280;
+    font-size: 13px;
+}
+
+/* ============================================================
+   SEARCH
+============================================================ */
+
+.shop-search {
+    height: 46px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 14px;
+    background: #f9fafb;
+    border: 1px solid #dfe3e8;
+    border-radius: 9px;
+    box-sizing: border-box;
+}
+
+.shop-search svg {
+    color: #6b7280;
+    flex-shrink: 0;
+}
+
+.shop-search input {
+    width: 100%;
+    height: 100%;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: #1f2937;
+    font-size: 14px;
+}
+
+.shop-search input::placeholder {
+    color: #9ca3af;
+}
+
+.shop-search:focus-within {
+    border-color: #16a34a;
+    background: #ffffff;
+    box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.08);
+}
+
+/* ============================================================
+   SORT
+============================================================ */
+
+.shop-sort {
+    height: 46px;
+    min-width: 190px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 0 12px;
+    background: #ffffff;
+    border: 1px solid #dfe3e8;
+    border-radius: 9px;
+    box-sizing: border-box;
+}
+
+.shop-sort svg {
+    color: #4b5563;
+    font-size: 15px;
+}
+
+.shop-sort select {
+    width: 100%;
+    height: 100%;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: #374151;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+/* ============================================================
+   CONTENT
+============================================================ */
+
+.shop-content {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr);
+    gap: 25px;
+    align-items: start;
+}
+
+/* ============================================================
+   FILTER
+============================================================ */
+
+.shop-filter {
+    width: 100%;
+    position: sticky;
+    top: 20px;
+}
+
+/* ============================================================
+   PRODUCTS
+============================================================ */
+
+.shop-products {
+    width: 100%;
+    min-width: 0;
+}
+
+.products-grid {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 20px;
+}
+
+.products-grid>* {
+    min-width: 0;
+}
+
+/* ============================================================
+   LOADING
+============================================================ */
+
+.loading-container {
+    min-height: 450px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+}
+
+.loading-container h3 {
+    margin-top: 18px;
+    color: #4b5563;
+    font-size: 16px;
+}
+
+/* ============================================================
+   LOADER
+============================================================ */
+
+.loader {
+    width: 42px;
+    height: 42px;
+    border: 4px solid #e5e7eb;
+    border-top-color: #16a34a;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ============================================================
+   EMPTY
+============================================================ */
+
+.empty-products {
+    min-height: 450px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 40px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    text-align: center;
+}
+
+.empty-icon {
+    width: 70px;
+    height: 70px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 15px;
+    background: #f0fdf4;
+    border-radius: 50%;
+    font-size: 28px;
+}
+
+.empty-products h2 {
+    margin: 0 0 8px;
+    color: #1f2937;
+}
+
+.empty-products p {
+    margin: 0 0 20px;
+    color: #6b7280;
+}
+
+.reset-empty-btn {
+    padding: 11px 22px;
+    border: none;
+    border-radius: 8px;
+    background: #16a34a;
+    color: #ffffff;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.reset-empty-btn:hover {
+    background: #15803d;
+}
+
+/* ============================================================
+   LOAD MORE
+============================================================ */
+
+.load-more {
+    display: flex;
+    justify-content: center;
+    margin-top: 35px;
+}
+
+.load-more button {
+    min-width: 210px;
+    padding: 12px 25px;
+    border: 1px solid #16a34a;
+    border-radius: 8px;
+    background: #ffffff;
+    color: #16a34a;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.2s ease;
+}
+
+.load-more button:hover {
+    background: #16a34a;
+    color: #ffffff;
+}
+
+/* ============================================================
+   TABLET
+============================================================ */
+
+@media (max-width: 1200px) {
+    .shop-page {
+        padding: 25px;
+    }
+
+    .products-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+/* ============================================================
+   SMALL LAPTOP / TABLET
+============================================================ */
+
+@media (max-width: 992px) {
+    .shop-header {
+        grid-template-columns: 1fr;
+    }
+
+    .shop-content {
+        grid-template-columns: 230px minmax(0, 1fr);
+        gap: 18px;
+    }
+
+    .products-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+/* ============================================================
+   MOBILE
+============================================================ */
+
+@media (max-width: 768px) {
+    .shop-page {
+        padding: 12px;
+    }
+
+    .shop-header {
+        gap: 12px;
+        padding: 14px;
+        margin-bottom: 16px;
+    }
+
+    .shop-title h1 {
+        font-size: 21px;
+    }
+
+    .shop-sort {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .shop-content {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .shop-filter {
+        position: static;
+    }
+
+    .products-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .shop-title h1 {
+        font-size: 21px;
+    }
+
+    .products-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .loading-container,
+    .empty-products {
+        min-height: 350px;
+    }
+}
+
+@media (max-width: 380px) {
+    .products-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ============================================================
+   SMALL MOBILE
+============================================================ */
+
+@media (max-width: 480px) {
+    .shop-page {
+        padding: 10px;
+    }
+
+    .shop-header {
+        padding: 14px;
+        gap: 12px;
+    }
+
+    .shop-title h1 {
+        font-size: 19px;
+    }
+
+    .shop-search,
+    .shop-sort {
+        height: 43px;
+    }
+
+    .products-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .load-more button {
+        width: 100%;
+    }
+}
