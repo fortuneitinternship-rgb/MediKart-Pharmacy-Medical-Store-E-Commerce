@@ -40,7 +40,7 @@ const ForgotPassword = ({ onClose, onSwitchToLogin }) => {
 
     try {
       const response = await fetch(
-        "http://127.0.0.1:8000/api/forgot-password/",
+        "http://127.0.0.1:8000/api/auth/forgot-password",
         {
           method: "POST",
           headers: {
@@ -105,7 +105,7 @@ const ForgotPassword = ({ onClose, onSwitchToLogin }) => {
 
     try {
       const response = await fetch(
-        "http://127.0.0.1:8000/api/verify-otp/",
+        "http://127.0.0.1:8000/api/auth/verify-otp",
         {
           method: "POST",
           headers: {
@@ -171,7 +171,7 @@ const ForgotPassword = ({ onClose, onSwitchToLogin }) => {
 
     try {
       const response = await fetch(
-        "http://127.0.0.1:8000/api/reset-password/",
+        "http://127.0.0.1:8000/api/auth/reset-password",
         {
           method: "POST",
           headers: {

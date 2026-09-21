@@ -512,6 +512,11 @@
   color: #d32f2f;
 }
 
+.logoutBtn:hover {
+  background: #ffffff;
+  color: #d32f2f;
+}
+
 /* ==============================
    POPUP OVERLAY
 ================================ */
