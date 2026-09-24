@@ -1,10 +1,10 @@
 // =====================================================
-// MEDIKART AUTH API
+// MEDIKART AUTH + USER API
 // React Frontend ↔ FastAPI Backend
 // =====================================================
 
 const API_URL =
-  process.env.REACT_APP_API_URL || "http://127.0.0.1:8000";
+  import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
 // =====================================================
 // COMMON ERROR HANDLER
@@ -38,7 +38,7 @@ const getErrorMessage = async (response) => {
     }
 
     return "Something went wrong";
-  } catch (error) {
+  } catch {
     return "Unable to connect to the server";
   }
 };
@@ -59,10 +59,16 @@ export const registerUser = async (userData) => {
       },
 
       body: JSON.stringify({
-        name: userData.name,
+        username:
+          userData.username || userData.name,
+
         email: userData.email,
-        phone: userData.phone || null,
+
         password: userData.password,
+
+        confirm_password:
+          userData.confirm_password ||
+          userData.confirmPassword,
       }),
     }
   );
@@ -81,7 +87,10 @@ export const registerUser = async (userData) => {
 // POST /api/auth/login
 // =====================================================
 
-export const loginUser = async (email, password) => {
+export const loginUser = async (
+  email,
+  password
+) => {
   const response = await fetch(
     `${API_URL}/api/auth/login`,
     {
@@ -106,10 +115,7 @@ export const loginUser = async (email, password) => {
 
   const data = await response.json();
 
-  // ===================================================
-  // SAVE ACCESS TOKEN
-  // ===================================================
-
+  // Save access token
   if (data.access_token) {
     localStorage.setItem(
       "access_token",
@@ -117,10 +123,7 @@ export const loginUser = async (email, password) => {
     );
   }
 
-  // ===================================================
-  // SAVE USER DATA
-  // ===================================================
-
+  // Save user
   if (data.user) {
     localStorage.setItem(
       "user",
@@ -129,7 +132,9 @@ export const loginUser = async (email, password) => {
 
     localStorage.setItem(
       "username",
-      data.user.name || ""
+      data.user.username ||
+        data.user.name ||
+        ""
     );
   }
 
@@ -138,7 +143,6 @@ export const loginUser = async (email, password) => {
     "true"
   );
 
-  // Notify Navbar / other components
   window.dispatchEvent(
     new Event("userUpdated")
   );
@@ -171,7 +175,6 @@ export const getCurrentUser = async () => {
   );
 
   if (!response.ok) {
-    // Token expired / invalid
     if (
       response.status === 401 ||
       response.status === 403
@@ -186,16 +189,15 @@ export const getCurrentUser = async () => {
 
   const user = await response.json();
 
-  // Keep local user information updated
   localStorage.setItem(
     "user",
     JSON.stringify(user)
   );
 
-  if (user.name) {
+  if (user.username || user.name) {
     localStorage.setItem(
       "username",
-      user.name
+      user.username || user.name
     );
   }
 
@@ -207,7 +209,9 @@ export const getCurrentUser = async () => {
 // PUT /api/users/me
 // =====================================================
 
-export const updateCurrentUser = async (userData) => {
+export const updateCurrentUser = async (
+  userData
+) => {
   const token =
     localStorage.getItem("access_token");
 
@@ -222,13 +226,15 @@ export const updateCurrentUser = async (userData) => {
 
       headers: {
         "Content-Type": "application/json",
-
         Authorization: `Bearer ${token}`,
       },
 
       body: JSON.stringify({
-        name: userData.name,
-        phone: userData.phone || null,
+        username:
+          userData.username ||
+          userData.name,
+
+        phone: userData.phone,
       }),
     }
   );
@@ -242,20 +248,22 @@ export const updateCurrentUser = async (userData) => {
   const updatedUser =
     await response.json();
 
-  // Update localStorage
   localStorage.setItem(
     "user",
     JSON.stringify(updatedUser)
   );
 
-  if (updatedUser.name) {
+  if (
+    updatedUser.username ||
+    updatedUser.name
+  ) {
     localStorage.setItem(
       "username",
-      updatedUser.name
+      updatedUser.username ||
+        updatedUser.name
     );
   }
 
-  // Notify Navbar/Profile/etc.
   window.dispatchEvent(
     new Event("userUpdated")
   );
@@ -268,7 +276,6 @@ export const updateCurrentUser = async (userData) => {
 // =====================================================
 
 export const logoutUser = () => {
-  // Remove authentication
   localStorage.removeItem(
     "access_token"
   );
@@ -285,7 +292,6 @@ export const logoutUser = () => {
     "username"
   );
 
-  // Notify application
   window.dispatchEvent(
     new Event("userUpdated")
   );
@@ -305,10 +311,13 @@ export const isAuthenticated = () => {
 
 // =====================================================
 // FORGOT PASSWORD
+// STEP 1
 // POST /api/auth/forgot-password
 // =====================================================
 
-export const forgotPassword = async (email) => {
+export const forgotPassword = async (
+  email
+) => {
   const response = await fetch(
     `${API_URL}/api/auth/forgot-password`,
     {
@@ -334,7 +343,40 @@ export const forgotPassword = async (email) => {
 };
 
 // =====================================================
+// SEND OTP
+// POST /api/auth/send-otp
+// =====================================================
+
+export const sendOTP = async (
+  email
+) => {
+  const response = await fetch(
+    `${API_URL}/api/auth/send-otp`,
+    {
+      method: "POST",
+
+      headers: {
+        "Content-Type": "application/json",
+      },
+
+      body: JSON.stringify({
+        email,
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      await getErrorMessage(response)
+    );
+  }
+
+  return await response.json();
+};
+
+// =====================================================
 // VERIFY OTP
+// STEP 2
 // POST /api/auth/verify-otp
 // =====================================================
 
@@ -369,6 +411,7 @@ export const verifyOTP = async (
 
 // =====================================================
 // RESET PASSWORD
+// STEP 3
 // POST /api/auth/reset-password
 // =====================================================
 
@@ -401,6 +444,195 @@ export const resetPassword = async (
   }
 
   return await response.json();
+};
+
+// =====================================================
+// CHANGE PASSWORD
+// POST /api/auth/change-password
+// =====================================================
+
+export const changePassword = async (
+  currentPassword,
+  newPassword
+) => {
+  const token =
+    localStorage.getItem("access_token");
+
+  if (!token) {
+    throw new Error("Not logged in");
+  }
+
+  const response = await fetch(
+    `${API_URL}/api/auth/change-password`,
+    {
+      method: "POST",
+
+      headers: {
+        "Content-Type": "application/json",
+
+        Authorization: `Bearer ${token}`,
+      },
+
+      body: JSON.stringify({
+        current_password:
+          currentPassword,
+
+        new_password:
+          newPassword,
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      await getErrorMessage(response)
+    );
+  }
+
+  return await response.json();
+};
+
+// =====================================================
+// NEWSLETTER SUBSCRIBE
+// POST /api/newsletter/subscribe
+// =====================================================
+
+export const subscribeNewsletter = async (
+  email
+) => {
+  const response = await fetch(
+    `${API_URL}/api/newsletter/subscribe`,
+    {
+      method: "POST",
+
+      headers: {
+        "Content-Type": "application/json",
+      },
+
+      body: JSON.stringify({
+        email,
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      await getErrorMessage(response)
+    );
+  }
+
+  return await response.json();
+};
+
+// =====================================================
+// NEWSLETTER UNSUBSCRIBE
+// POST /api/newsletter/unsubscribe
+// =====================================================
+
+export const unsubscribeNewsletter =
+  async (email) => {
+    const response = await fetch(
+      `${API_URL}/api/newsletter/unsubscribe`,
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type": "application/json",
+        },
+
+        body: JSON.stringify({
+          email,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        await getErrorMessage(response)
+      );
+    }
+
+    return await response.json();
+  };
+
+// =====================================================
+// GET NEWSLETTER STATUS
+// GET /api/newsletter/status
+// =====================================================
+
+export const getNewsletterStatus =
+  async (email) => {
+    const response = await fetch(
+      `${API_URL}/api/newsletter/status?email=${encodeURIComponent(
+        email
+      )}`,
+      {
+        method: "GET",
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        await getErrorMessage(response)
+      );
+    }
+
+    return await response.json();
+  };
+
+// =====================================================
+// GET AUTH TOKEN
+// =====================================================
+
+export const getAccessToken = () => {
+  return localStorage.getItem(
+    "access_token"
+  );
+};
+
+// =====================================================
+// GET STORED USER
+// =====================================================
+
+export const getStoredUser = () => {
+  const user =
+    localStorage.getItem("user");
+
+  if (!user) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(user);
+  } catch {
+    return null;
+  }
+};
+
+// =====================================================
+// CLEAR AUTH DATA
+// =====================================================
+
+export const clearAuthData = () => {
+  localStorage.removeItem(
+    "access_token"
+  );
+
+  localStorage.removeItem(
+    "user"
+  );
+
+  localStorage.removeItem(
+    "isLoggedIn"
+  );
+
+  localStorage.removeItem(
+    "username"
+  );
+
+  window.dispatchEvent(
+    new Event("userUpdated")
+  );
 };
 
 // =====================================================

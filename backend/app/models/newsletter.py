@@ -9,25 +9,9 @@ from app.database.database import Base
 class Newsletter(Base):
     __tablename__ = "newsletters"
 
-    id: Mapped[int] = mapped_column(
-        Integer,
-        primary_key=True,
-        index=True
-    )
-
-    email: Mapped[str] = mapped_column(
-        String(255),
-        unique=True,
-        index=True,
-        nullable=False
-    )
-
-    is_active: Mapped[bool] = mapped_column(
-        Boolean,
-        default=True
-    )
-
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     subscribed_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=datetime.utcnow
+        DateTime, default=datetime.utcnow, nullable=False
     )

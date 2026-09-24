@@ -1,614 +1,1038 @@
-import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { BrowserRouter } from 'react-router-dom';
-import ForgotPassword from './ForgotPassword';
+import React from "react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import "@testing-library/jest-dom";
 
-// Mock the fetch API
-global.fetch = jest.fn();
+import ForgotPassword from "./ForgotPassword";
 
-// Mock useNavigate
+import {
+  forgotPassword,
+  verifyOTP,
+  resetPassword,
+} from "../../api/authApi";
+
+// =====================================================
+// MOCK API
+// =====================================================
+
+jest.mock("../../api/authApi", () => ({
+  forgotPassword: jest.fn(),
+  verifyOTP: jest.fn(),
+  resetPassword: jest.fn(),
+}));
+
+// =====================================================
+// MOCK REACT ROUTER
+// =====================================================
+
 const mockNavigate = jest.fn();
-jest.mock('react-router-dom', () => ({
-  ...jest.requireActual('react-router-dom'),
+
+jest.mock("react-router-dom", () => ({
+  ...jest.requireActual("react-router-dom"),
   useNavigate: () => mockNavigate,
 }));
 
-describe('ForgotPassword Component', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    fetch.mockClear();
-  });
+// =====================================================
+// HELPERS
+// =====================================================
 
-  const renderComponent = (props = {}) => {
-    const defaultProps = {
-      onClose: jest.fn(),
-      onSwitchToLogin: jest.fn(),
-    };
-    return render(
-      <BrowserRouter>
-        <ForgotPassword {...defaultProps} {...props} />
-      </BrowserRouter>
-    );
+const renderForgotPassword = (props = {}) => {
+  const defaultProps = {
+    onClose: jest.fn(),
+    onSwitchToLogin: jest.fn(),
   };
 
-  // ==========================================
-  // TEST: Initial Render
-  // ==========================================
-  test('renders forgot password form initially', () => {
-    renderComponent();
+  return render(
+    <ForgotPassword
+      {...defaultProps}
+      {...props}
+    />
+  );
+};
 
-    expect(screen.getByText('Forgot Password?')).toBeInTheDocument();
-    expect(screen.getByText(/Enter your registered email address/i)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Enter your email')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Send OTP/i })).toBeInTheDocument();
-    expect(screen.getByText('Back to Login')).toBeInTheDocument();
+// =====================================================
+// TEST SETUP
+// =====================================================
+
+beforeEach(() => {
+  jest.clearAllMocks();
+
+  forgotPassword.mockResolvedValue({
+    message: "OTP sent successfully",
   });
 
-  // ==========================================
-  // TEST: Close Button
-  // ==========================================
-  test('calls onClose when close button is clicked', () => {
-    const onClose = jest.fn();
-    renderComponent({ onClose });
+  verifyOTP.mockResolvedValue({
+    message: "OTP verified successfully",
+  });
 
-    const closeButton = screen.getByRole('button', { name: /Close/i });
-    fireEvent.click(closeButton);
+  resetPassword.mockResolvedValue({
+    message: "Password reset successfully",
+  });
+});
+
+// =====================================================
+// INITIAL EMAIL STEP
+// =====================================================
+
+describe("ForgotPassword - Email Step", () => {
+  test("renders forgot password page", () => {
+    renderForgotPassword();
+
+    expect(
+      screen.getByRole("heading", {
+        name: /forgot password/i,
+      })
+    ).toBeInTheDocument();
+
+    expect(
+      screen.getByPlaceholderText(/enter your email/i)
+    ).toBeInTheDocument();
+
+    expect(
+      screen.getByRole("button", {
+        name: /send otp/i,
+      })
+    ).toBeInTheDocument();
+
+    expect(
+      screen.getByRole("button", {
+        name: /back to login/i,
+      })
+    ).toBeInTheDocument();
+  });
+
+  test("shows validation error when email is empty", async () => {
+    renderForgotPassword();
+
+    const button = screen.getByRole("button", {
+      name: /send otp/i,
+    });
+
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/please enter your email address/i)
+      ).toBeInTheDocument();
+    });
+
+    expect(forgotPassword).not.toHaveBeenCalled();
+  });
+
+  test("sends OTP successfully", async () => {
+    renderForgotPassword();
+
+    const emailInput = screen.getByPlaceholderText(
+      /enter your email/i
+    );
+
+    fireEvent.change(emailInput, {
+      target: {
+        value: "test@example.com",
+      },
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /send otp/i,
+      })
+    );
+
+    expect(forgotPassword).toHaveBeenCalledWith(
+      "test@example.com"
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", {
+          name: /verify otp/i,
+        })
+      ).toBeInTheDocument();
+    });
+
+    expect(
+      screen.getByText("test@example.com")
+    ).toBeInTheDocument();
+  });
+
+  test("shows loading state while sending OTP", async () => {
+    let resolveRequest;
+
+    forgotPassword.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveRequest = resolve;
+        })
+    );
+
+    renderForgotPassword();
+
+    fireEvent.change(
+      screen.getByPlaceholderText(/enter your email/i),
+      {
+        target: {
+          value: "test@example.com",
+        },
+      }
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /send otp/i,
+      })
+    );
+
+    expect(
+      screen.getByRole("button", {
+        name: /sending otp/i,
+      })
+    ).toBeDisabled();
+
+    resolveRequest({
+      message: "OTP sent",
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", {
+          name: /verify otp/i,
+        })
+      ).toBeInTheDocument();
+    });
+  });
+
+  test("shows API error when sending OTP fails", async () => {
+    forgotPassword.mockRejectedValue(
+      new Error("Email is not registered")
+    );
+
+    renderForgotPassword();
+
+    fireEvent.change(
+      screen.getByPlaceholderText(/enter your email/i),
+      {
+        target: {
+          value: "wrong@example.com",
+        },
+      }
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /send otp/i,
+      })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/email is not registered/i)
+      ).toBeInTheDocument();
+    });
+
+    expect(
+      screen.getByRole("heading", {
+        name: /forgot password/i,
+      })
+    ).toBeInTheDocument();
+  });
+
+  test("shows server connection error when fetch fails", async () => {
+    forgotPassword.mockRejectedValue(
+      new Error("Failed to fetch")
+    );
+
+    renderForgotPassword();
+
+    fireEvent.change(
+      screen.getByPlaceholderText(/enter your email/i),
+      {
+        target: {
+          value: "test@example.com",
+        },
+      }
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /send otp/i,
+      })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          /cannot connect to server/i
+        )
+      ).toBeInTheDocument();
+    });
+  });
+});
+
+// =====================================================
+// OTP STEP
+// =====================================================
+
+describe("ForgotPassword - OTP Step", () => {
+  const goToOTPStep = async () => {
+    renderForgotPassword();
+
+    fireEvent.change(
+      screen.getByPlaceholderText(/enter your email/i),
+      {
+        target: {
+          value: "test@example.com",
+        },
+      }
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /send otp/i,
+      })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", {
+          name: /verify otp/i,
+        })
+      ).toBeInTheDocument();
+    });
+  };
+
+  test("moves to OTP step after sending email", async () => {
+    await goToOTPStep();
+
+    expect(
+      screen.getByPlaceholderText(/enter otp/i)
+    ).toBeInTheDocument();
+
+    expect(
+      screen.getByRole("button", {
+        name: /verify otp/i,
+      })
+    ).toBeInTheDocument();
+  });
+
+  test("accepts only numeric OTP", async () => {
+    await goToOTPStep();
+
+    const otpInput =
+      screen.getByPlaceholderText(/enter otp/i);
+
+    fireEvent.change(otpInput, {
+      target: {
+        value: "12abc34",
+      },
+    });
+
+    expect(otpInput).toHaveValue("1234");
+  });
+
+  test("rejects OTP shorter than 6 digits", async () => {
+    await goToOTPStep();
+
+    const otpInput =
+      screen.getByPlaceholderText(/enter otp/i);
+
+    fireEvent.change(otpInput, {
+      target: {
+        value: "12345",
+      },
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /verify otp/i,
+      })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          /please enter a valid 6-digit otp/i
+        )
+      ).toBeInTheDocument();
+    });
+
+    expect(verifyOTP).not.toHaveBeenCalled();
+  });
+
+  test("verifies valid OTP successfully", async () => {
+    await goToOTPStep();
+
+    fireEvent.change(
+      screen.getByPlaceholderText(/enter otp/i),
+      {
+        target: {
+          value: "123456",
+        },
+      }
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /verify otp/i,
+      })
+    );
+
+    expect(verifyOTP).toHaveBeenCalledWith(
+      "test@example.com",
+      "123456"
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", {
+          name: /reset password/i,
+        })
+      ).toBeInTheDocument();
+    });
+  });
+
+  test("shows error when OTP verification fails", async () => {
+    verifyOTP.mockRejectedValue(
+      new Error("Invalid OTP")
+    );
+
+    await goToOTPStep();
+
+    fireEvent.change(
+      screen.getByPlaceholderText(/enter otp/i),
+      {
+        target: {
+          value: "123456",
+        },
+      }
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /verify otp/i,
+      })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/invalid otp/i)
+      ).toBeInTheDocument();
+    });
+  });
+
+  test("shows server connection error during OTP verification", async () => {
+    verifyOTP.mockRejectedValue(
+      new Error("Failed to fetch")
+    );
+
+    await goToOTPStep();
+
+    fireEvent.change(
+      screen.getByPlaceholderText(/enter otp/i),
+      {
+        target: {
+          value: "123456",
+        },
+      }
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /verify otp/i,
+      })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          /cannot connect to server/i
+        )
+      ).toBeInTheDocument();
+    });
+  });
+
+  test("back button returns from OTP to email", async () => {
+    await goToOTPStep();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /^back$/i,
+      })
+    );
+
+    expect(
+      screen.getByRole("heading", {
+        name: /forgot password/i,
+      })
+    ).toBeInTheDocument();
+
+    expect(
+      screen.getByPlaceholderText(/enter your email/i)
+    ).toBeInTheDocument();
+  });
+});
+
+// =====================================================
+// RESET PASSWORD STEP
+// =====================================================
+
+describe("ForgotPassword - Reset Password Step", () => {
+  const goToResetStep = async () => {
+    renderForgotPassword();
+
+    fireEvent.change(
+      screen.getByPlaceholderText(/enter your email/i),
+      {
+        target: {
+          value: "test@example.com",
+        },
+      }
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /send otp/i,
+      })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText(/enter otp/i)
+      ).toBeInTheDocument();
+    });
+
+    fireEvent.change(
+      screen.getByPlaceholderText(/enter otp/i),
+      {
+        target: {
+          value: "123456",
+        },
+      }
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /verify otp/i,
+      })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", {
+          name: /reset password/i,
+        })
+      ).toBeInTheDocument();
+    });
+  };
+
+  test("renders password fields", async () => {
+    await goToResetStep();
+
+    expect(
+      screen.getByPlaceholderText(/new password/i)
+    ).toBeInTheDocument();
+
+    expect(
+      screen.getByPlaceholderText(/confirm password/i)
+    ).toBeInTheDocument();
+
+    expect(
+      screen.getByRole("button", {
+        name: /reset password/i,
+      })
+    ).toBeInTheDocument();
+  });
+
+  test("shows error when passwords are empty", async () => {
+    await goToResetStep();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /reset password/i,
+      })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/please enter your password/i)
+      ).toBeInTheDocument();
+    });
+
+    expect(resetPassword).not.toHaveBeenCalled();
+  });
+
+  test("rejects password shorter than 8 characters", async () => {
+    await goToResetStep();
+
+    fireEvent.change(
+      screen.getByPlaceholderText(/new password/i),
+      {
+        target: {
+          value: "1234567",
+        },
+      }
+    );
+
+    fireEvent.change(
+      screen.getByPlaceholderText(/confirm password/i),
+      {
+        target: {
+          value: "1234567",
+        },
+      }
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /reset password/i,
+      })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          /password must be at least 8 characters/i
+        )
+      ).toBeInTheDocument();
+    });
+
+    expect(resetPassword).not.toHaveBeenCalled();
+  });
+
+  test("rejects mismatched passwords", async () => {
+    await goToResetStep();
+
+    fireEvent.change(
+      screen.getByPlaceholderText(/new password/i),
+      {
+        target: {
+          value: "Password123",
+        },
+      }
+    );
+
+    fireEvent.change(
+      screen.getByPlaceholderText(/confirm password/i),
+      {
+        target: {
+          value: "Different123",
+        },
+      }
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /reset password/i,
+      })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/passwords do not match/i)
+      ).toBeInTheDocument();
+    });
+
+    expect(resetPassword).not.toHaveBeenCalled();
+  });
+
+  test("resets password successfully", async () => {
+    await goToResetStep();
+
+    fireEvent.change(
+      screen.getByPlaceholderText(/new password/i),
+      {
+        target: {
+          value: "Password123",
+        },
+      }
+    );
+
+    fireEvent.change(
+      screen.getByPlaceholderText(/confirm password/i),
+      {
+        target: {
+          value: "Password123",
+        },
+      }
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /reset password/i,
+      })
+    );
+
+    expect(resetPassword).toHaveBeenCalledWith(
+      "test@example.com",
+      "123456",
+      "Password123"
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", {
+          name: /password reset successfully/i,
+        })
+      ).toBeInTheDocument();
+    });
+  });
+
+  test("shows reset password API error", async () => {
+    resetPassword.mockRejectedValue(
+      new Error("Unable to reset password")
+    );
+
+    await goToResetStep();
+
+    fireEvent.change(
+      screen.getByPlaceholderText(/new password/i),
+      {
+        target: {
+          value: "Password123",
+        },
+      }
+    );
+
+    fireEvent.change(
+      screen.getByPlaceholderText(/confirm password/i),
+      {
+        target: {
+          value: "Password123",
+        },
+      }
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /reset password/i,
+      })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          /unable to reset password/i
+        )
+      ).toBeInTheDocument();
+    });
+  });
+
+  test("shows connection error when reset password fetch fails", async () => {
+    resetPassword.mockRejectedValue(
+      new Error("Failed to fetch")
+    );
+
+    await goToResetStep();
+
+    fireEvent.change(
+      screen.getByPlaceholderText(/new password/i),
+      {
+        target: {
+          value: "Password123",
+        },
+      }
+    );
+
+    fireEvent.change(
+      screen.getByPlaceholderText(/confirm password/i),
+      {
+        target: {
+          value: "Password123",
+        },
+      }
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /reset password/i,
+      })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          /cannot connect to server/i
+        )
+      ).toBeInTheDocument();
+    });
+  });
+
+  test("back button returns from reset to OTP", async () => {
+    await goToResetStep();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /^back$/i,
+      })
+    );
+
+    expect(
+      screen.getByRole("heading", {
+        name: /verify otp/i,
+      })
+    ).toBeInTheDocument();
+
+    expect(
+      screen.getByPlaceholderText(/enter otp/i)
+    ).toBeInTheDocument();
+  });
+});
+
+// =====================================================
+// SUCCESS STEP
+// =====================================================
+
+describe("ForgotPassword - Success Step", () => {
+  const completePasswordReset = async () => {
+    renderForgotPassword();
+
+    // Email
+    fireEvent.change(
+      screen.getByPlaceholderText(/enter your email/i),
+      {
+        target: {
+          value: "test@example.com",
+        },
+      }
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /send otp/i,
+      })
+    );
+
+    // OTP
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText(/enter otp/i)
+      ).toBeInTheDocument();
+    });
+
+    fireEvent.change(
+      screen.getByPlaceholderText(/enter otp/i),
+      {
+        target: {
+          value: "123456",
+        },
+      }
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /verify otp/i,
+      })
+    );
+
+    // Reset
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText(/new password/i)
+      ).toBeInTheDocument();
+    });
+
+    fireEvent.change(
+      screen.getByPlaceholderText(/new password/i),
+      {
+        target: {
+          value: "Password123",
+        },
+      }
+    );
+
+    fireEvent.change(
+      screen.getByPlaceholderText(/confirm password/i),
+      {
+        target: {
+          value: "Password123",
+        },
+      }
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /reset password/i,
+      })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", {
+          name: /password reset successfully/i,
+        })
+      ).toBeInTheDocument();
+    });
+  };
+
+  test("displays success message after password reset", async () => {
+    await completePasswordReset();
+
+    expect(
+      screen.getByText(
+        /your password has been changed successfully/i
+      )
+    ).toBeInTheDocument();
+
+    expect(
+      screen.getByRole("button", {
+        name: /back to login/i,
+      })
+    ).toBeInTheDocument();
+  });
+
+  test("back to login calls onSwitchToLogin", async () => {
+    const onSwitchToLogin = jest.fn();
+
+    renderForgotPassword({
+      onSwitchToLogin,
+    });
+
+    fireEvent.change(
+      screen.getByPlaceholderText(/enter your email/i),
+      {
+        target: {
+          value: "test@example.com",
+        },
+      }
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /send otp/i,
+      })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", {
+          name: /verify otp/i,
+        })
+      ).toBeInTheDocument();
+    });
+
+    // Go back to email first
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /^back$/i,
+      })
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /back to login/i,
+      })
+    );
+
+    expect(onSwitchToLogin).toHaveBeenCalledTimes(1);
+  });
+});
+
+// =====================================================
+// CLOSE BUTTON
+// =====================================================
+
+describe("ForgotPassword - Close", () => {
+  test("calls onClose when close button is clicked", () => {
+    const onClose = jest.fn();
+
+    renderForgotPassword({
+      onClose,
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /close/i,
+      })
+    );
 
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  // ==========================================
-  // TEST: Back to Login Button
-  // ==========================================
-  test('calls onSwitchToLogin when Back to Login is clicked', () => {
+  test("uses onSwitchToLogin when onClose is not provided", () => {
     const onSwitchToLogin = jest.fn();
-    renderComponent({ onSwitchToLogin });
 
-    const backButton = screen.getByText('Back to Login');
-    fireEvent.click(backButton);
-
-    expect(onSwitchToLogin).toHaveBeenCalledTimes(1);
-  });
-
-  test('navigates to login when onSwitchToLogin is not provided', () => {
-    renderComponent({ onSwitchToLogin: undefined });
-
-    const backButton = screen.getByText('Back to Login');
-    fireEvent.click(backButton);
-
-  });
-
-  // ==========================================
-  // TEST: Form Validation - Empty Email
-  // ==========================================
-  test('shows error when submitting without email', async () => {
-    renderComponent();
-
-    const submitButton = screen.getByRole('button', { name: /Send OTP/i });
-    fireEvent.click(submitButton);
-
-    await waitFor(() => {
-      expect(screen.getByText('Please enter your email address.')).toBeInTheDocument();
-    });
-  });
-
-  // ==========================================
-  // TEST: Form Validation - Invalid Email Format
-  // ==========================================
-  test('accepts email and sends OTP', async () => {
-    fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ message: 'OTP sent successfully', otp: '123456' }),
-    });
-
-    renderComponent();
-
-    const emailInput = screen.getByPlaceholderText('Enter your email');
-    const submitButton = screen.getByRole('button', { name: /Send OTP/i });
-
-    await userEvent.type(emailInput, 'test@example.com');
-    fireEvent.click(submitButton);
-
-    expect(screen.getByText('Sending OTP...')).toBeInTheDocument();
-
-  });
-
-  // ==========================================
-  // TEST: API Error - Failed to Fetch
-  // ==========================================
-  test('shows error when network request fails', async () => {
-    fetch.mockRejectedValueOnce(new Error('Failed to fetch'));
-
-    renderComponent();
-
-    const emailInput = screen.getByPlaceholderText('Enter your email');
-    const submitButton = screen.getByRole('button', { name: /Send OTP/i });
-
-    await userEvent.type(emailInput, 'test@example.com');
-    fireEvent.click(submitButton);
-
-    await waitFor(() => {
-      expect(screen.getByText(/Cannot connect to server/i)).toBeInTheDocument();
-    });
-  });
-
-  // ==========================================
-  // TEST: API Error - Server Error
-  // ==========================================
-  test('shows error when server returns error', async () => {
-    fetch.mockResolvedValueOnce({
-      ok: false,
-      status: 400,
-      json: async () => ({ message: 'Invalid email address' }),
-    });
-
-    renderComponent();
-
-    const emailInput = screen.getByPlaceholderText('Enter your email');
-    const submitButton = screen.getByRole('button', { name: /Send OTP/i });
-
-    await userEvent.type(emailInput, 'test@example.com');
-    fireEvent.click(submitButton);
-
-    await waitFor(() => {
-      expect(screen.getByText('Invalid email address')).toBeInTheDocument();
-    });
-  });
-
-  // ==========================================
-  // TEST: OTP Verification Step
-  // ==========================================
-  test('shows OTP input after sending OTP', async () => {
-    fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ message: 'OTP sent successfully' }),
-    });
-
-    renderComponent();
-
-    const emailInput = screen.getByPlaceholderText('Enter your email');
-    const submitButton = screen.getByRole('button', { name: /Send OTP/i });
-
-    await userEvent.type(emailInput, 'test@example.com');
-    fireEvent.click(submitButton);
-
-    await waitFor(() => {
-      expect(screen.getByPlaceholderText('Enter OTP')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /Verify OTP/i })).toBeInTheDocument();
-      expect(screen.getByText('Back')).toBeInTheDocument();
-    });
-  });
-
-  // ==========================================
-  // TEST: OTP Validation
-  // ==========================================
-  test('shows error when OTP is less than 6 digits', async () => {
-    fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ message: 'OTP sent successfully' }),
-    });
-
-    renderComponent();
-
-    const emailInput = screen.getByPlaceholderText('Enter your email');
-    const submitButton = screen.getByRole('button', { name: /Send OTP/i });
-    await userEvent.type(emailInput, 'test@example.com');
-    fireEvent.click(submitButton);
-
-    await waitFor(() => {
-      expect(screen.getByPlaceholderText('Enter OTP')).toBeInTheDocument();
-    });
-
-    const otpInput = screen.getByPlaceholderText('Enter OTP');
-    const verifyButton = screen.getByRole('button', { name: /Verify OTP/i });
-
-    await userEvent.type(otpInput, '12345');
-    fireEvent.click(verifyButton);
-
-    await waitFor(() => {
-      expect(screen.getByText('Please enter a valid 6-digit OTP.')).toBeInTheDocument();
-    });
-  });
-
-  // ==========================================
-  // TEST: OTP Verification Success
-  // ==========================================
-  test('moves to reset password step after OTP verification', async () => {
-    fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ message: 'OTP sent successfully' }),
-    });
-
-    fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ message: 'OTP verified successfully' }),
-    });
-
-    renderComponent();
-
-    const emailInput = screen.getByPlaceholderText('Enter your email');
-    const sendButton = screen.getByRole('button', { name: /Send OTP/i });
-    await userEvent.type(emailInput, 'test@example.com');
-    fireEvent.click(sendButton);
-
-    await waitFor(() => {
-      expect(screen.getByPlaceholderText('Enter OTP')).toBeInTheDocument();
-    });
-
-    const otpInput = screen.getByPlaceholderText('Enter OTP');
-    const verifyButton = screen.getByRole('button', { name: /Verify OTP/i });
-    await userEvent.type(otpInput, '123456');
-    fireEvent.click(verifyButton);
-  });
-
-  // ==========================================
-  // TEST: Reset Password - Empty Fields
-  // ==========================================
-  test('shows error when reset password fields are empty', async () => {
-    fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ message: 'OTP sent successfully' }),
-    });
-
-    fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ message: 'OTP verified successfully' }),
-    });
-
-    renderComponent();
-
-    const emailInput = screen.getByPlaceholderText('Enter your email');
-    const sendButton = screen.getByRole('button', { name: /Send OTP/i });
-    await userEvent.type(emailInput, 'test@example.com');
-    fireEvent.click(sendButton);
-
-    await waitFor(() => {
-      expect(screen.getByPlaceholderText('Enter OTP')).toBeInTheDocument();
-    });
-
-    const otpInput = screen.getByPlaceholderText('Enter OTP');
-    const verifyButton = screen.getByRole('button', { name: /Verify OTP/i });
-    await userEvent.type(otpInput, '123456');
-    fireEvent.click(verifyButton);
-
-    await waitFor(() => {
-      expect(screen.getByPlaceholderText('New Password')).toBeInTheDocument();
-    });
-
-    const resetButton = screen.getByRole('button', { name: /Reset Password/i });
-    fireEvent.click(resetButton);
-
-    await waitFor(() => {
-      expect(screen.getByText('Please enter your password.')).toBeInTheDocument();
-    });
-  });
-
-  // ==========================================
-  // TEST: Reset Password - Password Mismatch
-  // ==========================================
-  test('shows error when passwords do not match', async () => {
-    fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ message: 'OTP sent successfully' }),
-    });
-
-    fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ message: 'OTP verified successfully' }),
-    });
-
-    renderComponent();
-
-    const emailInput = screen.getByPlaceholderText('Enter your email');
-    const sendButton = screen.getByRole('button', { name: /Send OTP/i });
-    await userEvent.type(emailInput, 'test@example.com');
-    fireEvent.click(sendButton);
-
-    await waitFor(() => {
-      expect(screen.getByPlaceholderText('Enter OTP')).toBeInTheDocument();
-    });
-
-    const otpInput = screen.getByPlaceholderText('Enter OTP');
-    const verifyButton = screen.getByRole('button', { name: /Verify OTP/i });
-    await userEvent.type(otpInput, '123456');
-    fireEvent.click(verifyButton);
-
-    await waitFor(() => {
-      expect(screen.getByPlaceholderText('New Password')).toBeInTheDocument();
-    });
-
-    const passwordInput = screen.getByPlaceholderText('New Password');
-    const confirmInput = screen.getByPlaceholderText('Confirm Password');
-    const resetButton = screen.getByRole('button', { name: /Reset Password/i });
-
-    await userEvent.type(passwordInput, 'password123');
-    await userEvent.type(confirmInput, 'password456');
-    fireEvent.click(resetButton);
-
-    await waitFor(() => {
-      expect(screen.getByText('Passwords do not match.')).toBeInTheDocument();
-    });
-  });
-
-  // ==========================================
-  // TEST: Reset Password - Password Too Short
-  // ==========================================
-  test('shows error when password is less than 6 characters', async () => {
-    fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ message: 'OTP sent successfully' }),
-    });
-
-    fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ message: 'OTP verified successfully' }),
-    });
-
-    renderComponent();
-
-    const emailInput = screen.getByPlaceholderText('Enter your email');
-    const sendButton = screen.getByRole('button', { name: /Send OTP/i });
-    await userEvent.type(emailInput, 'test@example.com');
-    fireEvent.click(sendButton);
-
-    await waitFor(() => {
-      expect(screen.getByPlaceholderText('Enter OTP')).toBeInTheDocument();
-    });
-
-    const otpInput = screen.getByPlaceholderText('Enter OTP');
-    const verifyButton = screen.getByRole('button', { name: /Verify OTP/i });
-    await userEvent.type(otpInput, '123456');
-    fireEvent.click(verifyButton);
-
-    await waitFor(() => {
-      expect(screen.getByPlaceholderText('New Password')).toBeInTheDocument();
-    });
-
-    const passwordInput = screen.getByPlaceholderText('New Password');
-    const confirmInput = screen.getByPlaceholderText('Confirm Password');
-    const resetButton = screen.getByRole('button', { name: /Reset Password/i });
-
-    await userEvent.type(passwordInput, '123');
-    await userEvent.type(confirmInput, '123');
-    fireEvent.click(resetButton);
-
-    await waitFor(() => {
-      expect(screen.getByText('Password must be at least 8 characters.')).toBeInTheDocument();
-    });
-  });
-
-  // ==========================================
-  // TEST: Reset Password Success
-  // ==========================================
-  test('shows success message after password reset', async () => {
-    fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ message: 'OTP sent successfully' }),
-    });
-
-    fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ message: 'OTP verified successfully' }),
-    });
-
-    fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ message: 'Password reset successfully' }),
-    });
-
-    renderComponent();
-
-    const emailInput = screen.getByPlaceholderText('Enter your email');
-    const sendButton = screen.getByRole('button', { name: /Send OTP/i });
-    await userEvent.type(emailInput, 'test@example.com');
-    fireEvent.click(sendButton);
-
-    await waitFor(() => {
-      expect(screen.getByPlaceholderText('Enter OTP')).toBeInTheDocument();
-    });
-
-    const otpInput = screen.getByPlaceholderText('Enter OTP');
-    const verifyButton = screen.getByRole('button', { name: /Verify OTP/i });
-    await userEvent.type(otpInput, '123456');
-    fireEvent.click(verifyButton);
-
-    await waitFor(() => {
-      expect(screen.getByPlaceholderText('New Password')).toBeInTheDocument();
-    });
-
-    const passwordInput = screen.getByPlaceholderText('New Password');
-    const confirmInput = screen.getByPlaceholderText('Confirm Password');
-    const resetButton = screen.getByRole('button', { name: /Reset Password/i });
-
-    await userEvent.type(passwordInput, 'password123');
-    await userEvent.type(confirmInput, 'password123');
-    fireEvent.click(resetButton);
-
-    await waitFor(() => {
-      expect(screen.getByText('Password Reset Successfully')).toBeInTheDocument();
-      expect(screen.getByText(/Your password has been changed successfully/i)).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /Back to Login/i })).toBeInTheDocument();
-    });
-  });
-
-  // ==========================================
-  // TEST: Back Button Navigation - FIXED
-  // ==========================================
-  test('goes back to email step from OTP step', async () => {
-    fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ message: 'OTP sent successfully' }),
-    });
-
-    renderComponent();
-
-    // Send OTP
-    const emailInput = screen.getByPlaceholderText('Enter your email');
-    const sendButton = screen.getByRole('button', { name: /Send OTP/i });
-    await userEvent.type(emailInput, 'test@example.com');
-    fireEvent.click(sendButton);
-
-    await waitFor(() => {
-      expect(screen.getByPlaceholderText('Enter OTP')).toBeInTheDocument();
-    });
-
-    // Click Back
-    const backButton = screen.getByText('Back');
-    fireEvent.click(backButton);
-
-    // Verify we're back to email step
-    await waitFor(() => {
-      expect(screen.getByText('Forgot Password?')).toBeInTheDocument();
-    });
-    expect(screen.getByPlaceholderText('Enter your email')).toBeInTheDocument();
-  });
-
-  // ==========================================
-  // TEST: Back Button from Reset to OTP - FIXED
-  // ==========================================
-  test('goes back to OTP step from Reset step', async () => {
-    fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ message: 'OTP sent successfully' }),
-    });
-
-    fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ message: 'OTP verified successfully' }),
-    });
-
-    renderComponent();
-
-    // Send OTP
-    const emailInput = screen.getByPlaceholderText('Enter your email');
-    const sendButton = screen.getByRole('button', { name: /Send OTP/i });
-    await userEvent.type(emailInput, 'test@example.com');
-    fireEvent.click(sendButton);
-
-    await waitFor(() => {
-      expect(screen.getByPlaceholderText('Enter OTP')).toBeInTheDocument();
-    });
-
-    // Verify OTP
-    const otpInput = screen.getByPlaceholderText('Enter OTP');
-    const verifyButton = screen.getByRole('button', { name: /Verify OTP/i });
-    await userEvent.type(otpInput, '123456');
-    fireEvent.click(verifyButton);
-
-    await waitFor(() => {
-      expect(screen.getByPlaceholderText('New Password')).toBeInTheDocument();
-    });
-
-    // Click Back
-    const backButton = screen.getByText('Back');
-    fireEvent.click(backButton);
-
-    // Verify we're back to OTP step
-    expect(screen.getByPlaceholderText('Enter OTP')).toBeInTheDocument();
-  });
-
-  // ==========================================
-  // TEST: Reset Password API Error
-  // ==========================================
-  test('shows error when reset password API fails', async () => {
-    fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ message: 'OTP sent successfully' }),
-    });
-
-    fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ message: 'OTP verified successfully' }),
-    });
-
-    fetch.mockResolvedValueOnce({
-      ok: false,
-      status: 400,
-      json: async () => ({ message: 'Invalid OTP or email' }),
-    });
-
-    renderComponent();
-
-    const emailInput = screen.getByPlaceholderText('Enter your email');
-    const sendButton = screen.getByRole('button', { name: /Send OTP/i });
-    await userEvent.type(emailInput, 'test@example.com');
-    fireEvent.click(sendButton);
-
-    await waitFor(() => {
-      expect(screen.getByPlaceholderText('Enter OTP')).toBeInTheDocument();
-    });
-
-    const otpInput = screen.getByPlaceholderText('Enter OTP');
-    const verifyButton = screen.getByRole('button', { name: /Verify OTP/i });
-    await userEvent.type(otpInput, '123456');
-    fireEvent.click(verifyButton);
-
-    await waitFor(() => {
-      expect(screen.getByPlaceholderText('New Password')).toBeInTheDocument();
-    });
-
-    const passwordInput = screen.getByPlaceholderText('New Password');
-    const confirmInput = screen.getByPlaceholderText('Confirm Password');
-    const resetButton = screen.getByRole('button', { name: /Reset Password/i });
-
-    await userEvent.type(passwordInput, 'password123');
-    await userEvent.type(confirmInput, 'password123');
-    fireEvent.click(resetButton);
-
-    await waitFor(() => {
-      expect(screen.getByText('Invalid OTP or email')).toBeInTheDocument();
-    });
-  });
-
-  // ==========================================
-  // TEST: Loading States
-  // ==========================================
-  test('shows loading state while sending OTP', async () => {
-    // Delayed response
-    fetch.mockImplementationOnce(() =>
-      new Promise((resolve) =>
-        setTimeout(() => resolve({
-          ok: true,
-          json: async () => ({ message: 'OTP sent successfully' }),
-        }), 100)
-      )
+    render(
+      <ForgotPassword
+        onSwitchToLogin={onSwitchToLogin}
+      />
     );
 
-    renderComponent();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /close/i,
+      })
+    );
 
-    const emailInput = screen.getByPlaceholderText('Enter your email');
-    const submitButton = screen.getByRole('button', { name: /Send OTP/i });
-
-    await userEvent.type(emailInput, 'test@example.com');
-    fireEvent.click(submitButton);
-
-    expect(screen.getByText('Sending OTP...')).toBeInTheDocument();
-    expect(submitButton).toBeDisabled();
+    expect(
+      onSwitchToLogin
+    ).toHaveBeenCalledTimes(1);
   });
 
-  // ==========================================
-  // TEST: OTP Input Only Allows Numbers
-  // ==========================================
-  test('OTP input only allows numeric characters', async () => {
-    fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ message: 'OTP sent successfully' }),
+  test("uses navigate when neither callback is provided", () => {
+    render(<ForgotPassword />);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /close/i,
+      })
+    );
+
+    expect(mockNavigate).toHaveBeenCalledWith(
+      "/login"
+    );
+  });
+});
+
+// =====================================================
+// BACK TO LOGIN
+// =====================================================
+
+describe("ForgotPassword - Back to Login", () => {
+  test("calls onSwitchToLogin from email step", () => {
+    const onSwitchToLogin = jest.fn();
+
+    renderForgotPassword({
+      onSwitchToLogin,
     });
 
-    renderComponent();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /back to login/i,
+      })
+    );
 
-    const emailInput = screen.getByPlaceholderText('Enter your email');
-    const submitButton = screen.getByRole('button', { name: /Send OTP/i });
-    await userEvent.type(emailInput, 'test@example.com');
-    fireEvent.click(submitButton);
+    expect(
+      onSwitchToLogin
+    ).toHaveBeenCalledTimes(1);
+  });
 
-    await waitFor(() => {
-      expect(screen.getByPlaceholderText('Enter OTP')).toBeInTheDocument();
-    });
+  test("calls onClose when onSwitchToLogin is unavailable", () => {
+    const onClose = jest.fn();
 
-    const otpInput = screen.getByPlaceholderText('Enter OTP');
+    render(
+      <ForgotPassword onClose={onClose} />
+    );
 
-    // Should only contain numbers
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /back to login/i,
+      })
+    );
+
+    expect(
+      onClose
+    ).toHaveBeenCalledTimes(1);
+  });
+
+  test("navigates to login when callbacks are unavailable", () => {
+    render(<ForgotPassword />);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /back to login/i,
+      })
+    );
+
+    expect(mockNavigate).toHaveBeenCalledWith(
+      "/login"
+    );
   });
 });

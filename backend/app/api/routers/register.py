@@ -7,7 +7,6 @@ from app.models.user import User
 from app.schemas.auth import RegisterRequest
 from app.schemas.user import UserResponse
 
-
 router = APIRouter()
 
 
@@ -16,28 +15,25 @@ router = APIRouter()
     response_model=UserResponse,
     status_code=status.HTTP_201_CREATED,
 )
-def register(
-    data: RegisterRequest,
-    db: Session = Depends(get_db),
-):
+def register(data: RegisterRequest, db: Session = Depends(get_db)):
     email = data.email.lower().strip()
+    username = data.username.strip()
 
-    existing_user = (
-        db.query(User)
-        .filter(User.email == email)
-        .first()
-    )
-
-    if existing_user:
+    if db.query(User).filter(User.email == email).first():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Email is already registered",
         )
 
+    if db.query(User).filter(User.name == username).first():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Username is already registered",
+        )
+
     user = User(
-        name=data.name.strip(),
+        name=username,
         email=email,
-        phone=data.phone.strip() if data.phone else None,
         hashed_password=hash_password(data.password),
         is_active=True,
         is_verified=False,
@@ -47,5 +43,4 @@ def register(
     db.add(user)
     db.commit()
     db.refresh(user)
-
     return user

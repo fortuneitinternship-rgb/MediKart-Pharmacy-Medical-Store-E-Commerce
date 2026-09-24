@@ -12,6 +12,4 @@ class PaymentResponse(BaseModel):
     method: str
     status: str
 
-    model_config = {
-        "from_attributes": True
-    }
+    model_config = {"from_attributes": True}

@@ -3,39 +3,27 @@ from datetime import datetime
 from pydantic import BaseModel, EmailStr
 
 
-# ============================================================
-# USER RESPONSE
-# ============================================================
-
 class UserResponse(BaseModel):
-
     id: int
-
-    name: str
-
+    username: str
     email: EmailStr
-
     phone: str | None
-
     is_active: bool
-
     is_verified: bool
-
     is_admin: bool
-
     created_at: datetime
 
-    model_config = {
-        "from_attributes": True
-    }
+    model_config = {"from_attributes": True}
 
-
-# ============================================================
-# UPDATE PROFILE
-# ============================================================
 
 class UserUpdateRequest(BaseModel):
-
-    name: str | None = None
-
+    username: str | None = None
     phone: str | None = None
+
+class SendOTPRequest(BaseModel):
+    email: EmailStr
+
+
+class VerifyOTPRequest(BaseModel):
+    email: EmailStr
+    otp: str

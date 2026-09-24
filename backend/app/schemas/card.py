@@ -18,6 +18,4 @@ class CardResponse(BaseModel):
     expiry_year: int
     card_type: str
 
-    model_config = {
-        "from_attributes": True
-    }
+    model_config = {"from_attributes": True}

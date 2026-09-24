@@ -14,29 +14,23 @@ from app.schemas.auth import (
     VerifyOTPRequest,
 )
 
-
 router = APIRouter()
 
 
-def _find_user(email: str, db: Session) -> User | None:
-    return (
-        db.query(User)
-        .filter(User.email == email.lower().strip())
-        .first()
-    )
+def find_user(email: str, db: Session):
+    return db.query(User).filter(
+        User.email == email.lower().strip()
+    ).first()
 
 
-def _validate_otp(data, user: User):
-    if not user.otp or user.otp != data.otp:
+def validate_otp(user: User, otp: str):
+    if not user.otp or user.otp != otp:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid OTP",
         )
 
-    if (
-        not user.otp_expires_at
-        or datetime.utcnow() > user.otp_expires_at
-    ):
+    if not user.otp_expires_at or datetime.utcnow() > user.otp_expires_at:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="OTP expired",
@@ -48,7 +42,7 @@ def forgot_password(
     data: ForgotPasswordRequest,
     db: Session = Depends(get_db),
 ):
-    user = _find_user(data.email, db)
+    user = find_user(data.email, db)
 
     if user:
         user.otp = str(random.randint(100000, 999999))
@@ -57,12 +51,12 @@ def forgot_password(
             + timedelta(minutes=settings.OTP_EXPIRE_MINUTES)
         ).replace(tzinfo=None)
         db.commit()
+
+        # Development mode: OTP appears in the backend terminal.
         print(f"[MEDIKART OTP] {user.email}: {user.otp}")
 
     return {
-        "message": (
-            "If the email is registered, an OTP has been sent."
-        )
+        "message": "If the email is registered, an OTP has been sent."
     }
 
 
@@ -71,16 +65,12 @@ def verify_otp(
     data: VerifyOTPRequest,
     db: Session = Depends(get_db),
 ):
-    user = _find_user(data.email, db)
+    user = find_user(data.email, db)
 
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid OTP",
-        )
+        raise HTTPException(status_code=400, detail="Invalid OTP")
 
-    _validate_otp(data, user)
-
+    validate_otp(user, data.otp)
     return {"message": "OTP verified successfully"}
 
 
@@ -89,15 +79,16 @@ def reset_password(
     data: ResetPasswordRequest,
     db: Session = Depends(get_db),
 ):
-    user = _find_user(data.email, db)
+    user = find_user(data.email, db)
 
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=400,
             detail="Invalid password reset request",
         )
 
-    _validate_otp(data, user)
+    validate_otp(user, data.otp)
+
     user.hashed_password = hash_password(data.new_password)
     user.otp = None
     user.otp_expires_at = None

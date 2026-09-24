@@ -12,16 +12,10 @@ class OrderItemCreate(BaseModel):
 
 class OrderCreate(BaseModel):
     address_id: int
-    items: list[OrderItemCreate]
-
+    items: list[OrderItemCreate] = Field(min_length=1)
     payment_method: str = "COD"
-
     delivery_type: str = "Normal"
-
-    discount: float = Field(
-        default=0,
-        ge=0
-    )
+    discount: float = Field(default=0, ge=0)
 
 
 class OrderItemResponse(BaseModel):
@@ -30,9 +24,7 @@ class OrderItemResponse(BaseModel):
     quantity: int
     price: float
 
-    model_config = {
-        "from_attributes": True
-    }
+    model_config = {"from_attributes": True}
 
 
 class OrderResponse(BaseModel):
@@ -50,6 +42,4 @@ class OrderResponse(BaseModel):
     created_at: datetime
     items: list[OrderItemResponse]
 
-    model_config = {
-        "from_attributes": True
-    }
+    model_config = {"from_attributes": True}

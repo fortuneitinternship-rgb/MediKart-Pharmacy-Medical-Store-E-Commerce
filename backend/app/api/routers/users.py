@@ -1,60 +1,46 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.database.database import get_db
 from app.models.user import User
-from app.schemas.user import (
-    UserResponse,
-    UserUpdateRequest
-)
+from app.schemas.user import UserResponse, UserUpdateRequest
+
+router = APIRouter(prefix="/api/users", tags=["Users"])
 
 
-router = APIRouter(
-    prefix="/api/users",
-    tags=["Users"]
-)
-
-
-# ============================================================
-# GET MY PROFILE
-# ============================================================
-
-@router.get(
-    "/me",
-    response_model=UserResponse
-)
-def get_profile(
-    current_user: User = Depends(get_current_user)
-):
-
+@router.get("/me", response_model=UserResponse)
+def get_profile(current_user: User = Depends(get_current_user)):
     return current_user
 
 
-# ============================================================
-# UPDATE MY PROFILE
-# ============================================================
-
-@router.put(
-    "/me",
-    response_model=UserResponse
-)
+@router.put("/me", response_model=UserResponse)
 def update_profile(
     data: UserUpdateRequest,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
+    if data.username is not None:
+        username = data.username.strip()
+        if not username:
+            raise HTTPException(status_code=400, detail="Username cannot be empty")
 
-    if data.name is not None:
+        existing = db.query(User).filter(
+            User.name == username,
+            User.id != current_user.id,
+        ).first()
 
-        current_user.name = data.name.strip()
+        if existing:
+            raise HTTPException(
+                status_code=409,
+                detail="Username is already registered",
+            )
+
+        current_user.name = username
 
     if data.phone is not None:
-
-        current_user.phone = data.phone.strip()
+        current_user.phone = data.phone
 
     db.commit()
-
     db.refresh(current_user)
-
     return current_user

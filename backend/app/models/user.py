@@ -1,119 +1,35 @@
-from datetime import datetime
-from sqlalchemy import Boolean, DateTime, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import Boolean, Column, DateTime, Integer, String
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+
 from app.database.database import Base
+
 
 class User(Base):
     __tablename__ = "users"
 
-    # ---------------------------------------------------------
-    # Primary Key
-    # ---------------------------------------------------------
-
-    id: Mapped[int] = mapped_column(
-        Integer,
-        primary_key=True,
-        index=True
-    )
-
-    # ---------------------------------------------------------
-    # Basic User Information
-    # ---------------------------------------------------------
-
-    name: Mapped[str] = mapped_column(
-        String(100),
-        nullable=False
-    )
-
-    email: Mapped[str] = mapped_column(
-        String(255),
-        unique=True,
-        index=True,
-        nullable=False
-    )
-
-    phone: Mapped[str | None] = mapped_column(
-        String(20),
-        nullable=True
-    )
-
-    # ---------------------------------------------------------
-    # Authentication
-    # ---------------------------------------------------------
-
-    hashed_password: Mapped[str] = mapped_column(
-        String(255),
-        nullable=False
-    )
-
-    # ---------------------------------------------------------
-    # Account Status
-    # ---------------------------------------------------------
-
-    is_active: Mapped[bool] = mapped_column(
-        Boolean,
-        default=True,
-        nullable=False
-    )
-
-    is_verified: Mapped[bool] = mapped_column(
-        Boolean,
-        default=False,
-        nullable=False
-    )
-
-    # ---------------------------------------------------------
-    # Authorization
-    # ---------------------------------------------------------
-
-    is_admin: Mapped[bool] = mapped_column(
-        Boolean,
-        default=False,
-        nullable=False
-    )
-
-    # ---------------------------------------------------------
-    # Password Reset OTP
-    # ---------------------------------------------------------
-
-    otp: Mapped[str | None] = mapped_column(
-        String(6),
-        nullable=True
-    )
-
-    otp_expires_at: Mapped[datetime | None] = mapped_column(
-        DateTime,
-        nullable=True
-    )
-
-    # ---------------------------------------------------------
-    # Created Date
-    # ---------------------------------------------------------
-
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=datetime.utcnow,
-        nullable=False
-    )
-
-    # ---------------------------------------------------------
-    # Relationships
-    # ---------------------------------------------------------
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    phone = Column(String(20), nullable=True)
+    hashed_password = Column(String(255), nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    is_verified = Column(Boolean, default=False, nullable=False)
+    is_admin = Column(Boolean, default=False, nullable=False)
+    otp = Column(String(6), nullable=True)
+    otp_expires_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
 
     addresses = relationship(
-        "Address",
-        back_populates="user",
-        cascade="all, delete-orphan"
+        "Address", back_populates="user", cascade="all, delete-orphan"
     )
-
     cards = relationship(
-        "Card",
-        back_populates="user",
-        cascade="all, delete-orphan"
+        "Card", back_populates="user", cascade="all, delete-orphan"
+    )
+    orders = relationship(
+        "Order", back_populates="user", cascade="all, delete-orphan"
     )
 
-    orders = relationship(
-        "Order",
-        back_populates="user",
-        cascade="all, delete-orphan"
-    )
+    @property
+    def username(self):
+        return self.name

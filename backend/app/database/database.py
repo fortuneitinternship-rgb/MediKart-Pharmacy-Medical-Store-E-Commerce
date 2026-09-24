@@ -12,7 +12,7 @@ engine = create_engine(
     settings.DATABASE_URL,
     pool_pre_ping=True,
     pool_recycle=280,
-    echo=False
+    echo=False,
 )
 
 
@@ -23,7 +23,7 @@ engine = create_engine(
 SessionLocal = sessionmaker(
     autocommit=False,
     autoflush=False,
-    bind=engine
+    bind=engine,
 )
 
 
@@ -39,33 +39,52 @@ Base = declarative_base()
 # ============================================================
 
 def get_db():
-
     db = SessionLocal()
 
     try:
         yield db
-
     finally:
         db.close()
 
 
+# ============================================================
+# DATABASE SCHEMA COMPATIBILITY
+# ============================================================
+
 def ensure_schema_compatibility():
-    """Apply additive updates to databases created by older versions."""
+
     inspector = inspect(engine)
 
     if "users" not in inspector.get_table_names():
         return
 
-    user_columns = {
+    columns = {
         column["name"]
         for column in inspector.get_columns("users")
     }
 
-    if "is_admin" not in user_columns:
-        with engine.begin() as connection:
+    with engine.begin() as connection:
+
+        if "is_admin" not in columns:
             connection.execute(
                 text(
                     "ALTER TABLE users "
                     "ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT 0"
+                )
+            )
+
+        if "otp" not in columns:
+            connection.execute(
+                text(
+                    "ALTER TABLE users "
+                    "ADD COLUMN otp VARCHAR(6) NULL"
+                )
+            )
+
+        if "otp_expires_at" not in columns:
+            connection.execute(
+                text(
+                    "ALTER TABLE users "
+                    "ADD COLUMN otp_expires_at DATETIME NULL"
                 )
             )
