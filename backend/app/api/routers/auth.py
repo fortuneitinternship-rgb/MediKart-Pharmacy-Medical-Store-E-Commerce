@@ -22,3 +22,8 @@ def get_me(current_user: User = Depends(get_current_user)):
 @router.post("/logout")
 def logout(current_user: User = Depends(get_current_user)):
     return {"message": "Logout successful", "user_id": current_user.id}
+
+
+@router.post("/me")
+def get_me(current_user: User = Depends(get_current_user)):
+    return current_user

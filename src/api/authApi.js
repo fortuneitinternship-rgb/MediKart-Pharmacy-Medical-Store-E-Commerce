@@ -4,7 +4,7 @@
 // =====================================================
 
 const API_URL =
-  import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+  process.env.REACT_APP_API_URL || "http://127.0.0.1:8000";
 
 // =====================================================
 // COMMON ERROR HANDLER
@@ -375,6 +375,30 @@ export const sendOTP = async (
 };
 
 // =====================================================
+// RESEND OTP
+// POST /api/auth/resend-otp
+// =====================================================
+
+export const resendOTP = async (email) => {
+  const response = await fetch(
+    `${API_URL}/api/auth/resend-otp`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ email }),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response));
+  }
+
+  return await response.json();
+};
+
+// =====================================================
 // VERIFY OTP
 // STEP 2
 // POST /api/auth/verify-otp
@@ -614,25 +638,11 @@ export const getStoredUser = () => {
 // =====================================================
 
 export const clearAuthData = () => {
-  localStorage.removeItem(
-    "access_token"
-  );
-
-  localStorage.removeItem(
-    "user"
-  );
-
-  localStorage.removeItem(
-    "isLoggedIn"
-  );
-
-  localStorage.removeItem(
-    "username"
-  );
-
-  window.dispatchEvent(
-    new Event("userUpdated")
-  );
+  localStorage.removeItem("access_token");
+  localStorage.removeItem("user");
+  localStorage.removeItem("isLoggedIn");
+  localStorage.removeItem("username");
+  window.dispatchEvent(new Event("userUpdated"));
 };
 
 // =====================================================

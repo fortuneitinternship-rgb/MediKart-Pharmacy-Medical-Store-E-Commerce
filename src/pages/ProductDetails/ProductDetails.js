@@ -9,6 +9,7 @@ import {
 } from "react-icons/fa";
 
 import products from "../../data/products";
+import api from "../../services/api";
 
 import ProductGallery from "../../components/ProductGallery/ProductGallery";
 import QuantitySelector from "../../components/QuantitySelector/QuantitySelector";
@@ -25,7 +26,7 @@ const ProductDetails = () => {
   // FIND PRODUCT
   // ==========================================
 
-  const product = products.find(
+  const localProduct = products.find(
     (item) => Number(item.id) === Number(id)
   );
 
@@ -34,6 +35,8 @@ const ProductDetails = () => {
   // ==========================================
 
   const [quantity, setQuantity] = useState(1);
+
+  const [product, setProduct] = useState(localProduct);
 
   const [wishlist, setWishlist] = useState(false);
 
@@ -48,18 +51,29 @@ const ProductDetails = () => {
   useEffect(() => {
     setQuantity(1);
     setLoading(true);
+    setProduct(localProduct);
 
     window.scrollTo({
       top: 0,
       behavior: "smooth",
     });
 
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 700);
+    let active = true;
+    api.get(`/api/products/${id}`)
+      .then(({ data }) => {
+        if (active) setProduct(data);
+      })
+      .catch(() => {
+        if (active) setProduct(localProduct);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
 
-    return () => clearTimeout(timer);
-  }, [id]);
+    return () => {
+      active = false;
+    };
+  }, [id, localProduct]);
 
   // ==========================================
   // CHECK WISHLIST

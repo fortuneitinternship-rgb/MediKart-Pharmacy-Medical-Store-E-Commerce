@@ -13,6 +13,9 @@ engine = create_engine(
     pool_pre_ping=True,
     pool_recycle=280,
     echo=False,
+    connect_args={"check_same_thread": False}
+    if settings.DATABASE_URL.startswith("sqlite")
+    else {},
 )
 
 
@@ -69,22 +72,12 @@ def ensure_schema_compatibility():
             connection.execute(
                 text(
                     "ALTER TABLE users "
-                    "ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT 0"
+                    "ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT FALSE"
                 )
             )
 
-        if "otp" not in columns:
-            connection.execute(
-                text(
-                    "ALTER TABLE users "
-                    "ADD COLUMN otp VARCHAR(6) NULL"
-                )
-            )
+        if "otp_expires_at" in columns:
+            connection.execute(text("ALTER TABLE users DROP COLUMN otp_expires_at"))
 
-        if "otp_expires_at" not in columns:
-            connection.execute(
-                text(
-                    "ALTER TABLE users "
-                    "ADD COLUMN otp_expires_at DATETIME NULL"
-                )
-            )
+        if "otp" in columns:
+            connection.execute(text("ALTER TABLE users DROP COLUMN otp"))

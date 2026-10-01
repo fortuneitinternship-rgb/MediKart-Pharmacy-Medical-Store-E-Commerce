@@ -29,7 +29,11 @@ MediKart Team
 """
     )
 
-    with smtplib.SMTP(settings.SMTP_SERVER, settings.SMTP_PORT) as server:
+    with smtplib.SMTP(
+        settings.SMTP_SERVER,
+        settings.SMTP_PORT,
+        timeout=15,
+    ) as server:
 
         server.starttls()
 

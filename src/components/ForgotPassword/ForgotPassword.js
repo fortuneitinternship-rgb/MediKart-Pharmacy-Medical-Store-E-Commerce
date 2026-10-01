@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaTimes,
@@ -10,6 +10,7 @@ import {
 import "./ForgotPassword.css";
 import {
   forgotPassword,
+  resendOTP,
   resetPassword,
   verifyOTP,
 } from "../../api/authApi";
@@ -27,6 +28,18 @@ const ForgotPassword = ({ onClose, onSwitchToLogin }) => {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [statusMessage, setStatusMessage] = useState("");
+  const [resendSeconds, setResendSeconds] = useState(0);
+
+  useEffect(() => {
+    if (step !== "otp" || resendSeconds === 0) return undefined;
+
+    const timer = window.setTimeout(() => {
+      setResendSeconds((seconds) => Math.max(0, seconds - 1));
+    }, 1000);
+
+    return () => window.clearTimeout(timer);
+  }, [step, resendSeconds]);
 
   // ==========================================
   // SEND OTP
@@ -42,11 +55,14 @@ const ForgotPassword = ({ onClose, onSwitchToLogin }) => {
 
     setLoading(true);
     setError("");
+    setStatusMessage("");
 
     try {
       await forgotPassword(email);
 
       setStep("otp");
+      setResendSeconds(60);
+      setStatusMessage("OTP sent. Check your email.");
       setError("");
     } catch (err) {
       console.error('Send OTP Error:', err);
@@ -59,6 +75,23 @@ const ForgotPassword = ({ onClose, onSwitchToLogin }) => {
       } else {
         setError(err.message || "Unable to send OTP. Please try again.");
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOTP = async () => {
+    setLoading(true);
+    setError("");
+    setStatusMessage("");
+
+    try {
+      await resendOTP(email);
+      setOtp("");
+      setResendSeconds(60);
+      setStatusMessage("A new OTP has been sent to your email.");
+    } catch (err) {
+      setError(err.message || "Unable to resend OTP. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -78,11 +111,13 @@ const ForgotPassword = ({ onClose, onSwitchToLogin }) => {
 
     setLoading(true);
     setError("");
+    setStatusMessage("");
 
     try {
       await verifyOTP(email, otp);
 
       setStep("reset");
+      setResendSeconds(0);
       setError("");
     } catch (err) {
       console.error('Verify OTP Error:', err);
@@ -176,6 +211,8 @@ const ForgotPassword = ({ onClose, onSwitchToLogin }) => {
     if (step === "otp") {
       setStep("email");
       setOtp("");
+      setResendSeconds(0);
+      setStatusMessage("");
       setError("");
     } else if (step === "reset") {
       setStep("otp");
@@ -331,6 +368,25 @@ const ForgotPassword = ({ onClose, onSwitchToLogin }) => {
                   : "Verify OTP"}
               </button>
             </form>
+
+            {statusMessage && (
+              <div className="forgot-success" role="status">
+                {statusMessage}
+              </div>
+            )}
+
+            <button
+              type="button"
+              className="resend-otp-btn"
+              onClick={handleResendOTP}
+              disabled={loading || resendSeconds > 0}
+            >
+              {loading
+                ? "Resending..."
+                : resendSeconds > 0
+                  ? `Resend OTP in ${String(Math.floor(resendSeconds / 60)).padStart(2, "0")}:${String(resendSeconds % 60).padStart(2, "0")}`
+                  : "Resend OTP"}
+            </button>
 
             <button
               type="button"

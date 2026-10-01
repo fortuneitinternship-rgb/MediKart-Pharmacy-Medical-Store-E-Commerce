@@ -16,8 +16,6 @@ class User(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     is_verified = Column(Boolean, default=False, nullable=False)
     is_admin = Column(Boolean, default=False, nullable=False)
-    otp = Column(String(6), nullable=True)
-    otp_expires_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
 
     addresses = relationship(

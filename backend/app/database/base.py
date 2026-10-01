@@ -4,5 +4,7 @@ from app.models.card import Card
 from app.models.newsletter import Newsletter
 from app.models.order import Order
 from app.models.order_item import OrderItem
+from app.models.opt import EmailOTP
 from app.models.payment import Payment
+from app.models.product import Product
 from app.models.user import User
