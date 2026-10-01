@@ -32,7 +32,10 @@ def get_current_user(
     user = db.query(User).filter(User.id == user_id).first()
 
     if not user:
-        raise credentials_exception
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
 
     if not user.is_active:
         raise HTTPException(

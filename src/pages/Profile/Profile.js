@@ -3,13 +3,12 @@ import {
     FaUserCircle,
     FaEnvelope,
     FaPhone,
-    FaMapMarkerAlt,
     FaEdit,
     FaSave,
 } from "react-icons/fa";
 import "./Profile.css";
 import {
-    getCurrentUser,
+    getUserProfile,
     updateCurrentUser,
 } from "../../api/authApi";
 
@@ -17,27 +16,29 @@ const Profile = () => {
     const [editing, setEditing] = useState(false);
 
     const [user, setUser] = useState({
-        name: "Satender Kashyap",
-        email: "satender@example.com",
+        full_name: "",
+        email: "",
         phone: "",
-        address: "Delhi, India",
+        profile_image: "",
     });
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState("");
+    const [success, setSuccess] = useState("");
 
     useEffect(() => {
-        const loadUser = async () => {
-            try {
-                const currentUser = await getCurrentUser();
-
-                setUser((previousUser) => ({
-                    ...previousUser,
-                    ...currentUser,
-                }));
-            } catch (error) {
-                console.error("Unable to load profile:", error);
-            }
-        };
-
-        loadUser();
+        let active = true;
+        getUserProfile()
+            .then((profile) => {
+                if (active) setUser(profile);
+            })
+            .catch((requestError) => {
+                if (active) setError(requestError.message || "Unable to load profile.");
+            })
+            .finally(() => {
+                if (active) setLoading(false);
+            });
+        return () => { active = false; };
     }, []);
 
     const handleChange = (e) => {
@@ -45,34 +46,49 @@ const Profile = () => {
             ...user,
             [e.target.name]: e.target.value,
         });
+        setError("");
+        setSuccess("");
     };
 
     const handleSave = async () => {
+        setSaving(true);
+        setError("");
+        setSuccess("");
         try {
-            const updatedUser = await updateCurrentUser(user);
-
-            setUser((previousUser) => ({
-                ...previousUser,
-                ...updatedUser,
-            }));
+            const updatedUser = await updateCurrentUser({
+                full_name: user.full_name,
+                phone: user.phone,
+                profile_image: user.profile_image,
+            });
+            setUser(updatedUser);
             localStorage.setItem("user", JSON.stringify(updatedUser));
-            localStorage.setItem("username", updatedUser.name);
+            localStorage.setItem("username", updatedUser.full_name);
             setEditing(false);
             window.dispatchEvent(new Event("userUpdated"));
-            alert("Profile Updated Successfully!");
-        } catch (error) {
-            alert(error.message || "Unable to update profile.");
+            setSuccess("Profile updated successfully.");
+        } catch (requestError) {
+            setError(requestError.message || "Unable to update profile.");
+        } finally {
+            setSaving(false);
         }
     };
+
+    if (loading) {
+        return <main className="profile-page"><p role="status">Loading profile...</p></main>;
+    }
 
     return (
         <div className="profile-page">
             <div className="profile-card">
 
                 <div className="profile-top">
-                    <FaUserCircle className="profile-avatar" />
+                    {user.profile_image ? (
+                        <img className="profile-avatar profile-avatar-image" src={user.profile_image} alt="Profile" />
+                    ) : (
+                        <FaUserCircle className="profile-avatar" />
+                    )}
 
-                    <h2>{user.name}</h2>
+                    <h2>{user.full_name}</h2>
                     <p>MEDIKART Customer</p>
                 </div>
 
@@ -83,37 +99,35 @@ const Profile = () => {
                         {editing ? (
                             <input
                                 type="text"
-                                name="name"
-                                value={user.name}
+                                name="full_name"
+                                aria-label="Full name"
+                                value={user.full_name}
                                 onChange={handleChange}
+                                minLength={2}
+                                maxLength={100}
+                                required
                             />
                         ) : (
-                            <span>{user.name}</span>
+                            <span>{user.full_name}</span>
                         )}
                     </div>
 
                     <div className="profile-row">
                         <FaEnvelope />
-                        {editing ? (
-                            <input
-                                type="email"
-                                name="email"
-                                value={user.email}
-                                onChange={handleChange}
-                            />
-                        ) : (
-                            <span>{user.email}</span>
-                        )}
+                        <span>{user.email}</span>
                     </div>
 
                     <div className="profile-row">
                         <FaPhone />
                         {editing ? (
                             <input
-                                type="text"
+                                type="tel"
                                 name="phone"
+                                aria-label="Phone number"
                                 value={user.phone}
                                 onChange={handleChange}
+                                inputMode="tel"
+                                autoComplete="tel"
                             />
                         ) : (
                             <span>{user.phone}</span>
@@ -121,27 +135,37 @@ const Profile = () => {
                     </div>
 
                     <div className="profile-row">
-                        <FaMapMarkerAlt />
+                        <FaUserCircle />
+                        <label htmlFor="profile-image">Profile image URL</label>
                         {editing ? (
                             <input
-                                type="text"
-                                name="address"
-                                value={user.address}
+                                id="profile-image"
+                                type="url"
+                                name="profile_image"
+                                aria-label="Profile image URL"
+                                value={user.profile_image || ""}
                                 onChange={handleChange}
+                                maxLength={2048}
                             />
                         ) : (
-                            <span>{user.address}</span>
+                            <span>{user.profile_image || "Not set"}</span>
                         )}
                     </div>
 
                 </div>
 
+                {error && <p className="profile-message profile-error" role="alert">{error}</p>}
+                {success && <p className="profile-message profile-success" role="status">{success}</p>}
+
                 <div className="profile-buttons">
                     {editing ? (
-                        <button className="save-btn" onClick={handleSave}>
+                        <>
+                        <button className="save-btn" onClick={handleSave} disabled={saving}>
                             <FaSave />
-                            Save
+                            {saving ? "Saving..." : "Save"}
                         </button>
+                        <button className="edit-btn" onClick={() => { setEditing(false); setError(""); }} disabled={saving}>Cancel</button>
+                        </>
                     ) : (
                         <button
                             className="edit-btn"

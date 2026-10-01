@@ -11,6 +11,7 @@ from app.api.routers import (
     orders,
     payments,
     products,
+    users,
 )
 from app.database.database import Base, engine, ensure_schema_compatibility
 from app.database import base  # noqa: F401
@@ -59,3 +60,4 @@ app.include_router(orders.router)
 app.include_router(payments.router)
 app.include_router(admin.router)
 app.include_router(products.router)
+app.include_router(users.router)

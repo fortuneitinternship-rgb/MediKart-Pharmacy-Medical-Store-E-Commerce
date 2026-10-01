@@ -204,6 +204,25 @@ export const getCurrentUser = async () => {
   return user;
 };
 
+export const getUserProfile = async () => {
+  const token = localStorage.getItem("access_token");
+  if (!token) throw new Error("Not logged in");
+
+  const response = await fetch(`${API_URL}/api/users/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!response.ok) {
+    if (response.status === 401 || response.status === 403) logoutUser();
+    throw new Error(await getErrorMessage(response));
+  }
+
+  const user = await response.json();
+  localStorage.setItem("user", JSON.stringify(user));
+  localStorage.setItem("username", user.full_name || "");
+  return user;
+};
+
 // =====================================================
 // UPDATE CURRENT USER
 // PUT /api/users/me
@@ -230,11 +249,9 @@ export const updateCurrentUser = async (
       },
 
       body: JSON.stringify({
-        username:
-          userData.username ||
-          userData.name,
-
+        full_name: userData.full_name || userData.name,
         phone: userData.phone,
+        profile_image: userData.profile_image || null,
       }),
     }
   );
@@ -254,12 +271,14 @@ export const updateCurrentUser = async (
   );
 
   if (
-    updatedUser.username ||
+    updatedUser.full_name ||
+      updatedUser.username ||
     updatedUser.name
   ) {
     localStorage.setItem(
       "username",
-      updatedUser.username ||
+      updatedUser.full_name ||
+        updatedUser.username ||
         updatedUser.name
     );
   }
