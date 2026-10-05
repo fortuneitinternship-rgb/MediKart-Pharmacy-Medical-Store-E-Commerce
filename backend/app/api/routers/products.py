@@ -1,66 +1,259 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from datetime import datetime
 
-from app.api.deps import get_current_admin
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session, joinedload
+
 from app.database.database import get_db
 from app.models.product import Product
-from app.models.user import User
-from app.schemas.product import ProductCreate, ProductResponse, ProductUpdate
-
-router = APIRouter(prefix="/api/products", tags=["Products"])
+from app.schemas.product import ProductResponse
 
 
-@router.get("", response_model=list[ProductResponse])
-def list_products(db: Session = Depends(get_db)):
-    return db.query(Product).order_by(Product.name).all()
+router = APIRouter(
+    prefix="/api/products",
+    tags=["Products"]
+)
 
 
-@router.get("/{product_id}", response_model=ProductResponse)
-def get_product(product_id: int, db: Session = Depends(get_db)):
-    product = db.query(Product).filter(Product.id == product_id).first()
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
-    return product
+def calculate_discount(product):
+    if (
+        product.discount_price is None
+        or product.price <= 0
+    ):
+        return 0
+
+    discount = (
+        (product.price - product.discount_price)
+        / product.price
+    ) * 100
+
+    return round(discount, 2)
 
 
-@router.post("", response_model=ProductResponse, status_code=status.HTTP_201_CREATED)
-def create_product(
-    data: ProductCreate,
-    db: Session = Depends(get_db),
-    _: User = Depends(get_current_admin),
+def product_response(product):
+
+    return {
+        "id": product.id,
+        "name": product.name,
+        "description": product.description,
+
+        "price": product.price,
+
+        "discount_price": product.discount_price,
+
+        "discount_percentage":
+            calculate_discount(product),
+
+        "category": product.category,
+
+        "stock": product.stock,
+
+        "image": product.image,
+
+        "rating": product.rating,
+
+        "is_active": product.is_active,
+
+        "is_featured": product.is_featured,
+
+        "is_trending": product.is_trending,
+
+        "is_flash_sale": product.is_flash_sale,
+
+        "flash_sale_start":
+            product.flash_sale_start,
+
+        "flash_sale_end":
+            product.flash_sale_end,
+
+        "created_at":
+            product.created_at,
+
+        "updated_at":
+            product.updated_at,
+    }
+
+
+# -------------------------------------------------
+# 1. FEATURED PRODUCTS
+# -------------------------------------------------
+
+@router.get(
+    "/featured",
+    response_model=list[ProductResponse]
+)
+def get_featured_products(
+    limit: int = Query(
+        default=8,
+        ge=1,
+        le=100
+    ),
+    db: Session = Depends(get_db)
 ):
-    product = Product(**data.model_dump())
-    db.add(product)
-    db.commit()
-    db.refresh(product)
-    return product
+
+    products = (
+        db.query(Product)
+        .options(
+            joinedload(Product.category)
+        )
+        .filter(
+            Product.is_active == True,
+            Product.is_featured == True
+        )
+        .limit(limit)
+        .all()
+    )
+
+    return [
+        product_response(product)
+        for product in products
+    ]
 
 
-@router.put("/{product_id}", response_model=ProductResponse)
-def update_product(
+# -------------------------------------------------
+# 2. TRENDING PRODUCTS
+# -------------------------------------------------
+
+@router.get(
+    "/trending",
+    response_model=list[ProductResponse]
+)
+def get_trending_products(
+    limit: int = Query(
+        default=8,
+        ge=1,
+        le=100
+    ),
+    db: Session = Depends(get_db)
+):
+
+    products = (
+        db.query(Product)
+        .options(
+            joinedload(Product.category)
+        )
+        .filter(
+            Product.is_active == True,
+            Product.is_trending == True,
+            Product.stock > 0
+        )
+        .limit(limit)
+        .all()
+    )
+
+    return [
+        product_response(product)
+        for product in products
+    ]
+
+
+# -------------------------------------------------
+# 3. FLASH SALE
+# -------------------------------------------------
+
+@router.get(
+    "/flash-sale",
+    response_model=list[ProductResponse]
+)
+def get_flash_sale_products(
+    limit: int = Query(
+        default=10,
+        ge=1,
+        le=100
+    ),
+    db: Session = Depends(get_db)
+):
+
+    now = datetime.utcnow()
+
+    products = (
+        db.query(Product)
+        .options(
+            joinedload(Product.category)
+        )
+        .filter(
+            Product.is_active == True,
+            Product.is_flash_sale == True,
+            Product.stock > 0,
+            Product.flash_sale_start <= now,
+            Product.flash_sale_end >= now
+        )
+        .limit(limit)
+        .all()
+    )
+
+    return [
+        product_response(product)
+        for product in products
+    ]
+
+
+# -------------------------------------------------
+# 4. NEW ARRIVALS
+# -------------------------------------------------
+
+@router.get(
+    "/new-arrivals",
+    response_model=list[ProductResponse]
+)
+def get_new_arrivals(
+    limit: int = Query(
+        default=8,
+        ge=1,
+        le=100
+    ),
+    db: Session = Depends(get_db)
+):
+
+    products = (
+        db.query(Product)
+        .options(
+            joinedload(Product.category)
+        )
+        .filter(
+            Product.is_active == True
+        )
+        .order_by(
+            Product.created_at.desc()
+        )
+        .limit(limit)
+        .all()
+    )
+
+    return [
+        product_response(product)
+        for product in products
+    ]
+
+
+# -------------------------------------------------
+# 5. PRODUCT DETAILS
+# -------------------------------------------------
+
+@router.get(
+    "/{product_id}",
+    response_model=ProductResponse
+)
+def get_product_details(
     product_id: int,
-    data: ProductUpdate,
-    db: Session = Depends(get_db),
-    _: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
 ):
-    product = db.query(Product).filter(Product.id == product_id).first()
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
-    for field, value in data.model_dump(exclude_unset=True).items():
-        setattr(product, field, value)
-    db.commit()
-    db.refresh(product)
-    return product
 
+    product = (
+        db.query(Product)
+        .options(
+            joinedload(Product.category)
+        )
+        .filter(
+            Product.id == product_id,
+            Product.is_active == True
+        )
+        .first()
+    )
 
-@router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_product(
-    product_id: int,
-    db: Session = Depends(get_db),
-    _: User = Depends(get_current_admin),
-):
-    product = db.query(Product).filter(Product.id == product_id).first()
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
-    db.delete(product)
-    db.commit()
+    if product is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Product not found"
+        )
+
+    return product_response(product)

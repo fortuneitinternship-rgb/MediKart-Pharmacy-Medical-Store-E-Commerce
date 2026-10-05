@@ -1,34 +1,41 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.routers.otp import router as otp_router
-
-from app.api.routers import (
-    admin,
-    addresses,
-    auth,
-    cards,
-    newsletter,
-    orders,
-    payments,
-    products,
-    users,
-)
-from app.database.database import Base, engine, ensure_schema_compatibility
+from app.api.routers import (admin,addresses,auth,cards,newsletter,orders,payments,products,users,)
+from app.database.database import (Base,engine,ensure_schema_compatibility,)
 from app.database import base  # noqa: F401
 
 
+# ============================================================
+# DATABASE
+# ============================================================
+
 Base.metadata.create_all(bind=engine)
+
 ensure_schema_compatibility()
+
+
+# ============================================================
+# FASTAPI APPLICATION
+# ============================================================
 
 app = FastAPI(
     title="MEDIKART API",
-    description="FastAPI backend for the MediKart medicine and healthcare application",
+    description=(
+        "FastAPI backend for the MediKart "
+        "medicine and healthcare application"
+    ),
     version="1.0.0",
 )
-app.include_router(otp_router)
+
+
+# ============================================================
+# CORS
+# ============================================================
 
 app.add_middleware(
     CORSMiddleware,
+
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
@@ -39,6 +46,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.include_router(otp_router)
+
+
+# ============================================================
+# ROOT
+# ============================================================
 
 @app.get("/")
 def root():
@@ -48,16 +61,23 @@ def root():
         "docs": "/docs",
     }
 
+
+# ============================================================
+# HEALTH CHECK
+# ============================================================
+
 @app.get("/health")
 def health():
-    return {"status": "healthy"}
+    return { "status": "healthy" }
 
-app.include_router(auth.router)
-app.include_router(addresses.router)
-app.include_router(newsletter.router)
-app.include_router(cards.router)
-app.include_router(orders.router)
-app.include_router(payments.router)
-app.include_router(admin.router)
-app.include_router(products.router)
-app.include_router(users.router)
+# ====================== Authentication ==============================
+
+app.include_router(auth.router)             
+app.include_router(addresses.router)        # Addresses
+app.include_router(newsletter.router)       # NewsLetters
+app.include_router(cards.router)            # Cards
+app.include_router(orders.router)           # Orders
+app.include_router(payments.router)         # Payments
+app.include_router(admin.router)            # Admin
+app.include_router(products.router)         # Products
+app.include_router(users.router)            # Users

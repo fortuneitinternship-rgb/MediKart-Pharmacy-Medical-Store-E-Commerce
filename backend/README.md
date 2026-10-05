@@ -5,11 +5,17 @@
 From the repository root in PowerShell:
 
 ```powershell
+
 cd backend
+
 python -m venv environment
+
 .\environment\Scripts\Activate.ps1
+
 python -m pip install -r requirements.txt
+
 if (!(Test-Path .env)) { Copy-Item .env.example .env }
+
 uvicorn app.main:app --reload
 ```
 
@@ -45,8 +51,11 @@ The React app uses `http://127.0.0.1:8000` by default. To change it, set `REACT_
 ## Product API
 
 - `GET /api/products` and `GET /api/products/{id}` are public.
+
 - `POST /api/products`, `PUT /api/products/{id}`, and `DELETE /api/products/{id}` require an administrator bearer token.
+
 - Existing authenticated APIs cover registration/login, profile, addresses, cards, orders, payments, and newsletter subscriptions.
+
 - After registering an account, promote it for product management with `UPDATE users SET is_admin = 1 WHERE email = 'your@email.com';` in SQLite.
 
 ## User Profile API (BE-010)
@@ -54,7 +63,16 @@ The React app uses `http://127.0.0.1:8000` by default. To change it, set `REACT_
 All profile routes require `Authorization: Bearer <access_token>` from `POST /api/auth/login`.
 
 - `GET /api/users/me`: returns `id`, `full_name`, `email`, `phone`, `profile_image`, `is_active`, `created_at`, and `updated_at`.
+
 - `PUT /api/users/me`: accepts `full_name`, `phone`, and/or `profile_image`; email/password and unknown fields are rejected.
+
 - Expected results: unauthenticated `401`, missing token subject user `404`, invalid fields `422`, duplicate phone `409`, successful read/update `200`.
+
 - Swagger/Postman checks: login; GET with and without bearer token; PUT valid fields; PUT name under 2 or over 100 chars; PUT invalid phone; PUT another existing user's phone; submit `email`, `password`, or `user_id`; verify GET never contains `hashed_password`; GET again and confirm the update persisted.
+
 - Pytest: `python -m pytest -q tests/test_users.py`.
+
+
+## Run the FastAPI Server 
+
+uvicorn app.main:app --reload

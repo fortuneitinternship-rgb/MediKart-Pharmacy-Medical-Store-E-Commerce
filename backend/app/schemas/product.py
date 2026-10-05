@@ -1,27 +1,45 @@
-from pydantic import BaseModel, Field
+from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel, ConfigDict
 
 
-class ProductCreate(BaseModel):
-    name: str = Field(min_length=1, max_length=200)
-    category: str = Field(min_length=1, max_length=100)
-    description: str = ""
-    price: float = Field(ge=0)
-    rating: float = Field(default=0, ge=0, le=5)
-    image: str | None = Field(default=None, max_length=1000)
-    stock: int = Field(default=0, ge=0)
-
-
-class ProductUpdate(BaseModel):
-    name: str | None = Field(default=None, min_length=1, max_length=200)
-    category: str | None = Field(default=None, min_length=1, max_length=100)
-    description: str | None = None
-    price: float | None = Field(default=None, ge=0)
-    rating: float | None = Field(default=None, ge=0, le=5)
-    image: str | None = Field(default=None, max_length=1000)
-    stock: int | None = Field(default=None, ge=0)
-
-
-class ProductResponse(ProductCreate):
+class CategoryResponse(BaseModel):
     id: int
+    name: str
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(
+        from_attributes=True
+    )
+
+
+class ProductResponse(BaseModel):
+    id: int
+    name: str
+
+    description: Optional[str] = None
+
+    price: float
+    discount_price: Optional[float] = None
+    discount_percentage: float = 0
+
+    category: Optional[CategoryResponse] = None
+
+    stock: int
+    image: Optional[str] = None
+    rating: float
+
+    is_active: bool
+    is_featured: bool
+    is_trending: bool
+    is_flash_sale: bool
+
+    flash_sale_start: Optional[datetime] = None
+    flash_sale_end: Optional[datetime] = None
+
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(
+        from_attributes=True
+    )

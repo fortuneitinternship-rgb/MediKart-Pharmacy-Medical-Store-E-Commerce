@@ -133,8 +133,8 @@ export const loginUser = async (
     localStorage.setItem(
       "username",
       data.user.username ||
-        data.user.name ||
-        ""
+      data.user.name ||
+      ""
     );
   }
 
@@ -272,14 +272,14 @@ export const updateCurrentUser = async (
 
   if (
     updatedUser.full_name ||
-      updatedUser.username ||
+    updatedUser.username ||
     updatedUser.name
   ) {
     localStorage.setItem(
       "username",
       updatedUser.full_name ||
-        updatedUser.username ||
-        updatedUser.name
+      updatedUser.username ||
+      updatedUser.name
     );
   }
 
