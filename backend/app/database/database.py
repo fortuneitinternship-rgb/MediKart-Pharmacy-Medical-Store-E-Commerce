@@ -116,6 +116,16 @@ def ensure_schema_compatibility():
                     )
                 )
 
+            if "address" not in user_columns:
+                connection.execute(
+                    text(
+                        """
+                        ALTER TABLE users
+                        ADD COLUMN address VARCHAR(500) NULL
+                        """
+                    )
+                )
+
             # -----------------------------------------------
             # updated_at
             # -----------------------------------------------
@@ -132,6 +142,16 @@ def ensure_schema_compatibility():
                     )
                 )
 
+            if "last_login" not in user_columns:
+                connection.execute(
+                    text(
+                        """
+                        ALTER TABLE users
+                        ADD COLUMN last_login DATETIME NULL
+                        """
+                    )
+                )
+
                 connection.execute(
                     text(
                         """
@@ -142,6 +162,42 @@ def ensure_schema_compatibility():
                                 CURRENT_TIMESTAMP
                             )
                         WHERE updated_at IS NULL
+                        """
+                    )
+                )
+
+    if "addresses" in table_names:
+        address_columns = {
+            column["name"]
+            for column in inspector.get_columns("addresses")
+        }
+        with engine.begin() as connection:
+            if "country" not in address_columns:
+                connection.execute(
+                    text(
+                        """
+                        ALTER TABLE addresses
+                        ADD COLUMN country VARCHAR(100)
+                        NOT NULL DEFAULT 'India'
+                        """
+                    )
+                )
+            if "landmark" not in address_columns:
+                connection.execute(
+                    text(
+                        """
+                        ALTER TABLE addresses
+                        ADD COLUMN landmark VARCHAR(255) NULL
+                        """
+                    )
+                )
+            if "is_default" not in address_columns:
+                connection.execute(
+                    text(
+                        """
+                        ALTER TABLE addresses
+                        ADD COLUMN is_default BOOLEAN
+                        NOT NULL DEFAULT FALSE
                         """
                     )
                 )
@@ -183,6 +239,32 @@ def ensure_schema_compatibility():
                         CREATE UNIQUE INDEX
                         uq_users_phone
                         ON users (phone)
+                        """
+                    )
+                )
+
+    if "orders" in table_names:
+        order_columns = {
+            column["name"]
+            for column in inspector.get_columns("orders")
+        }
+        with engine.begin() as connection:
+            if "cancellation_reason" not in order_columns:
+                connection.execute(
+                    text(
+                        """
+                        ALTER TABLE orders
+                        ADD COLUMN cancellation_reason
+                        VARCHAR(255) NULL
+                        """
+                    )
+                )
+            if "cancelled_at" not in order_columns:
+                connection.execute(
+                    text(
+                        """
+                        ALTER TABLE orders
+                        ADD COLUMN cancelled_at DATETIME NULL
                         """
                     )
                 )

@@ -107,34 +107,3 @@
         width: 100%;
     }
 }
-
-.profile-avatar-image {
-    width: 90px;
-    height: 90px;
-    border-radius: 50%;
-    object-fit: cover;
-}
-
-.profile-row label {
-    min-width: 130px;
-    color: #475569;
-}
-
-.edit-btn:disabled,
-.save-btn:disabled {
-    opacity: .65;
-    cursor: wait;
-}
-
-.profile-message {
-    padding: 0 25px;
-    text-align: center;
-}
-
-.profile-error {
-    color: #b42318;
-}
-
-.profile-success {
-    color: #16734f;
-}

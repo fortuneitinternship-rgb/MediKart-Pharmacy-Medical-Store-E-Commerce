@@ -3,12 +3,13 @@ import {
     FaUserCircle,
     FaEnvelope,
     FaPhone,
+    FaMapMarkerAlt,
     FaEdit,
     FaSave,
 } from "react-icons/fa";
 import "./Profile.css";
 import {
-    getUserProfile,
+    getCurrentUser,
     updateCurrentUser,
 } from "../../api/authApi";
 
@@ -16,29 +17,32 @@ const Profile = () => {
     const [editing, setEditing] = useState(false);
 
     const [user, setUser] = useState({
-        full_name: "",
-        email: "",
+        name: "Satender Kashyap",
+        email: "satender@example.com",
         phone: "",
-        profile_image: "",
+        address: "Delhi, India",
     });
-    const [loading, setLoading] = useState(true);
-    const [saving, setSaving] = useState(false);
-    const [error, setError] = useState("");
-    const [success, setSuccess] = useState("");
 
     useEffect(() => {
-        let active = true;
-        getUserProfile()
-            .then((profile) => {
-                if (active) setUser(profile);
-            })
-            .catch((requestError) => {
-                if (active) setError(requestError.message || "Unable to load profile.");
-            })
-            .finally(() => {
-                if (active) setLoading(false);
-            });
-        return () => { active = false; };
+        const loadUser = async () => {
+            try {
+                const currentUser = await getCurrentUser();
+
+                setUser((previousUser) => ({
+                    ...previousUser,
+                    ...currentUser,
+                    name:
+                        currentUser.full_name ||
+                        currentUser.name ||
+                        previousUser.name,
+                    address: currentUser.address || previousUser.address,
+                }));
+            } catch (error) {
+                console.error("Unable to load profile:", error);
+            }
+        };
+
+        loadUser();
     }, []);
 
     const handleChange = (e) => {
@@ -46,49 +50,44 @@ const Profile = () => {
             ...user,
             [e.target.name]: e.target.value,
         });
-        setError("");
-        setSuccess("");
     };
 
     const handleSave = async () => {
-        setSaving(true);
-        setError("");
-        setSuccess("");
         try {
-            const updatedUser = await updateCurrentUser({
-                full_name: user.full_name,
-                phone: user.phone,
-                profile_image: user.profile_image,
-            });
-            setUser(updatedUser);
-            localStorage.setItem("user", JSON.stringify(updatedUser));
-            localStorage.setItem("username", updatedUser.full_name);
+            const updatedUser = await updateCurrentUser(user);
+            const updatedName =
+                updatedUser.full_name || updatedUser.name;
+            const savedUser = { ...updatedUser, name: updatedName };
+
+            setUser((previousUser) => ({
+                ...previousUser,
+                ...savedUser,
+            }));
+            try {
+                localStorage.setItem("user", JSON.stringify(savedUser));
+                localStorage.setItem("username", updatedName);
+            } catch (storageError) {
+                console.error(
+                    "Profile was saved but local user data could not be cached:",
+                    storageError
+                );
+            }
             setEditing(false);
             window.dispatchEvent(new Event("userUpdated"));
-            setSuccess("Profile updated successfully.");
-        } catch (requestError) {
-            setError(requestError.message || "Unable to update profile.");
-        } finally {
-            setSaving(false);
+            alert("Profile Updated Successfully!");
+        } catch (error) {
+            alert(error.message || "Unable to update profile.");
         }
     };
-
-    if (loading) {
-        return <main className="profile-page"><p role="status">Loading profile...</p></main>;
-    }
 
     return (
         <div className="profile-page">
             <div className="profile-card">
 
                 <div className="profile-top">
-                    {user.profile_image ? (
-                        <img className="profile-avatar profile-avatar-image" src={user.profile_image} alt="Profile" />
-                    ) : (
-                        <FaUserCircle className="profile-avatar" />
-                    )}
+                    <FaUserCircle className="profile-avatar" />
 
-                    <h2>{user.full_name}</h2>
+                    <h2>{user.name}</h2>
                     <p>MEDIKART Customer</p>
                 </div>
 
@@ -99,35 +98,37 @@ const Profile = () => {
                         {editing ? (
                             <input
                                 type="text"
-                                name="full_name"
-                                aria-label="Full name"
-                                value={user.full_name}
+                                name="name"
+                                value={user.name}
                                 onChange={handleChange}
-                                minLength={2}
-                                maxLength={100}
-                                required
                             />
                         ) : (
-                            <span>{user.full_name}</span>
+                            <span>{user.name}</span>
                         )}
                     </div>
 
                     <div className="profile-row">
                         <FaEnvelope />
-                        <span>{user.email}</span>
+                        {editing ? (
+                            <input
+                                type="email"
+                                name="email"
+                                value={user.email}
+                                onChange={handleChange}
+                            />
+                        ) : (
+                            <span>{user.email}</span>
+                        )}
                     </div>
 
                     <div className="profile-row">
                         <FaPhone />
                         {editing ? (
                             <input
-                                type="tel"
+                                type="text"
                                 name="phone"
-                                aria-label="Phone number"
                                 value={user.phone}
                                 onChange={handleChange}
-                                inputMode="tel"
-                                autoComplete="tel"
                             />
                         ) : (
                             <span>{user.phone}</span>
@@ -135,37 +136,27 @@ const Profile = () => {
                     </div>
 
                     <div className="profile-row">
-                        <FaUserCircle />
-                        <label htmlFor="profile-image">Profile image URL</label>
+                        <FaMapMarkerAlt />
                         {editing ? (
                             <input
-                                id="profile-image"
-                                type="url"
-                                name="profile_image"
-                                aria-label="Profile image URL"
-                                value={user.profile_image || ""}
+                                type="text"
+                                name="address"
+                                value={user.address}
                                 onChange={handleChange}
-                                maxLength={2048}
                             />
                         ) : (
-                            <span>{user.profile_image || "Not set"}</span>
+                            <span>{user.address}</span>
                         )}
                     </div>
 
                 </div>
 
-                {error && <p className="profile-message profile-error" role="alert">{error}</p>}
-                {success && <p className="profile-message profile-success" role="status">{success}</p>}
-
                 <div className="profile-buttons">
                     {editing ? (
-                        <>
-                        <button className="save-btn" onClick={handleSave} disabled={saving}>
+                        <button className="save-btn" onClick={handleSave}>
                             <FaSave />
-                            {saving ? "Saving..." : "Save"}
+                            Save
                         </button>
-                        <button className="edit-btn" onClick={() => { setEditing(false); setError(""); }} disabled={saving}>Cancel</button>
-                        </>
                     ) : (
                         <button
                             className="edit-btn"

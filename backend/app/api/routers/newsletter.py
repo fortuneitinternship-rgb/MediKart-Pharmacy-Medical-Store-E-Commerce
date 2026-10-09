@@ -23,9 +23,11 @@ def subscribe(
             raise HTTPException(status_code=400, detail="Email already subscribed")
         existing.is_active = True
         db.commit()
+        db.refresh(existing)
         return {"message": "Newsletter subscription restored", "email": email}
 
     subscriber = Newsletter(email=email)
     db.add(subscriber)
     db.commit()
+    db.refresh(subscriber)
     return {"message": "Successfully subscribed to newsletter", "email": email}

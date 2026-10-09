@@ -1,50 +1,36 @@
-import axios from "axios";
-
-const API_URL =
-  process.env.REACT_APP_API_URL ||
-  "http://127.0.0.1:8000";
+import api from "../services/api";
 
 
 export const getFeaturedProducts = async () => {
-  const response = await axios.get(
-    `${API_URL}/api/products/featured`
-  );
+  const response = await api.get("/api/products/featured");
 
   return response.data;
 };
 
 
 export const getTrendingProducts = async () => {
-  const response = await axios.get(
-    `${API_URL}/api/products/trending`
-  );
+  const response = await api.get("/api/products/trending");
 
   return response.data;
 };
 
 
 export const getFlashSaleProducts = async () => {
-  const response = await axios.get(
-    `${API_URL}/api/products/flash-sale`
-  );
+  const response = await api.get("/api/products/flash-sale");
 
   return response.data;
 };
 
 
 export const getNewArrivals = async () => {
-  const response = await axios.get(
-    `${API_URL}/api/products/new-arrivals`
-  );
+  const response = await api.get("/api/products/new-arrivals");
 
   return response.data;
 };
 
 
 export const getProductDetails = async (id) => {
-  const response = await axios.get(
-    `${API_URL}/api/products/${id}`
-  );
+  const response = await api.get(`/api/products/${id}`);
 
   return response.data;
 };

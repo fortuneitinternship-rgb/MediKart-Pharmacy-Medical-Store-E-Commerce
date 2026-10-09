@@ -5,10 +5,14 @@ import {
 } from "react-icons/fa";
 
 import "./Feedback.css";
+import { submitOrderFeedback } from "../../api/submissionsApi";
+import { getApiErrorMessage } from "../../services/api";
 
 const FeedbackPopup = ({ order, onClose }) => {
     const [rating, setRating] = useState(0);
     const [feedback, setFeedback] = useState("");
+    const [submitting, setSubmitting] = useState(false);
+    const [error, setError] = useState("");
 
     // ==============================
     // SAFE CLOSE FUNCTION
@@ -35,49 +39,46 @@ const FeedbackPopup = ({ order, onClose }) => {
     // SUBMIT FEEDBACK
     // ==============================
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         if (rating === 0) {
             alert("Please select a star rating.");
             return;
         }
 
-        const oldFeedback =
-            JSON.parse(
-                localStorage.getItem("feedbacks")
-            ) || [];
-
-        const newFeedback = {
-            id: Date.now(),
-
-            orderId:
-                order?.orderId || "N/A",
-
-            rating: rating,
-
-            feedback: feedback,
-
-            date: new Date().toLocaleString(),
-        };
-
-        // Save feedback
-        localStorage.setItem(
-            "feedbacks",
-            JSON.stringify([
-                ...oldFeedback,
-                newFeedback,
-            ])
-        );
-
-        // Mark feedback as submitted
-        if (order?.orderId) {
-            localStorage.setItem(
-                `feedbackSubmitted_${order.orderId}`,
-                "true"
-            );
+        const orderId = order?.orderId || order?.order_id;
+        if (!orderId) {
+            setError("The order could not be identified.");
+            return;
         }
 
-        // CLOSE POPUP
-        closePopup();
+        setSubmitting(true);
+        setError("");
+        try {
+            await submitOrderFeedback({
+                order_id: String(orderId),
+                rating,
+                feedback,
+            });
+            try {
+                localStorage.setItem(
+                    `feedbackSubmitted_${orderId}`,
+                    "true"
+                );
+            } catch (storageError) {
+                console.error(
+                    "Feedback was saved but local status could not be cached:",
+                    storageError
+                );
+            }
+            closePopup();
+        } catch (submitError) {
+            setError(getApiErrorMessage(
+                submitError,
+                "Unable to submit feedback. Please try again."
+            ));
+        } finally {
+            setSubmitting(false);
+        }
     };
 
     return (
@@ -206,6 +207,7 @@ const FeedbackPopup = ({ order, onClose }) => {
                     <div className="character-count">
                         {feedback.length}/500
                     </div>
+                    {error && <p role="alert">{error}</p>}
 
                 </div>
 
@@ -218,6 +220,7 @@ const FeedbackPopup = ({ order, onClose }) => {
                     <button
                         type="button"
                         className="later-button"
+                        disabled={submitting}
                         onClick={handleMaybeLater}
                     >
                         Maybe Later
@@ -227,8 +230,9 @@ const FeedbackPopup = ({ order, onClose }) => {
                         type="button"
                         className="submit-button"
                         onClick={handleSubmit}
+                        disabled={submitting}
                     >
-                        Submit Feedback
+                        {submitting ? "Submitting..." : "Submit Feedback"}
                     </button>
 
                 </div>

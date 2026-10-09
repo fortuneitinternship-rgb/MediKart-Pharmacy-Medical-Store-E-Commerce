@@ -2,44 +2,40 @@ import React from "react";
 import {
     render,
     screen,
+    fireEvent,
+    waitFor,
 } from "@testing-library/react";
-
-import userEvent from "@testing-library/user-event";
-
-import "@testing-library/jest-dom";
 
 import UploadPrescription from "./UploadPrescription";
 
-describe("UploadPrescription", () => {
+import {
+    getPrescriptions,
+    uploadPrescription,
+} from "../../api/submissionsApi";
+
+import { getApiErrorMessage } from "../../services/api";
+
+jest.mock("../../api/submissionsApi", () => ({
+    getPrescriptions: jest.fn(),
+    uploadPrescription: jest.fn(),
+}));
+
+jest.mock("../../services/api", () => ({
+    getApiErrorMessage: jest.fn(),
+}));
+
+describe("UploadPrescription Component", () => {
     beforeEach(() => {
-        jest.spyOn(window, "alert").mockImplementation(() => { });
+        jest.clearAllMocks();
+
+        getPrescriptions.mockResolvedValue([]);
+
+        getApiErrorMessage.mockImplementation(
+            (error, fallback) => fallback
+        );
     });
 
-    afterEach(() => {
-        jest.restoreAllMocks();
-    });
-
-    // --------------------------------------------------
-    // RENDERING TESTS
-    // --------------------------------------------------
-
-    test("renders Upload Prescription page", () => {
-        render(<UploadPrescription />);
-
-        expect(
-            document.querySelector(".upload-page")
-        ).toBeInTheDocument();
-    });
-
-    test("renders upload card", () => {
-        render(<UploadPrescription />);
-
-        expect(
-            document.querySelector(".upload-card")
-        ).toBeInTheDocument();
-    });
-
-    test("renders heading", () => {
+    test("renders upload prescription page", async () => {
         render(<UploadPrescription />);
 
         expect(
@@ -47,460 +43,415 @@ describe("UploadPrescription", () => {
                 name: /upload prescription/i,
             })
         ).toBeInTheDocument();
-    });
-
-    test("renders prescription description", () => {
-        render(<UploadPrescription />);
 
         expect(
-            screen.getByText(
-                /upload your doctor's prescription to order medicines easily/i
-            )
+            screen.getByText(/choose prescription/i)
         ).toBeInTheDocument();
-    });
-
-    test("renders Choose Prescription text", () => {
-        render(<UploadPrescription />);
-
-        expect(
-            screen.getByText("Choose Prescription")
-        ).toBeInTheDocument();
-    });
-
-    test("renders file input", () => {
-        render(<UploadPrescription />);
-
-        const input = document.querySelector(
-            'input[type="file"]'
-        );
-
-        expect(input).toBeInTheDocument();
-    });
-
-    test("file input has correct accepted file types", () => {
-        render(<UploadPrescription />);
-
-        const input = document.querySelector(
-            'input[type="file"]'
-        );
-
-        expect(input).toHaveAttribute(
-            "accept",
-            ".jpg,.jpeg,.png,.pdf"
-        );
-    });
-
-    test("renders Upload Prescription button", () => {
-        render(<UploadPrescription />);
 
         expect(
             screen.getByRole("button", {
                 name: /upload prescription/i,
             })
         ).toBeInTheDocument();
+
+        await waitFor(() => {
+            expect(getPrescriptions).toHaveBeenCalledTimes(1);
+        });
     });
 
-    // --------------------------------------------------
-    // INITIAL STATE TESTS
-    // --------------------------------------------------
+    test("loads prescriptions successfully", async () => {
+        getPrescriptions.mockResolvedValue([
+            {
+                id: 1,
+                filename: "prescription.pdf",
+            },
+        ]);
 
-    test("does not show selected file initially", () => {
         render(<UploadPrescription />);
+
+        await waitFor(() => {
+            expect(
+                screen.getByText("prescription.pdf")
+            ).toBeInTheDocument();
+        });
 
         expect(
-            document.querySelector(".selected-file")
-        ).not.toBeInTheDocument();
+            screen.getByRole("heading", {
+                name: /uploaded prescriptions/i,
+            })
+        ).toBeInTheDocument();
     });
 
-    test("does not show delete button initially", () => {
-        render(<UploadPrescription />);
-
-        expect(
-            document.querySelector(".delete-file")
-        ).not.toBeInTheDocument();
-    });
-
-    // --------------------------------------------------
-    // FILE UPLOAD TESTS
-    // --------------------------------------------------
-
-    test("allows user to select a PDF file", async () => {
-        const user = userEvent.setup();
-
-        render(<UploadPrescription />);
-
-        const input = document.querySelector(
-            'input[type="file"]'
+    test("shows error when prescriptions cannot be loaded", async () => {
+        getPrescriptions.mockRejectedValue(
+            new Error("API error")
         );
 
+        render(<UploadPrescription />);
+
+        await waitFor(() => {
+            expect(screen.getByRole("alert")).toHaveTextContent(
+                "Sign in to view and upload prescriptions."
+            );
+        });
+
+        expect(getApiErrorMessage).toHaveBeenCalled();
+    });
+
+    test("shows alert when upload is clicked without a file", () => {
+        const alertMock = jest
+            .spyOn(window, "alert")
+            .mockImplementation(() => { });
+
+        render(<UploadPrescription />);
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: /upload prescription/i,
+            })
+        );
+
+        expect(alertMock).toHaveBeenCalledWith(
+            "Please upload a prescription."
+        );
+
+        expect(uploadPrescription).not.toHaveBeenCalled();
+
+        alertMock.mockRestore();
+    });
+
+    test("accepts a valid PDF file", () => {
+        render(<UploadPrescription />);
+
         const file = new File(
-            ["test prescription"],
-            "test-prescription.pdf",
+            ["test content"],
+            "test.pdf",
             {
                 type: "application/pdf",
             }
         );
 
-        await user.upload(input, file);
+        const input = screen.getByLabelText(
+            /choose prescription/i
+        );
+
+        fireEvent.change(input, {
+            target: {
+                files: [file],
+            },
+        });
 
         expect(
-            screen.getByText("test-prescription.pdf")
+            screen.getByText("test.pdf")
+        ).toBeInTheDocument();
+
+        expect(
+            screen.getByRole("button", {
+                name: /delete selected file/i,
+            })
         ).toBeInTheDocument();
     });
 
-    test("allows user to select an image file", async () => {
-        const user = userEvent.setup();
-
+    test("accepts a valid JPEG file", () => {
         render(<UploadPrescription />);
-
-        const input = document.querySelector(
-            'input[type="file"]'
-        );
 
         const file = new File(
             ["test image"],
-            "test-prescription.png",
+            "test.jpg",
+            {
+                type: "image/jpeg",
+            }
+        );
+
+        const input = screen.getByLabelText(
+            /choose prescription/i
+        );
+
+        fireEvent.change(input, {
+            target: {
+                files: [file],
+            },
+        });
+
+        expect(
+            screen.getByText("test.jpg")
+        ).toBeInTheDocument();
+    });
+
+    test("accepts a valid PNG file", () => {
+        render(<UploadPrescription />);
+
+        const file = new File(
+            ["test image"],
+            "test.png",
             {
                 type: "image/png",
             }
         );
 
-        await user.upload(input, file);
+        const input = screen.getByLabelText(
+            /choose prescription/i
+        );
+
+        fireEvent.change(input, {
+            target: {
+                files: [file],
+            },
+        });
 
         expect(
-            screen.getByText("test-prescription.png")
+            screen.getByText("test.png")
         ).toBeInTheDocument();
     });
 
-    test("displays selected file section", async () => {
-        const user = userEvent.setup();
-
+    test("rejects an invalid file type", () => {
         render(<UploadPrescription />);
 
-        const input = document.querySelector(
-            'input[type="file"]'
+        const file = new File(
+            ["test"],
+            "test.txt",
+            {
+                type: "text/plain",
+            }
         );
+
+        const input = screen.getByLabelText(
+            /choose prescription/i
+        );
+
+        fireEvent.change(input, {
+            target: {
+                files: [file],
+            },
+        });
+
+        expect(screen.getByRole("alert")).toHaveTextContent(
+            "Choose a PDF, JPEG, or PNG file."
+        );
+
+        expect(
+            screen.queryByText("test.txt")
+        ).not.toBeInTheDocument();
+    });
+
+    test("rejects a file larger than 10 MB", () => {
+        render(<UploadPrescription />);
+
+        const largeFile = new File(
+            ["test"],
+            "large.pdf",
+            {
+                type: "application/pdf",
+            }
+        );
+
+        Object.defineProperty(largeFile, "size", {
+            value: 11 * 1024 * 1024,
+        });
+
+        const input = screen.getByLabelText(
+            /choose prescription/i
+        );
+
+        fireEvent.change(input, {
+            target: {
+                files: [largeFile],
+            },
+        });
+
+        expect(screen.getByRole("alert")).toHaveTextContent(
+            "Prescription file must be 10 MB or smaller."
+        );
+
+        expect(
+            screen.queryByText("large.pdf")
+        ).not.toBeInTheDocument();
+    });
+
+    test("removes selected file", () => {
+        render(<UploadPrescription />);
+
+        const file = new File(
+            ["test"],
+            "test.pdf",
+            {
+                type: "application/pdf",
+            }
+        );
+
+        const input = screen.getByLabelText(
+            /choose prescription/i
+        );
+
+        fireEvent.change(input, {
+            target: {
+                files: [file],
+            },
+        });
+
+        expect(
+            screen.getByText("test.pdf")
+        ).toBeInTheDocument();
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: /delete selected file/i,
+            })
+        );
+
+        expect(
+            screen.queryByText("test.pdf")
+        ).not.toBeInTheDocument();
+    });
+
+    test("uploads prescription successfully", async () => {
+        const alertMock = jest
+            .spyOn(window, "alert")
+            .mockImplementation(() => { });
+
+        uploadPrescription.mockResolvedValue({
+            id: 2,
+            filename: "test.pdf",
+        });
+
+        render(<UploadPrescription />);
 
         const file = new File(
             ["test content"],
-            "test-file.pdf",
+            "test.pdf",
             {
                 type: "application/pdf",
             }
         );
 
-        await user.upload(input, file);
-
-        expect(
-            document.querySelector(".selected-file")
-        ).toBeInTheDocument();
-    });
-
-    test("displays selected file name", async () => {
-        const user = userEvent.setup();
-
-        render(<UploadPrescription />);
-
-        const input = document.querySelector(
-            'input[type="file"]'
+        const input = screen.getByLabelText(
+            /choose prescription/i
         );
 
-        const file = new File(
-            ["content"],
-            "sample-file.pdf",
-            {
-                type: "application/pdf",
-            }
-        );
-
-        await user.upload(input, file);
-
-        expect(
-            screen.getByText("sample-file.pdf")
-        ).toBeInTheDocument();
-    });
-
-    test("displays file size", async () => {
-        const user = userEvent.setup();
-
-        render(<UploadPrescription />);
-
-        const input = document.querySelector(
-            'input[type="file"]'
-        );
-
-        const file = new File(
-            ["content"],
-            "sample-file.pdf",
-            {
-                type: "application/pdf",
-            }
-        );
-
-        Object.defineProperty(file, "size", {
-            value: 2048,
-            configurable: true,
+        fireEvent.change(input, {
+            target: {
+                files: [file],
+            },
         });
 
-        await user.upload(input, file);
-
-        expect(
-            screen.getByText("2.00 KB")
-        ).toBeInTheDocument();
-    });
-
-    // --------------------------------------------------
-    // DELETE FILE TESTS
-    // --------------------------------------------------
-
-    test("shows delete button after file selection", async () => {
-        const user = userEvent.setup();
-
-        render(<UploadPrescription />);
-
-        const input = document.querySelector(
-            'input[type="file"]'
-        );
-
-        const file = new File(
-            ["content"],
-            "sample-file.pdf",
-            {
-                type: "application/pdf",
-            }
-        );
-
-        await user.upload(input, file);
-
-        expect(
-            document.querySelector(".delete-file")
-        ).toBeInTheDocument();
-    });
-
-    test("removes selected file", async () => {
-        const user = userEvent.setup();
-
-        render(<UploadPrescription />);
-
-        const input = document.querySelector(
-            'input[type="file"]'
-        );
-
-        const file = new File(
-            ["content"],
-            "sample-file.pdf",
-            {
-                type: "application/pdf",
-            }
-        );
-
-        await user.upload(input, file);
-
-        expect(
-            screen.getByText("sample-file.pdf")
-        ).toBeInTheDocument();
-
-        const deleteButton =
-            document.querySelector(".delete-file");
-
-        await user.click(deleteButton);
-
-        expect(
-            screen.queryByText("sample-file.pdf")
-        ).not.toBeInTheDocument();
-
-        expect(
-            document.querySelector(".selected-file")
-        ).not.toBeInTheDocument();
-    });
-
-    test("delete button removes file information", async () => {
-        const user = userEvent.setup();
-
-        render(<UploadPrescription />);
-
-        const input = document.querySelector(
-            'input[type="file"]'
-        );
-
-        const file = new File(
-            ["content"],
-            "remove-file.pdf",
-            {
-                type: "application/pdf",
-            }
-        );
-
-        await user.upload(input, file);
-
-        const deleteButton =
-            document.querySelector(".delete-file");
-
-        await user.click(deleteButton);
-
-        expect(
-            document.querySelector(".delete-file")
-        ).not.toBeInTheDocument();
-    });
-
-    // --------------------------------------------------
-    // ALERT TESTS
-    // --------------------------------------------------
-
-    test("shows alert when uploading without a file", async () => {
-        const user = userEvent.setup();
-
-        render(<UploadPrescription />);
-
-        const uploadButton =
-            screen.getByRole("button", {
-                name: /upload prescription/i,
-            });
-
-        await user.click(uploadButton);
-
-        expect(window.alert).toHaveBeenCalledWith(
-            "Please upload a prescription."
-        );
-    });
-
-    test("shows success alert after uploading a file", async () => {
-        const user = userEvent.setup();
-
-        render(<UploadPrescription />);
-
-        const input = document.querySelector(
-            'input[type="file"]'
-        );
-
-        const file = new File(
-            ["content"],
-            "test-file.pdf",
-            {
-                type: "application/pdf",
-            }
-        );
-
-        await user.upload(input, file);
-
-        const uploadButton =
-            screen.getByRole("button", {
-                name: /upload prescription/i,
-            });
-
-        await user.click(uploadButton);
-
-        expect(window.alert).toHaveBeenCalledWith(
-            "Prescription uploaded successfully!"
-        );
-    });
-
-    test("does not show error alert after successful upload", async () => {
-        const user = userEvent.setup();
-
-        render(<UploadPrescription />);
-
-        const input = document.querySelector(
-            'input[type="file"]'
-        );
-
-        const file = new File(
-            ["content"],
-            "test-file.pdf",
-            {
-                type: "application/pdf",
-            }
-        );
-
-        await user.upload(input, file);
-
-        await user.click(
+        fireEvent.click(
             screen.getByRole("button", {
                 name: /upload prescription/i,
             })
         );
 
-        expect(window.alert).not.toHaveBeenCalledWith(
-            "Please upload a prescription."
+        await waitFor(() => {
+            expect(uploadPrescription).toHaveBeenCalledTimes(1);
+        });
+
+        expect(uploadPrescription).toHaveBeenCalledWith(file);
+
+        await waitFor(() => {
+            expect(
+                screen.getByText("test.pdf")
+            ).toBeInTheDocument();
+        });
+
+        expect(alertMock).toHaveBeenCalledWith(
+            "Prescription saved successfully."
         );
+
+        alertMock.mockRestore();
     });
 
-    // --------------------------------------------------
-    // MULTIPLE FILE TEST
-    // --------------------------------------------------
+    test("shows uploading state while upload is in progress", async () => {
+        let resolveUpload;
 
-    test("uses the first selected file", async () => {
-        const user = userEvent.setup();
+        uploadPrescription.mockImplementation(
+            () =>
+                new Promise((resolve) => {
+                    resolveUpload = resolve;
+                })
+        );
 
         render(<UploadPrescription />);
 
-        const input = document.querySelector(
-            'input[type="file"]'
-        );
-
-        const firstFile = new File(
-            ["first"],
-            "first-file.pdf",
+        const file = new File(
+            ["test"],
+            "test.pdf",
             {
                 type: "application/pdf",
             }
         );
 
-        const secondFile = new File(
-            ["second"],
-            "second-file.pdf",
+        const input = screen.getByLabelText(
+            /choose prescription/i
+        );
+
+        fireEvent.change(input, {
+            target: {
+                files: [file],
+            },
+        });
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: /upload prescription/i,
+            })
+        );
+
+        expect(
+            await screen.findByRole("button", {
+                name: /uploading/i,
+            })
+        ).toBeDisabled();
+
+        resolveUpload({
+            id: 3,
+            filename: "test.pdf",
+        });
+
+        await waitFor(() => {
+            expect(
+                screen.getByRole("button", {
+                    name: /upload prescription/i,
+                })
+            ).not.toBeDisabled();
+        });
+    });
+
+    test("shows error when upload fails", async () => {
+        uploadPrescription.mockRejectedValue(
+            new Error("Upload failed")
+        );
+
+        render(<UploadPrescription />);
+
+        const file = new File(
+            ["test"],
+            "test.pdf",
             {
                 type: "application/pdf",
             }
         );
 
-        await user.upload(input, [
-            firstFile,
-            secondFile,
-        ]);
+        const input = screen.getByLabelText(
+            /choose prescription/i
+        );
 
-        expect(
-            screen.getByText("first-file.pdf")
-        ).toBeInTheDocument();
+        fireEvent.change(input, {
+            target: {
+                files: [file],
+            },
+        });
 
-        expect(
-            screen.queryByText("second-file.pdf")
-        ).not.toBeInTheDocument();
-    });
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: /upload prescription/i,
+            })
+        );
 
-    // --------------------------------------------------
-    // CSS CLASS TESTS
-    // --------------------------------------------------
+        await waitFor(() => {
+            expect(screen.getByRole("alert")).toHaveTextContent(
+                "Unable to upload prescription. Please try again."
+            );
+        });
 
-    test("renders required CSS classes", () => {
-        render(<UploadPrescription />);
-
-        expect(
-            document.querySelector(".upload-page")
-        ).toBeInTheDocument();
-
-        expect(
-            document.querySelector(".upload-card")
-        ).toBeInTheDocument();
-
-        expect(
-            document.querySelector(".upload-box")
-        ).toBeInTheDocument();
-
-        expect(
-            document.querySelector(".submit-btn")
-        ).toBeInTheDocument();
-    });
-
-    test("file input is inside upload box", () => {
-        render(<UploadPrescription />);
-
-        const uploadBox =
-            document.querySelector(".upload-box");
-
-        const input =
-            uploadBox.querySelector('input[type="file"]');
-
-        expect(input).toBeInTheDocument();
+        expect(getApiErrorMessage).toHaveBeenCalled();
     });
 });

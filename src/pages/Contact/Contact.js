@@ -2,14 +2,45 @@ import React, { useState } from "react";
 import { FaPhoneAlt, FaEnvelope, FaMapMarkerAlt, FaClock, } from "react-icons/fa";
 
 import "./Contact.css";
+import { submitContactMessage } from "../../api/submissionsApi";
+import { getApiErrorMessage } from "../../services/api";
 
 function Contact() {
-  const  [submitted, setSubmitted] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    message: "",
+  });
 
-  const handleSubmit = (e) => {
+  const handleChange = (event) => {
+    setForm((previous) => ({
+      ...previous,
+      [event.target.name]: event.target.value,
+    }));
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setSubmitted(true);
-    e.target.reset();
+    setSubmitting(true);
+    setError("");
+    setSubmitted(false);
+
+    try {
+      await submitContactMessage(form);
+      setSubmitted(true);
+      setForm({ name: "", email: "", phone: "", message: "" });
+    } catch (submitError) {
+      setError(getApiErrorMessage(
+        submitError,
+        "Unable to send your message. Please try again."
+      ));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -77,21 +108,24 @@ function Contact() {
 
             {submitted && (
               <div className="success">
-                ✅ Message sent successfully!
+                Message sent successfully!
               </div>
             )}
+            {error && <div className="error" role="alert">{error}</div>}
 
             <form onSubmit={handleSubmit}>
 
-              <input type="text" placeholder="Your Name" required />
+              <input type="text" name="name" placeholder="Your Name" value={form.name} onChange={handleChange} required />
 
-              <input type="email" placeholder="Email Address" required />
+              <input type="email" name="email" placeholder="Email Address" value={form.email} onChange={handleChange} required />
 
-              <input type="tel" placeholder="Mobile Number" required />
+              <input type="tel" name="phone" placeholder="Mobile Number" value={form.phone} onChange={handleChange} required />
 
-              <textarea rows="5" placeholder="Your Message" required ></textarea>
+              <textarea rows="5" name="message" placeholder="Your Message" value={form.message} onChange={handleChange} required ></textarea>
 
-              <button type="submit"> Send Message </button>
+              <button type="submit" disabled={submitting}>
+                {submitting ? "Sending..." : "Send Message"}
+              </button>
             </form>
           </div>
         </div>

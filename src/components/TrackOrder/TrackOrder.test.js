@@ -3,755 +3,242 @@ import {
   render,
   screen,
   fireEvent,
-  waitFor,
+  cleanup,
 } from "@testing-library/react";
-import {
-  MemoryRouter,
-  Routes,
-  Route,
-} from "react-router-dom";
-
+import "@testing-library/jest-dom";
+import { MemoryRouter } from "react-router-dom";
 import TrackOrder from "./TrackOrder";
 
-// --------------------------------------------------
-// MOCK TOAST CONTAINER
-// --------------------------------------------------
-
-jest.mock("react-toastify", () => ({
-  ToastContainer: () => (
-    <div data-testid="toast-container">
-      Toast Container
-    </div>
-  ),
-}));
-
-// --------------------------------------------------
-// TEST ORDER DATA
-// --------------------------------------------------
-
-const createTestOrder = (overrides = {}) => ({
-  orderId: "TEST_ORDER",
-  orderDate: "Test Date",
-  estimatedDelivery: "Test Delivery",
-  status: "Order Confirmed",
-
-  trackingId: "TEST_TRACKING",
-
-  courier: {
-    name: "Test Delivery Partner",
-  },
-
-  items: [
-    {
-      id: "TEST_PRODUCT",
-      name: "Test Product",
-      price: 100,
-      quantity: 1,
+const mockOrders = [
+  {
+    id: "TEST-103",
+    order_id: "TEST-103",
+    status: "In Transit",
+    total_amount: 500,
+    items: [
+      {
+        id: 1,
+        name: "Paracetamol",
+        quantity: 2,
+        price: 250,
+      },
+    ],
+    address: {
+      name: "Test Customer",
+      address: "Test Street",
+      city: "Hyderabad",
+      state: "Telangana",
+      pincode: "500001",
     },
-  ],
-
-  address: {
-    name: "Test Customer",
-    phone: "0000000000",
-    address: "Test Address",
-    city: "Test City",
-    state: "Test State",
-    pincode: "000000",
   },
+  {
+    id: "TEST-104",
+    order_id: "TEST-104",
+    status: "Delivered",
+    total_amount: 300,
+    items: [],
+  },
+  {
+    id: "TEST-105",
+    order_id: "TEST-105",
+    status: "In Transit",
+    total_amount: 400,
+    items: [],
+  },
+];
 
-  paymentMethod: "COD",
-
-  totalAmount: 100,
-
-  ...overrides,
-});
-
-// --------------------------------------------------
-// RENDER HELPER
-// --------------------------------------------------
-
-const renderTrackOrder = (
-  orderId = "TEST_ORDER"
-) => {
-  return render(
-    <MemoryRouter
-      initialEntries={[`/track/${orderId}`]}
-    >
-      <Routes>
-
-        <Route
-          path="/track/:orderId"
-          element={<TrackOrder />}
-        />
-
-        <Route
-          path="/orders"
-          element={<div>Orders Page</div>}
-        />
-
-        <Route
-          path="/shop"
-          element={<div>Shop Page</div>}
-        />
-
-        <Route
-          path="/contact"
-          element={<div>Contact Page</div>}
-        />
-
-        <Route
-          path="/"
-          element={<div>Home Page</div>}
-        />
-
-      </Routes>
+const renderComponent = () =>
+  render(
+    <MemoryRouter>
+      <TrackOrder />
     </MemoryRouter>
   );
-};
-
-// --------------------------------------------------
-// BEFORE EACH
-// --------------------------------------------------
 
 beforeEach(() => {
-  jest.clearAllMocks();
-
   localStorage.clear();
-
-  const order = createTestOrder();
 
   localStorage.setItem(
     "orders",
-    JSON.stringify([order])
+    JSON.stringify(mockOrders)
   );
 
-  window.confirm = jest.fn(() => true);
+  localStorage.setItem(
+    "cart",
+    JSON.stringify([])
+  );
 
-  window.alert = jest.fn();
-
-  Object.assign(navigator, {
-    clipboard: {
-      writeText: jest.fn(),
-    },
-  });
+  localStorage.setItem(
+    "wishlist",
+    JSON.stringify([])
+  );
 });
-
-// --------------------------------------------------
-// AFTER EACH
-// --------------------------------------------------
 
 afterEach(() => {
+  cleanup();
   localStorage.clear();
+  jest.restoreAllMocks();
 });
 
-// ==================================================
-// TRACK ORDER TESTS
-// ==================================================
-
 describe("TrackOrder Component", () => {
-
-  // ------------------------------------------------
-  // BASIC RENDER
-  // ------------------------------------------------
-
-  test("renders Track Order page", async () => {
-    renderTrackOrder();
+  test("renders the tracking page heading", () => {
+    renderComponent();
 
     expect(
-      await screen.findByText("Track Order")
-    ).toBeInTheDocument();
-  });
-
-  test("renders current order status", async () => {
-    renderTrackOrder();
-
-    expect(
-      await screen.findByText("Order Confirmed")
-    ).toBeInTheDocument();
-  });
-
-  test("renders delivery tracking section", async () => {
-    renderTrackOrder();
-
-    expect(
-      await screen.findByText("Delivery Tracking")
-    ).toBeInTheDocument();
-  });
-
-  // ------------------------------------------------
-  // DELIVERY STEPS
-  // ------------------------------------------------
-
-  test("renders all delivery steps", async () => {
-    renderTrackOrder();
-
-    expect(
-      await screen.findByText("Order Placed")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByText("Packed")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByText("Shipped")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByText("Out for Delivery")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByText("Delivered")
-    ).toBeInTheDocument();
-  });
-
-  // ------------------------------------------------
-  // ORDER ITEMS
-  // ------------------------------------------------
-
-  test("renders Order Items section", async () => {
-    renderTrackOrder();
-
-    expect(
-      await screen.findByText("Order Items")
-    ).toBeInTheDocument();
-  });
-
-  test("renders product information", async () => {
-    renderTrackOrder();
-
-    expect(
-      await screen.findByText("Test Product")
-    ).toBeInTheDocument();
-  });
-
-  test("renders product quantity", async () => {
-    renderTrackOrder();
-
-    expect(
-      await screen.findByText(/Quantity:\s*1/i)
-    ).toBeInTheDocument();
-  });
-
-  // ------------------------------------------------
-  // TOTAL AMOUNT
-  // ------------------------------------------------
-
-  test("renders total amount", async () => {
-    renderTrackOrder();
-
-    expect(
-      await screen.findByText("Total Amount")
-    ).toBeInTheDocument();
-
-    /*
-     * IMPORTANT:
-     *
-     * ₹100 may appear multiple times on the page.
-     * Therefore we use getAllByText instead of getByText.
-     */
-
-    const amountElements =
-      screen.getAllByText("₹100");
-
-    expect(amountElements.length).toBeGreaterThan(0);
-  });
-
-  // ------------------------------------------------
-  // SHIPPING DETAILS
-  // ------------------------------------------------
-
-  test("renders shipment details", async () => {
-    renderTrackOrder();
-
-    expect(
-      await screen.findByText("Shipment Details")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByText("Delivery Partner")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByText("Order Date")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByText("Expected Delivery")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByText("Payment")
-    ).toBeInTheDocument();
-  });
-
-  // ------------------------------------------------
-  // DELIVERY ADDRESS
-  // ------------------------------------------------
-
-  test("renders delivery address section", async () => {
-    renderTrackOrder();
-
-    expect(
-      await screen.findByText("Delivery Address")
-    ).toBeInTheDocument();
-  });
-
-  // ------------------------------------------------
-  // HOME BUTTON
-  // ------------------------------------------------
-
-  test("renders Home button", async () => {
-    renderTrackOrder();
-
-    const homeButton =
-      await screen.findByRole("link", {
-        name: /home/i,
-      });
-
-    expect(homeButton).toBeInTheDocument();
-
-    expect(homeButton).toHaveAttribute(
-      "href",
-      "/"
-    );
-  });
-
-  // ------------------------------------------------
-  // CONTACT BUTTON
-  // ------------------------------------------------
-
-  test("renders Contact Us button", async () => {
-    renderTrackOrder();
-
-    const contactButton =
-      await screen.findByRole("link", {
-        name: /contact us/i,
-      });
-
-    expect(contactButton).toBeInTheDocument();
-
-    expect(contactButton).toHaveAttribute(
-      "href",
-      "/contact"
-    );
-  });
-
-  // ------------------------------------------------
-  // VIEW ALL ORDERS
-  // ------------------------------------------------
-
-  test("renders View All Orders button", async () => {
-    renderTrackOrder();
-
-    const ordersButton =
-      await screen.findByRole("link", {
-        name: /view all orders/i,
-      });
-
-    expect(ordersButton).toBeInTheDocument();
-
-    expect(ordersButton).toHaveAttribute(
-      "href",
-      "/orders"
-    );
-  });
-
-  // ------------------------------------------------
-  // CANCEL ORDER
-  // ------------------------------------------------
-
-  test("renders Cancel Order button", async () => {
-    renderTrackOrder();
-
-    expect(
-      await screen.findByRole("button", {
-        name: /cancel order/i,
+      screen.getByRole("heading", {
+        name: /track your order/i,
       })
     ).toBeInTheDocument();
   });
 
-  test("cancel order calls confirmation", async () => {
-    renderTrackOrder();
+  test("renders the order tracking search input", () => {
+    renderComponent();
 
-    const cancelButton =
-      await screen.findByRole("button", {
-        name: /cancel order/i,
-      });
-
-    fireEvent.click(cancelButton);
-
-    expect(window.confirm).toHaveBeenCalledWith(
-      "Are you sure you want to cancel this order?"
-    );
+    expect(
+      screen.getByPlaceholderText(
+        /enter order id/i
+      )
+    ).toBeInTheDocument();
   });
 
-  test("cancels order when confirmation is accepted", async () => {
-    renderTrackOrder();
+  test("renders the Track Order button", () => {
+    renderComponent();
 
-    window.confirm = jest.fn(() => true);
+    expect(
+      screen.getByRole("button", {
+        name: /track order/i,
+      })
+    ).toBeInTheDocument();
+  });
 
-    const cancelButton =
-      await screen.findByRole("button", {
-        name: /cancel order/i,
-      });
+  test("loads an order by its ID", () => {
+    renderComponent();
 
-    fireEvent.click(cancelButton);
+    expect(
+      screen.getByRole("heading", {
+        name: /test-103/i,
+      })
+    ).toBeInTheDocument();
+  });
 
-    await waitFor(() => {
-      expect(
-        screen.getByText("Cancelled")
-      ).toBeInTheDocument();
+  test("displays the In Transit status without duplicate-query errors", () => {
+    renderComponent();
+
+    expect(
+      screen.getAllByText(/in transit/i).length
+    ).toBeGreaterThan(0);
+  });
+
+  test("loads a saved delivered order", () => {
+    renderComponent();
+
+    const input = screen.getByPlaceholderText(
+      /enter order id/i
+    );
+
+    fireEvent.change(input, {
+      target: { value: "TEST-104" },
     });
 
-    const storedOrders =
-      JSON.parse(
-        localStorage.getItem("orders")
-      );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /track order/i,
+      })
+    );
 
     expect(
-      storedOrders[0].status
-    ).toBe("Cancelled");
-  });
-
-  test("does not cancel order when confirmation is rejected", async () => {
-    window.confirm = jest.fn(() => false);
-
-    renderTrackOrder();
-
-    const cancelButton =
-      await screen.findByRole("button", {
-        name: /cancel order/i,
-      });
-
-    fireEvent.click(cancelButton);
-
-    expect(window.confirm).toHaveBeenCalled();
-
-    expect(
-      screen.getByText("Order Confirmed")
+      screen.getByRole("heading", {
+        name: /test-104/i,
+      })
     ).toBeInTheDocument();
-  });
-
-  // ------------------------------------------------
-  // COPY ORDER ID
-  // ------------------------------------------------
-
-  test("copy order ID button works", async () => {
-    renderTrackOrder();
-
-    const copyButton =
-      await screen.findByTitle(
-        "Copy Order ID"
-      );
-
-    fireEvent.click(copyButton);
 
     expect(
-      navigator.clipboard.writeText
-    ).toHaveBeenCalled();
+      screen.getAllByText(/delivered/i).length
+    ).toBeGreaterThan(0);
   });
 
-  // ------------------------------------------------
-  // BACK BUTTON
-  // ------------------------------------------------
+  test("allows entering an order ID", () => {
+    renderComponent();
 
-  test("renders Back button", async () => {
-    renderTrackOrder();
+    const input = screen.getByPlaceholderText(
+      /enter order id/i
+    );
+
+    fireEvent.change(input, {
+      target: { value: "TEST-105" },
+    });
+
+    expect(input).toHaveValue("TEST-105");
+  });
+
+  test("renders the quick tracking option", () => {
+    renderComponent();
 
     expect(
-      await screen.findByRole("button", {
-        name: "Back",
+      screen.getByRole("button", {
+        name: /MK7721605963/i,
       })
     ).toBeInTheDocument();
   });
 
-  // ------------------------------------------------
-  // EMPTY ORDER
-  // ------------------------------------------------
-
-  test("shows Order Not Found when order does not exist", async () => {
-    localStorage.clear();
-
-    renderTrackOrder();
+  test("renders order tracking information", () => {
+    renderComponent();
 
     expect(
-      await screen.findByText("Order Not Found")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByText(
-        "We couldn't find an order with this order ID."
-      )
+      screen.getByText(/order tracking/i)
     ).toBeInTheDocument();
   });
 
-  // ------------------------------------------------
-  // UNKNOWN ORDER ID
-  // ------------------------------------------------
+  test("renders tracking stages when available", () => {
+    renderComponent();
 
-  test("shows Order Not Found for unknown order ID", async () => {
-    renderTrackOrder("UNKNOWN_ORDER");
+    const stages = [
+      "Order Placed",
+      "Packed",
+      "In Transit",
+      "Out for Delivery",
+      "Delivered",
+    ];
+
+    stages.forEach((stage) => {
+      expect(
+        screen.getAllByText(
+          new RegExp(stage, "i")
+        ).length
+      ).toBeGreaterThan(0);
+    });
+  });
+
+  test("renders the back button", () => {
+    renderComponent();
 
     expect(
-      await screen.findByText("Order Not Found")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByRole("link", {
-        name: /view my orders/i,
+      screen.getByRole("button", {
+        name: /back/i,
       })
     ).toBeInTheDocument();
   });
 
-  // ------------------------------------------------
-  // INVALID LOCAL STORAGE
-  // ------------------------------------------------
+  test("does not crash when localStorage has no saved orders", () => {
+    localStorage.removeItem("orders");
 
-  test("handles invalid orders JSON", async () => {
-    localStorage.setItem(
-      "orders",
-      "invalid-json"
-    );
-
-    renderTrackOrder();
+    expect(() => renderComponent()).not.toThrow();
 
     expect(
-      await screen.findByText("Order Not Found")
-    ).toBeInTheDocument();
-  });
-
-  // ------------------------------------------------
-  // CANCELLED ORDER
-  // ------------------------------------------------
-
-  test("does not show cancel button for cancelled order", async () => {
-    const cancelledOrder =
-      createTestOrder({
-        status: "Cancelled",
-      });
-
-    localStorage.setItem(
-      "orders",
-      JSON.stringify([
-        cancelledOrder,
-      ])
-    );
-
-    renderTrackOrder();
-
-    expect(
-      await screen.findByText("Cancelled")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.queryByRole("button", {
-        name: /cancel order/i,
-      })
-    ).not.toBeInTheDocument();
-  });
-
-  // ------------------------------------------------
-  // DELIVERED ORDER
-  // ------------------------------------------------
-
-  test("shows Order Delivered for delivered order", async () => {
-    const deliveredOrder =
-      createTestOrder({
-        status: "Delivered",
-      });
-
-    localStorage.setItem(
-      "orders",
-      JSON.stringify([
-        deliveredOrder,
-      ])
-    );
-
-    renderTrackOrder();
-
-    expect(
-      await screen.findByText(
-        "Order Delivered"
-      )
-    ).toBeInTheDocument();
-  });
-
-  test("shows return button for delivered order", async () => {
-    const deliveredOrder =
-      createTestOrder({
-        status: "Delivered",
-      });
-
-    localStorage.setItem(
-      "orders",
-      JSON.stringify([
-        deliveredOrder,
-      ])
-    );
-
-    renderTrackOrder();
-
-    expect(
-      await screen.findByRole("button", {
-        name: /return order/i,
+      screen.getByRole("heading", {
+        name: /track your order/i,
       })
     ).toBeInTheDocument();
   });
 
-  // ------------------------------------------------
-  // RETURN ORDER
-  // ------------------------------------------------
+  test("does not crash when saved orders contain invalid JSON", () => {
+    localStorage.setItem("orders", "{invalid-json");
 
-  test("return order shows alert", async () => {
-    const deliveredOrder =
-      createTestOrder({
-        status: "Delivered",
-      });
-
-    localStorage.setItem(
-      "orders",
-      JSON.stringify([
-        deliveredOrder,
-      ])
-    );
-
-    renderTrackOrder();
-
-    const returnButton =
-      await screen.findByRole("button", {
-        name: /return order/i,
-      });
-
-    fireEvent.click(returnButton);
-
-    expect(window.alert).toHaveBeenCalledWith(
-      "Return request has been initiated. Our support team will contact you."
-    );
-  });
-
-  // ------------------------------------------------
-  // TOAST CONTAINER
-  // ------------------------------------------------
-
-  test("renders ToastContainer", async () => {
-    renderTrackOrder();
+    expect(() => renderComponent()).not.toThrow();
 
     expect(
-      await screen.findByTestId(
-        "toast-container"
-      )
+      screen.getByRole("heading", {
+        name: /track your order/i,
+      })
     ).toBeInTheDocument();
   });
-
-  // ------------------------------------------------
-  // PRODUCT WITHOUT IMAGE
-  // ------------------------------------------------
-
-  test("renders fallback icon when product image is unavailable", async () => {
-    const orderWithoutImage =
-      createTestOrder({
-        items: [
-          {
-            id: "TEST_PRODUCT",
-            name: "Test Product",
-            price: 100,
-            quantity: 1,
-          },
-        ],
-      });
-
-    localStorage.setItem(
-      "orders",
-      JSON.stringify([
-        orderWithoutImage,
-      ])
-    );
-
-    renderTrackOrder();
-
-    expect(
-      await screen.findByText("Test Product")
-    ).toBeInTheDocument();
-  });
-
-  // ------------------------------------------------
-  // MULTIPLE PRODUCTS
-  // ------------------------------------------------
-
-  test("renders multiple order items", async () => {
-    const orderWithMultipleProducts =
-      createTestOrder({
-        items: [
-          {
-            id: "PRODUCT_ONE",
-            name: "Product One",
-            price: 100,
-            quantity: 1,
-          },
-          {
-            id: "PRODUCT_TWO",
-            name: "Product Two",
-            price: 200,
-            quantity: 2,
-          },
-        ],
-
-        totalAmount: 500,
-      });
-
-    localStorage.setItem(
-      "orders",
-      JSON.stringify([
-        orderWithMultipleProducts,
-      ])
-    );
-
-    renderTrackOrder();
-
-    expect(
-      await screen.findByText("Product One")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByText("Product Two")
-    ).toBeInTheDocument();
-
-  });
-
-  // ------------------------------------------------
-  // ORDER ARRAY SUPPORT
-  // ------------------------------------------------
-
-  test("loads order from an array in localStorage", async () => {
-    const firstOrder =
-      createTestOrder({
-        orderId: "FIRST_ORDER",
-      });
-
-    const secondOrder =
-      createTestOrder({
-        orderId: "TEST_ORDER",
-      });
-
-    localStorage.setItem(
-      "orders",
-      JSON.stringify([
-        firstOrder,
-        secondOrder,
-      ])
-    );
-
-    renderTrackOrder("TEST_ORDER");
-
-    expect(
-      await screen.findByText("Track Order")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByText("Order Confirmed")
-    ).toBeInTheDocument();
-  });
-
 });

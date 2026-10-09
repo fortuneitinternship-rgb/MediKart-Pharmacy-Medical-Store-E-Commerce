@@ -1,5 +1,18 @@
 import axios from "axios";
 
+export const getApiErrorMessage = (error, fallback) => {
+    const detail = error.response?.data?.detail;
+    if (Array.isArray(detail)) {
+        return detail
+            .map((item) => item.msg || String(item))
+            .join(", ");
+    }
+    if (typeof detail === "string") {
+        return detail;
+    }
+    return fallback;
+};
+
 const api = axios.create({
     baseURL: process.env.REACT_APP_API_URL || "http://127.0.0.1:8000",
     headers: {
@@ -12,7 +25,8 @@ api.interceptors.request.use(
         const token = localStorage.getItem("access_token");
 
         if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
+            config.headers = config.headers || {};
+            config.headers.Authorization = "Bearer " + token;
         }
 
         return config;

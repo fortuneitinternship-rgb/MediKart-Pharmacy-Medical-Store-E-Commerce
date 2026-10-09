@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, Depends
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.security import create_access_token
@@ -13,20 +13,18 @@ router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 @router.post("/send-otp")
 def send_otp(
     request: SendOTPRequest,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
-    send_email_otp(request.email, db, background_tasks)
+    send_email_otp(request.email, db)
     return {"message": "OTP sent successfully"}
 
 
 @router.post("/resend-otp")
 def resend_otp(
     request: SendOTPRequest,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
-    send_email_otp(request.email, db, background_tasks)
+    send_email_otp(request.email, db)
     return {"message": "OTP resent successfully"}
 
 

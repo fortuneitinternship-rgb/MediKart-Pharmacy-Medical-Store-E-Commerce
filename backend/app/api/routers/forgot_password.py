@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, Depends
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.security import hash_password
@@ -15,10 +15,9 @@ router = APIRouter()
 @router.post("/forgot-password")
 def forgot_password(
     data: ForgotPasswordRequest,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
-    send_email_otp(data.email, db, background_tasks)
+    send_email_otp(data.email, db)
     return {
         "message": "OTP sent successfully"
     }

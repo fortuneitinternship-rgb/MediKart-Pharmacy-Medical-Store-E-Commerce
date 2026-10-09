@@ -6,7 +6,6 @@ import ForgotPassword from "./ForgotPassword";
 
 import {
   forgotPassword,
-  resendOTP,
   verifyOTP,
   resetPassword,
 } from "../../api/authApi";
@@ -17,7 +16,6 @@ import {
 
 jest.mock("../../api/authApi", () => ({
   forgotPassword: jest.fn(),
-  resendOTP: jest.fn(),
   verifyOTP: jest.fn(),
   resetPassword: jest.fn(),
 }));
@@ -60,10 +58,6 @@ beforeEach(() => {
 
   forgotPassword.mockResolvedValue({
     message: "OTP sent successfully",
-  });
-
-  resendOTP.mockResolvedValue({
-    message: "OTP resent successfully",
   });
 
   verifyOTP.mockResolvedValue({
@@ -317,13 +311,6 @@ describe("ForgotPassword - OTP Step", () => {
         name: /verify otp/i,
       })
     ).toBeInTheDocument();
-  });
-
-  test("shows a resend countdown after sending OTP", async () => {
-    await goToOTPStep();
-
-    expect(await screen.findByText("OTP sent. Check your email.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /resend otp in 01:00/i })).toBeDisabled();
   });
 
   test("accepts only numeric OTP", async () => {

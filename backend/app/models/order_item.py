@@ -1,5 +1,4 @@
-from sqlalchemy import Float, ForeignKey, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import Column, Integer, String, Float, ForeignKey
 
 from app.database.database import Base
 
@@ -7,13 +6,46 @@ from app.database.database import Base
 class OrderItem(Base):
     __tablename__ = "order_items"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    order_id: Mapped[int] = mapped_column(
-        ForeignKey("orders.id", ondelete="CASCADE"), nullable=False
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True
     )
-    product_id: Mapped[int] = mapped_column(Integer, nullable=False)
-    product_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
-    price: Mapped[float] = mapped_column(Float, nullable=False)
 
-    order = relationship("Order", back_populates="items")
+    order_id = Column(
+        Integer,
+        ForeignKey("orders.id"),
+        nullable=False,
+        index=True
+    )
+
+    product_id = Column(
+        Integer,
+        nullable=False
+    )
+
+    product_name = Column(
+        String(255),
+        nullable=False
+    )
+
+    quantity = Column(
+        Integer,
+        nullable=False,
+        default=1
+    )
+
+    price = Column(
+        Float,
+        nullable=False
+    )
+
+    total = Column(
+        Float,
+        nullable=False
+    )
+
+    image = Column(
+        String(500),
+        nullable=True
+    )

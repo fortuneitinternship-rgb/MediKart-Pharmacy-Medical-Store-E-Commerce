@@ -1,166 +1,405 @@
 import React from "react";
-import { render, screen, fireEvent } from "@testing-library/react";
-import "@testing-library/jest-dom";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import Reviews from "./Reviews";
 
+import {
+    getReviews,
+    submitReview,
+} from "../../api/submissionsApi";
+
+import { getApiErrorMessage } from "../../services/api";
+
+jest.mock("../../api/submissionsApi", () => ({
+    getReviews: jest.fn(),
+    submitReview: jest.fn(),
+}));
+
+jest.mock("../../services/api", () => ({
+    getApiErrorMessage: jest.fn(),
+}));
+
 describe("Reviews Component", () => {
-  beforeEach(() => {
-    jest.spyOn(window, "alert").mockImplementation(() => {});
-  });
+    beforeEach(() => {
+        jest.clearAllMocks();
 
-  afterEach(() => {
-    window.alert.mockRestore();
-  });
+        getApiErrorMessage.mockImplementation(
+            (error, fallback) => fallback
+        );
 
-  test("renders page heading and description", () => {
-    render(<Reviews />);
-
-    expect(screen.getByText("Customer Reviews")).toBeInTheDocument();
-
-    expect(
-      screen.getByText(/See what our customers say about/i)
-    ).toBeInTheDocument();
-  });
-
-  test("renders initial reviews", () => {
-    render(<Reviews />);
-
-    expect(screen.getByText("Rahul Sharma")).toBeInTheDocument();
-    expect(screen.getByText("Priya Verma")).toBeInTheDocument();
-    expect(screen.getByText("Amit Kumar")).toBeInTheDocument();
-    expect(screen.getByText("Sneha Patel")).toBeInTheDocument();
-  });
-
-  test("renders form inputs", () => {
-    render(<Reviews />);
-
-    expect(
-      screen.getByPlaceholderText("Your Name")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByPlaceholderText("Product Name")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByPlaceholderText("Write your review...")
-    ).toBeInTheDocument();
-
-    expect(screen.getByRole("combobox")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /Submit Review/i })
-    ).toBeInTheDocument();
-  });
-
-  test("shows alert when submitting empty form", () => {
-    render(<Reviews />);
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: /Submit Review/i,
-      })
-    );
-
-    expect(window.alert).toHaveBeenCalledWith(
-      "Please fill all fields"
-    );
-  });
-
-  test("adds a new review successfully", () => {
-    render(<Reviews />);
-
-    fireEvent.change(
-      screen.getByPlaceholderText("Your Name"),
-      {
-        target: { value: "John Doe", name: "name" },
-      }
-    );
-
-    fireEvent.change(
-      screen.getByPlaceholderText("Product Name"),
-      {
-        target: {
-          value: "Vitamin C",
-          name: "product",
-        },
-      }
-    );
-
-    fireEvent.change(screen.getByRole("combobox"), {
-      target: {
-        value: "4",
-        name: "rating",
-      },
+        getReviews.mockResolvedValue([]);
     });
 
-    fireEvent.change(
-      screen.getByPlaceholderText("Write your review..."),
-      {
-        target: {
-          value: "Very good product",
-          name: "review",
-        },
-      }
-    );
+    test("renders reviews page correctly", async () => {
+        render(<Reviews />);
 
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: /Submit Review/i,
-      })
-    );
+        expect(
+            screen.getByRole("heading", {
+                name: /customer reviews/i,
+            })
+        ).toBeInTheDocument();
 
-    expect(window.alert).toHaveBeenCalledWith(
-      "Review Added Successfully!"
-    );
+        expect(
+            screen.getByText(/see what our customers say/i)
+        ).toBeInTheDocument();
 
-    expect(screen.getByText("John Doe")).toBeInTheDocument();
-    expect(screen.getByText("Vitamin C")).toBeInTheDocument();
-    expect(
-      screen.getByText("Very good product")
-    ).toBeInTheDocument();
-  });
+        expect(
+            screen.getByPlaceholderText(/your name/i)
+        ).toBeInTheDocument();
 
-  test("clears form after successful submission", () => {
-    render(<Reviews />);
+        expect(
+            screen.getByPlaceholderText(/product name/i)
+        ).toBeInTheDocument();
 
-    const nameInput =
-      screen.getByPlaceholderText("Your Name");
-    const productInput =
-      screen.getByPlaceholderText("Product Name");
-    const reviewInput =
-      screen.getByPlaceholderText(
-        "Write your review..."
-      );
+        expect(
+            screen.getByPlaceholderText(/write your review/i)
+        ).toBeInTheDocument();
 
-    fireEvent.change(nameInput, {
-      target: {
-        value: "John",
-        name: "name",
-      },
+        expect(
+            screen.getByRole("button", {
+                name: /submit review/i,
+            })
+        ).toBeInTheDocument();
+
+        await waitFor(() => {
+            expect(getReviews).toHaveBeenCalledTimes(1);
+        });
     });
 
-    fireEvent.change(productInput, {
-      target: {
-        value: "Medicine",
-        name: "product",
-      },
+    test("loads reviews successfully", async () => {
+        getReviews.mockResolvedValue([
+            {
+                id: 1,
+                name: "Test",
+                product: "Item",
+                rating: 5,
+                review: "Good",
+            },
+        ]);
+
+        render(<Reviews />);
+
+        await waitFor(() => {
+            expect(screen.getByText("Test")).toBeInTheDocument();
+            expect(screen.getByText("Item")).toBeInTheDocument();
+            expect(screen.getByText("Good")).toBeInTheDocument();
+        });
     });
 
-    fireEvent.change(reviewInput, {
-      target: {
-        value: "Excellent",
-        name: "review",
-      },
+    test("shows error when reviews cannot be loaded", async () => {
+        getReviews.mockRejectedValue(new Error("API error"));
+
+        render(<Reviews />);
+
+        await waitFor(() => {
+            expect(screen.getByRole("alert")).toHaveTextContent(
+                "Unable to load reviews."
+            );
+        });
+
+        expect(getApiErrorMessage).toHaveBeenCalled();
     });
 
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: /Submit Review/i,
-      })
-    );
+    test("allows entering review form values", () => {
+        render(<Reviews />);
 
-    expect(nameInput.value).toBe("");
-    expect(productInput.value).toBe("");
-    expect(reviewInput.value).toBe("");
-  });
+        const nameInput = screen.getByPlaceholderText(/your name/i);
+        const productInput =
+            screen.getByPlaceholderText(/product name/i);
+        const reviewInput =
+            screen.getByPlaceholderText(/write your review/i);
+        const ratingSelect = screen.getByRole("combobox");
+
+        fireEvent.change(nameInput, {
+            target: {
+                name: "name",
+                value: "Test",
+            },
+        });
+
+        fireEvent.change(productInput, {
+            target: {
+                name: "product",
+                value: "Item",
+            },
+        });
+
+        fireEvent.change(ratingSelect, {
+            target: {
+                name: "rating",
+                value: "4",
+            },
+        });
+
+        fireEvent.change(reviewInput, {
+            target: {
+                name: "review",
+                value: "Good",
+            },
+        });
+
+        expect(nameInput).toHaveValue("Test");
+        expect(productInput).toHaveValue("Item");
+        expect(ratingSelect).toHaveValue("4");
+        expect(reviewInput).toHaveValue("Good");
+    });
+
+    test("shows validation alert when required fields are empty", () => {
+        const alertMock = jest
+            .spyOn(window, "alert")
+            .mockImplementation(() => {});
+
+        render(<Reviews />);
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: /submit review/i,
+            })
+        );
+
+        expect(alertMock).toHaveBeenCalledWith(
+            "Please fill all fields"
+        );
+
+        expect(submitReview).not.toHaveBeenCalled();
+
+        alertMock.mockRestore();
+    });
+
+    test("submits review successfully", async () => {
+        submitReview.mockResolvedValue({
+            id: 2,
+            name: "Test",
+            product: "Item",
+            rating: 5,
+            review: "Excellent",
+        });
+
+        render(<Reviews />);
+
+        fireEvent.change(
+            screen.getByPlaceholderText(/your name/i),
+            {
+                target: {
+                    name: "name",
+                    value: "Test",
+                },
+            }
+        );
+
+        fireEvent.change(
+            screen.getByPlaceholderText(/product name/i),
+            {
+                target: {
+                    name: "product",
+                    value: "Item",
+                },
+            }
+        );
+
+        fireEvent.change(
+            screen.getByPlaceholderText(/write your review/i),
+            {
+                target: {
+                    name: "review",
+                    value: "Excellent",
+                },
+            }
+        );
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: /submit review/i,
+            })
+        );
+
+        await waitFor(() => {
+            expect(submitReview).toHaveBeenCalledTimes(1);
+        });
+
+        expect(submitReview).toHaveBeenCalledWith({
+            name: "Test",
+            product: "Item",
+            rating: 5,
+            review: "Excellent",
+        });
+
+        await waitFor(() => {
+            expect(
+                screen.getByText("Excellent")
+            ).toBeInTheDocument();
+        });
+    });
+
+    test("shows submitting state while review is being submitted", async () => {
+        let resolveSubmit;
+
+        submitReview.mockImplementation(
+            () =>
+                new Promise((resolve) => {
+                    resolveSubmit = resolve;
+                })
+        );
+
+        render(<Reviews />);
+
+        fireEvent.change(
+            screen.getByPlaceholderText(/your name/i),
+            {
+                target: {
+                    name: "name",
+                    value: "Test",
+                },
+            }
+        );
+
+        fireEvent.change(
+            screen.getByPlaceholderText(/product name/i),
+            {
+                target: {
+                    name: "product",
+                    value: "Item",
+                },
+            }
+        );
+
+        fireEvent.change(
+            screen.getByPlaceholderText(/write your review/i),
+            {
+                target: {
+                    name: "review",
+                    value: "Good",
+                },
+            }
+        );
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: /submit review/i,
+            })
+        );
+
+        expect(
+            await screen.findByRole("button", {
+                name: /submitting/i,
+            })
+        ).toBeDisabled();
+
+        resolveSubmit({
+            id: 3,
+            name: "Test",
+            product: "Item",
+            rating: 5,
+            review: "Good",
+        });
+
+        await waitFor(() => {
+            expect(
+                screen.getByRole("button", {
+                    name: /submit review/i,
+                })
+            ).not.toBeDisabled();
+        });
+    });
+
+    test("shows error when review submission fails", async () => {
+        submitReview.mockRejectedValue(new Error("Submit failed"));
+
+        render(<Reviews />);
+
+        fireEvent.change(
+            screen.getByPlaceholderText(/your name/i),
+            {
+                target: {
+                    name: "name",
+                    value: "Test",
+                },
+            }
+        );
+
+        fireEvent.change(
+            screen.getByPlaceholderText(/product name/i),
+            {
+                target: {
+                    name: "product",
+                    value: "Item",
+                },
+            }
+        );
+
+        fireEvent.change(
+            screen.getByPlaceholderText(/write your review/i),
+            {
+                target: {
+                    name: "review",
+                    value: "Good",
+                },
+            }
+        );
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: /submit review/i,
+            })
+        );
+
+        await waitFor(() => {
+            expect(screen.getByRole("alert")).toHaveTextContent(
+                "Unable to submit your review."
+            );
+        });
+
+        expect(getApiErrorMessage).toHaveBeenCalled();
+    });
+
+    test("clears the form after successful submission", async () => {
+        submitReview.mockResolvedValue({
+            id: 4,
+            name: "Test",
+            product: "Item",
+            rating: 5,
+            review: "Good",
+        });
+
+        render(<Reviews />);
+
+        const nameInput =
+            screen.getByPlaceholderText(/your name/i);
+        const productInput =
+            screen.getByPlaceholderText(/product name/i);
+        const reviewInput =
+            screen.getByPlaceholderText(/write your review/i);
+
+        fireEvent.change(nameInput, {
+            target: {
+                name: "name",
+                value: "Test",
+            },
+        });
+
+        fireEvent.change(productInput, {
+            target: {
+                name: "product",
+                value: "Item",
+            },
+        });
+
+        fireEvent.change(reviewInput, {
+            target: {
+                name: "review",
+                value: "Good",
+            },
+        });
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: /submit review/i,
+            })
+        );
+
+        await waitFor(() => {
+            expect(nameInput).toHaveValue("");
+            expect(productInput).toHaveValue("");
+            expect(reviewInput).toHaveValue("");
+        });
+    });
 });

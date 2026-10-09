@@ -31,6 +31,34 @@
     background: #15803d;
 }
 
+.health-record-form {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    padding: 20px;
+    margin-bottom: 24px;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, .08);
+}
+
+.health-record-form input {
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font: inherit;
+}
+
+.health-record-form button {
+    padding: 12px 18px;
+    color: #fff;
+    background: #16a34a;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
 .record-card {
     display: flex;
     justify-content: space-between;

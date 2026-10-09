@@ -1,373 +1,467 @@
 import React from "react";
-import {
-    render,
-    screen,
-    fireEvent,
-    waitFor,
-} from "@testing-library/react";
-
+import {render,screen,fireEvent,waitFor,} from "@testing-library/react";
+import "@testing-library/jest-dom";
 import Profile from "./Profile";
 
-import {
-    getUserProfile,
-    updateCurrentUser,
-} from "../../api/authApi";
+import {getCurrentUser,updateCurrentUser,} from "../../api/authApi";
 
-// ============================================================
-// MOCK AUTH API
-// ============================================================
-
-jest.mock("../../api/authApi", () => ({
-    getUserProfile: jest.fn(),
-    updateCurrentUser: jest.fn(),
-}));
-
-
-// ============================================================
-// TESTS
-// ============================================================
+jest.mock("../../api/authApi", () => ({getCurrentUser: jest.fn(),updateCurrentUser: jest.fn(),}));
 
 describe("Profile Component", () => {
-
-    // --------------------------------------------------------
-    // Default mock profile
-    // --------------------------------------------------------
-
-    const mockProfile = {
-        full_name: "Test User",
-        email: "test@example.com",
-        phone: "",
-        profile_image: "",
-    };
-
-
-    // --------------------------------------------------------
-    // Before every test
-    // --------------------------------------------------------
-
     beforeEach(() => {
         jest.clearAllMocks();
 
-        getUserProfile.mockResolvedValue(mockProfile);
+        getCurrentUser.mockResolvedValue({ name: "", email: "", phone: "", address: "", });
+
+        updateCurrentUser.mockResolvedValue({ name: "", email: "", phone: "", address: "", });
+
+        localStorage.clear();
+
+        jest.spyOn(window, "alert").mockImplementation(() => {});
+        jest.spyOn(window, "dispatchEvent").mockImplementation(() => {});
+        jest.spyOn(console, "error").mockImplementation(() => {});
     });
 
-
-    // --------------------------------------------------------
-    // 1. Loading state
-    // --------------------------------------------------------
-
-    test("shows loading message", () => {
-
-        getUserProfile.mockImplementation(
-            () => new Promise(() => {})
-        );
-
-        render(<Profile />);
-
-        expect(
-            screen.getByRole("status")
-        ).toHaveTextContent(
-            "Loading profile..."
-        );
+    afterEach(() => {
+        jest.restoreAllMocks();
     });
 
+    // =====================================================
+    // RENDERING
+    // =====================================================
 
-    // --------------------------------------------------------
-    // 2. Loads profile successfully
-    // --------------------------------------------------------
-
-    test("loads and displays profile information", async () => {
-
+    test("renders profile page", () => {
         render(<Profile />);
 
-        // Wait until loading finishes
-        await waitFor(() => {
-            expect(
-                screen.queryByText("Loading profile...")
-            ).not.toBeInTheDocument();
-        });
-
-        // Use heading so duplicate "Test User" does not cause error
-        expect(
-            screen.getByRole("heading", {
-                name: "Test User",
-            })
+        expect(document.querySelector(".profile-page")
         ).toBeInTheDocument();
 
-        expect(
-            screen.getByText("test@example.com")
+        expect(document.querySelector(".profile-card")
         ).toBeInTheDocument();
+    });
+
+    test("renders profile sections", () => {
+        render(<Profile />);
+
+        expect(document.querySelector(".profile-top")
+        ).toBeInTheDocument();
+
+        expect(document.querySelector(".profile-body")
+        ).toBeInTheDocument();
+
+        expect(document.querySelector(".profile-buttons")
+        ).toBeInTheDocument();
+    });
+
+    test("renders customer label", () => {
+        render(<Profile />);
 
         expect(
             screen.getByText("MEDIKART Customer")
         ).toBeInTheDocument();
-
-        expect(
-            getUserProfile
-        ).toHaveBeenCalledTimes(1);
     });
 
-
-    // --------------------------------------------------------
-    // 3. Profile loading error
-    // --------------------------------------------------------
-
-    test("shows error when profile loading fails", async () => {
-
-        getUserProfile.mockRejectedValue(
-            new Error("Unable to load profile.")
-        );
-
+    test("renders Edit Profile button", () => {
         render(<Profile />);
 
         expect(
-            await screen.findByRole("alert")
-        ).toHaveTextContent(
-            "Unable to load profile."
-        );
+            screen.getByRole("button", {
+                name: /edit profile/i,
+            })
+        ).toBeInTheDocument();
     });
 
+    // =====================================================
+    // API
+    // =====================================================
 
-    // --------------------------------------------------------
-    // 4. Opens edit mode
-    // --------------------------------------------------------
-
-    test("opens edit mode", async () => {
-
+    test("calls getCurrentUser on mount", async () => {
         render(<Profile />);
 
-        // Wait for profile to load
         await waitFor(() => {
-            expect(
-                screen.getByRole("heading", {
-                    name: "Test User",
-                })
-            ).toBeInTheDocument();
+            expect(getCurrentUser).toHaveBeenCalledTimes(1);
+        });
+    });
+
+    test("handles getCurrentUser error", async () => {
+        getCurrentUser.mockRejectedValueOnce(
+            new Error("API Error")
+        );
+
+        render(<Profile />);
+
+        await waitFor(() => {
+            expect(getCurrentUser).toHaveBeenCalledTimes(1);
         });
 
-        // Click Edit Profile
+        expect(console.error).toHaveBeenCalled();
+    });
+
+    // =====================================================
+    // EDIT MODE
+    // =====================================================
+
+    test("opens edit mode", () => {
+        render(<Profile />);
+
         fireEvent.click(
             screen.getByRole("button", {
                 name: /edit profile/i,
             })
         );
 
-        // Full name input
-        expect(
-            screen.getByRole("textbox", {
-                name: /full name/i,
-            })
-        ).toBeInTheDocument();
-
-        // Phone input
-        expect(
-            screen.getByRole("textbox", {
-                name: /phone number/i,
-            })
-        ).toBeInTheDocument();
-
-        // Profile image input
-        expect(
-            screen.getByRole("textbox", {
-                name: /profile image url/i,
-            })
-        ).toBeInTheDocument();
-
-        // Save button
         expect(
             screen.getByRole("button", {
-                name: /^save$/i,
-            })
-        ).toBeInTheDocument();
-
-        // Cancel button
-        expect(
-            screen.getByRole("button", {
-                name: /cancel/i,
+                name: /save/i,
             })
         ).toBeInTheDocument();
     });
 
-
-    // --------------------------------------------------------
-    // 5. Cancels edit mode
-    // --------------------------------------------------------
-
-    test("cancels edit mode", async () => {
-
+    test("shows four inputs in edit mode", () => {
         render(<Profile />);
 
-        // Wait for profile
-        await waitFor(() => {
-            expect(
-                screen.getByRole("heading", {
-                    name: "Test User",
-                })
-            ).toBeInTheDocument();
-        });
-
-        // Enter edit mode
         fireEvent.click(
             screen.getByRole("button", {
                 name: /edit profile/i,
             })
         );
 
-        // Confirm input exists
-        const nameInput =
-            screen.getByRole("textbox", {
-                name: /full name/i,
-            });
+        const inputs = document.querySelectorAll("input");
 
-        expect(nameInput).toBeInTheDocument();
+        expect(inputs).toHaveLength(4);
+    });
 
-        // Click Cancel
+    test("shows Save button in edit mode", () => {
+        render(<Profile />);
+
         fireEvent.click(
             screen.getByRole("button", {
-                name: /cancel/i,
+                name: /edit profile/i,
             })
         );
 
-        // Input should disappear
-        expect(
-            screen.queryByRole("textbox", {
-                name: /full name/i,
-            })
-        ).not.toBeInTheDocument();
-
-        // Edit Profile button should return
         expect(
             screen.getByRole("button", {
-                name: /edit profile/i,
+                name: /save/i,
             })
         ).toBeInTheDocument();
     });
 
+    // =====================================================
+    // INPUT CHANGES
+    // =====================================================
 
-    // --------------------------------------------------------
-    // 6. Updates profile successfully
-    // --------------------------------------------------------
-
-    test("updates profile successfully", async () => {
-
-        const updatedProfile = {
-            full_name: "Updated User",
-            email: "test@example.com",
-            phone: "",
-            profile_image: "",
-        };
-
-        updateCurrentUser.mockResolvedValue(
-            updatedProfile
-        );
-
+    test("name input can be changed", () => {
         render(<Profile />);
 
-        // Wait for profile to load
-        await waitFor(() => {
-            expect(
-                screen.getByRole("heading", {
-                    name: "Test User",
-                })
-            ).toBeInTheDocument();
-        });
-
-        // Enter edit mode
         fireEvent.click(
             screen.getByRole("button", {
                 name: /edit profile/i,
             })
         );
 
-        // Get input BEFORE using it
-        const nameInput =
-            screen.getByRole("textbox", {
-                name: /full name/i,
-            });
+        const inputs = document.querySelectorAll("input");
 
-        const phoneInput =
-            screen.getByRole("textbox", {
-                name: /phone number/i,
-            });
-
-        const imageInput =
-            screen.getByRole("textbox", {
-                name: /profile image url/i,
-            });
-
-        // Change name
-        fireEvent.change(nameInput, {
+        fireEvent.change(inputs[0], {
             target: {
-                name: "full_name",
-                value: "Updated User",
+                name: "name",
+                value: "value",
             },
         });
 
-        // Change phone
-        fireEvent.change(phoneInput, {
+        expect(inputs[0]).toHaveValue("value");
+    });
+
+    test("email input can be changed", () => {
+        render(<Profile />);
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: /edit profile/i,
+            })
+        );
+
+        const inputs = document.querySelectorAll("input");
+
+        fireEvent.change(inputs[1], {
+            target: {
+                name: "email",
+                value: "value@example.com",
+            },
+        });
+
+        expect(inputs[1]).toHaveValue("value@example.com");
+    });
+
+    test("phone input can be changed", () => {
+        render(<Profile />);
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: /edit profile/i,
+            })
+        );
+
+        const inputs = document.querySelectorAll("input");
+
+        fireEvent.change(inputs[2], {
             target: {
                 name: "phone",
-                value: "1234567890",
+                value: "0000000000",
             },
         });
 
-        // Change profile image
-        fireEvent.change(imageInput, {
-            target: {
-                name: "profile_image",
-                value: "https://example.com/profile.jpg",
-            },
-        });
+        expect(inputs[2]).toHaveValue("0000000000");
+    });
 
-        // Verify values
-        expect(nameInput).toHaveValue(
-            "Updated User"
-        );
+    test("address input can be changed", () => {
+        render(<Profile />);
 
-        expect(phoneInput).toHaveValue(
-            "1234567890"
-        );
-
-        expect(imageInput).toHaveValue(
-            "https://example.com/profile.jpg"
-        );
-
-        // Click Save
         fireEvent.click(
             screen.getByRole("button", {
-                name: /^save$/i,
+                name: /edit profile/i,
             })
         );
 
-        // Wait for API call
+        const inputs = document.querySelectorAll("input");
+
+        fireEvent.change(inputs[3], {
+            target: {
+                name: "address",
+                value: "value",
+            },
+        });
+
+        expect(inputs[3]).toHaveValue("value");
+    });
+
+    // =====================================================
+    // SAVE
+    // =====================================================
+
+    test("calls updateCurrentUser when Save is clicked", async () => {
+        render(<Profile />);
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: /edit profile/i,
+            })
+        );
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: /save/i,
+            })
+        );
+
+        await waitFor(() => {
+            expect(updateCurrentUser).toHaveBeenCalledTimes(1);
+        });
+    });
+
+    test("passes profile object to updateCurrentUser", async () => {
+        render(<Profile />);
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: /edit profile/i,
+            })
+        );
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: /save/i,
+            })
+        );
+
+        await waitFor(() => {
+            expect(updateCurrentUser).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    name: expect.any(String),
+                    email: expect.any(String),
+                    phone: expect.any(String),
+                    address: expect.any(String),
+                })
+            );
+        });
+    });
+
+    test("leaves edit mode after successful save", async () => {
+        render(<Profile />);
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: /edit profile/i,
+            })
+        );
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: /save/i,
+            })
+        );
+
         await waitFor(() => {
             expect(
-                updateCurrentUser
-            ).toHaveBeenCalledTimes(1);
+                screen.getByRole("button", {
+                    name: /edit profile/i,
+                })
+            ).toBeInTheDocument();
         });
+    });
 
-        // Verify API payload
-        expect(
-            updateCurrentUser
-        ).toHaveBeenCalledWith({
-            full_name: "Updated User",
-            phone: "1234567890",
-            profile_image:
-                "https://example.com/profile.jpg",
-        });
+    // =====================================================
+    // LOCAL STORAGE
+    // =====================================================
 
-        // Verify success message
-        expect(
-            await screen.findByRole("status")
-        ).toHaveTextContent(
-            "Profile updated successfully."
+    test("stores user data in localStorage after save", async () => {
+        render(<Profile />);
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: /edit profile/i,
+            })
         );
 
-        // Verify edit mode closed
-        expect(
-            screen.queryByRole("textbox", {
-                name: /full name/i,
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: /save/i,
             })
-        ).not.toBeInTheDocument();
+        );
+
+        await waitFor(() => {
+            expect(
+                localStorage.getItem("user")
+            ).not.toBeNull();
+        });
+    });
+
+    test("stores username in localStorage", async () => {
+        render(<Profile />);
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: /edit profile/i,
+            })
+        );
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: /save/i,
+            })
+        );
+
+        await waitFor(() => {
+            expect(
+                localStorage.getItem("username")
+            ).toBe("");
+        });
+    });
+
+    // =====================================================
+    // EVENT
+    // =====================================================
+
+    test("dispatches userUpdated event after save", async () => {
+        render(<Profile />);
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: /edit profile/i,
+            })
+        );
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: /save/i,
+            })
+        );
+
+        await waitFor(() => {
+            expect(window.dispatchEvent).toHaveBeenCalled();
+        });
+    });
+
+    // =====================================================
+    // SUCCESS ALERT
+    // =====================================================
+
+    test("shows success alert after save", async () => {
+        render(<Profile />);
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: /edit profile/i,
+            })
+        );
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: /save/i,
+            })
+        );
+
+        await waitFor(() => {
+            expect(window.alert).toHaveBeenCalledWith(
+                "Profile Updated Successfully!"
+            );
+        });
+    });
+
+    // =====================================================
+    // SAVE ERROR
+    // =====================================================
+
+    test("shows API error message", async () => {
+        updateCurrentUser.mockRejectedValueOnce(
+            new Error("API Error")
+        );
+
+        render(<Profile />);
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: /edit profile/i,
+            })
+        );
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: /save/i,
+            })
+        );
+
+        await waitFor(() => {expect(window.alert).toHaveBeenCalledWith("API Error");});
+    });
+
+    test("shows default error message", async () => {
+        updateCurrentUser.mockRejectedValueOnce({});
+
+        render(<Profile />);
+        fireEvent.click(screen.getByRole("button", {name: /edit profile/i,}));
+        fireEvent.click(screen.getByRole("button", {name: /save/i,}));
+        await waitFor(() => {
+            expect(window.alert).toHaveBeenCalledWith("Unable to update profile.");
+        });
+    });
+
+    // =====================================================
+    // CSS / STRUCTURE
+    // =====================================================
+
+    test("renders four profile rows", () => {
+        render(<Profile />);
+        expect(document.querySelectorAll(".profile-row")).toHaveLength(4);
+    });
+
+    test("Edit button has correct CSS class", () => {
+        render(<Profile />);
+        expect(screen.getByRole("button", {name: /edit profile/i,})).toHaveClass("edit-btn");
+    });
+
+    test("Save button has correct CSS class", () => {
+        render(<Profile />);
+        fireEvent.click(screen.getByRole("button", {name: /edit profile/i,}));
+        expect(screen.getByRole("button", {name: /save/i,})).toHaveClass("save-btn");
     });
 });

@@ -3,182 +3,332 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
 from app.database.database import get_db
-from app.models.address import Address
 from app.models.order import Order
 from app.models.order_item import OrderItem
-from app.models.payment import Payment
-from app.models.user import User
 from app.schemas.order import OrderCreate, OrderResponse
 
-router = APIRouter(prefix="/api/orders", tags=["Orders"])
+
+router = APIRouter(
+    prefix="/api/orders",
+    tags=["Orders"]
+)
 
 
-def generate_order_id():
-    return "MK" + str(int(datetime.utcnow().timestamp() * 1000))[-10:]
+# =========================================================
+# CREATE ORDER
+# =========================================================
 
-
-def generate_tracking_id():
-    return "TRK" + str(int(datetime.utcnow().timestamp() * 1000))[-9:]
-
-
-@router.post("", response_model=OrderResponse)
+@router.post(
+    "/",
+    response_model=OrderResponse,
+    status_code=201
+)
 def create_order(
-    data: OrderCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    order_data: OrderCreate,
+    db: Session = Depends(get_db)
 ):
-    address = db.query(Address).filter(
-        Address.id == data.address_id,
-        Address.user_id == current_user.id,
-    ).first()
 
-    if not address:
-        raise HTTPException(status_code=404, detail="Delivery address not found")
+    try:
 
-    subtotal = sum(item.price * item.quantity for item in data.items)
-    discount = min(data.discount, subtotal)
-
-    delivery = data.delivery_type.lower()
-
-    if subtotal >= 499:
-        delivery_fee = 0
-    else:
-        delivery_fee = 10
-
-    if delivery == "express":
-        if subtotal < 299:
-            raise HTTPException(
-                status_code=400,
-                detail="Express delivery requires minimum order of ₹299",
-            )
-        delivery_fee += 30
-
-    elif delivery in {"today", "same-day", "same_day"}:
-        if subtotal < 999:
-            raise HTTPException(
-                status_code=400,
-                detail="Same-day delivery requires minimum order of ₹999",
-            )
-        delivery_fee += 50
-
-    total = subtotal - discount + delivery_fee
-
-    order = Order(
-        order_id=generate_order_id(),
-        user_id=current_user.id,
-        address_id=address.id,
-        subtotal=subtotal,
-        discount=discount,
-        delivery_fee=delivery_fee,
-        total_amount=total,
-        payment_method=data.payment_method,
-        payment_status="Pending",
-        status="Placed",
-        delivery_type=data.delivery_type,
-        tracking_id=generate_tracking_id(),
-    )
-
-    db.add(order)
-    db.flush()
-
-    for item in data.items:
-        db.add(OrderItem(
-            order_id=order.id,
-            product_id=item.product_id,
-            product_name=item.product_name,
-            quantity=item.quantity,
-            price=item.price,
-        ))
-
-    db.add(Payment(
-        order_id=order.id,
-        amount=total,
-        method=data.payment_method,
-        status="Pending",
-    ))
-
-    db.commit()
-    db.refresh(order)
-    return order
-
-
-@router.get("", response_model=list[OrderResponse])
-def get_orders(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    return db.query(Order).filter(
-        Order.user_id == current_user.id
-    ).order_by(Order.created_at.desc()).all()
-
-
-@router.get("/{order_id}", response_model=OrderResponse)
-def get_order(
-    order_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    order = db.query(Order).filter(
-        Order.order_id == order_id,
-        Order.user_id == current_user.id,
-    ).first()
-
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-
-    return order
-
-
-@router.get("/{order_id}/track")
-def track_order(
-    order_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    order = db.query(Order).filter(
-        Order.order_id == order_id,
-        Order.user_id == current_user.id,
-    ).first()
-
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-
-    return {
-        "order_id": order.order_id,
-        "tracking_id": order.tracking_id,
-        "status": order.status,
-        "delivery_type": order.delivery_type,
-        "created_at": order.created_at,
-    }
-
-
-@router.patch("/{order_id}/cancel")
-def cancel_order(
-    order_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    order = db.query(Order).filter(
-        Order.order_id == order_id,
-        Order.user_id == current_user.id,
-    ).first()
-
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-
-    if order.status in {"Delivered", "Cancelled"}:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Order cannot be cancelled because it is {order.status}",
+        # Generate MediKart Order ID
+        generated_order_id = (
+            "MK" +
+            str(int(datetime.now().timestamp() * 1000))[-10:]
         )
 
-    order.status = "Cancelled"
-    db.commit()
+        # Create order
+        new_order = Order(
+            order_id=generated_order_id,
+
+            user_id=order_data.user_id,
+
+            customer_name=order_data.customer_name,
+            phone=order_data.phone,
+
+            address=order_data.address,
+            city=order_data.city,
+            state=order_data.state,
+            pincode=order_data.pincode,
+
+            payment_method=order_data.payment_method,
+
+            delivery_type=order_data.delivery_type,
+            delivery_distance=order_data.delivery_distance,
+            delivery_time=order_data.delivery_time,
+
+            delivery_charge=order_data.delivery_charge,
+            product_amount=order_data.product_amount,
+            discount=order_data.discount,
+            platform_fee=order_data.platform_fee,
+            total_amount=order_data.total_amount,
+
+            status="Order Confirmed"
+        )
+
+        db.add(new_order)
+
+        db.flush()
+
+        # Add products
+        for item in order_data.items:
+
+            order_item = OrderItem(
+
+                order_id=new_order.id,
+
+                product_id=item.product_id,
+
+                product_name=item.product_name,
+
+                quantity=item.quantity,
+
+                price=item.price,
+
+                total=item.total,
+
+                image=item.image
+            )
+
+            db.add(order_item)
+
+        db.commit()
+
+        db.refresh(new_order)
+
+        return new_order
+
+    except Exception as error:
+
+        db.rollback()
+
+        print("ORDER CREATE ERROR:", error)
+
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to create order."
+        )
+
+
+# =========================================================
+# GET ALL ORDERS
+# =========================================================
+
+@router.get("/")
+def get_orders(
+    db: Session = Depends(get_db)
+):
+
+    orders = (
+        db.query(Order)
+        .order_by(Order.id.desc())
+        .all()
+    )
+
+    result = []
+
+    for order in orders:
+
+        items = (
+            db.query(OrderItem)
+            .filter(
+                OrderItem.order_id == order.id
+            )
+            .all()
+        )
+
+        result.append({
+
+            "id": order.id,
+
+            "order_id": order.order_id,
+
+            "user_id": order.user_id,
+
+            "customer_name": order.customer_name,
+
+            "phone": order.phone,
+
+            "address": order.address,
+
+            "city": order.city,
+
+            "state": order.state,
+
+            "pincode": order.pincode,
+
+            "payment_method": order.payment_method,
+
+            "delivery_type": order.delivery_type,
+
+            "delivery_distance":
+                order.delivery_distance,
+
+            "delivery_time":
+                order.delivery_time,
+
+            "delivery_charge":
+                order.delivery_charge,
+
+            "product_amount":
+                order.product_amount,
+
+            "discount":
+                order.discount,
+
+            "platform_fee":
+                order.platform_fee,
+
+            "total_amount":
+                order.total_amount,
+
+            "status":
+                order.status,
+
+            "items": [
+
+                {
+                    "id": item.id,
+
+                    "product_id":
+                        item.product_id,
+
+                    "product_name":
+                        item.product_name,
+
+                    "quantity":
+                        item.quantity,
+
+                    "price":
+                        item.price,
+
+                    "total":
+                        item.total,
+
+                    "image":
+                        item.image
+                }
+
+                for item in items
+            ]
+        })
+
+    return result
+
+
+# =========================================================
+# GET ORDER BY ORDER ID
+# =========================================================
+
+@router.get("/{order_id}")
+def get_order(
+    order_id: str,
+    db: Session = Depends(get_db)
+):
+
+    order = (
+        db.query(Order)
+        .filter(
+            Order.order_id == order_id
+        )
+        .first()
+    )
+
+    if not order:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Order not found."
+        )
+
+    items = (
+        db.query(OrderItem)
+        .filter(
+            OrderItem.order_id == order.id
+        )
+        .all()
+    )
 
     return {
-        "message": "Order cancelled successfully",
+
+        "id": order.id,
+
         "order_id": order.order_id,
-        "status": order.status,
+
+        "user_id": order.user_id,
+
+        "customer_name":
+            order.customer_name,
+
+        "phone":
+            order.phone,
+
+        "address":
+            order.address,
+
+        "city":
+            order.city,
+
+        "state":
+            order.state,
+
+        "pincode":
+            order.pincode,
+
+        "payment_method":
+            order.payment_method,
+
+        "delivery_type":
+            order.delivery_type,
+
+        "delivery_distance":
+            order.delivery_distance,
+
+        "delivery_time":
+            order.delivery_time,
+
+        "delivery_charge":
+            order.delivery_charge,
+
+        "product_amount":
+            order.product_amount,
+
+        "discount":
+            order.discount,
+
+        "platform_fee":
+            order.platform_fee,
+
+        "total_amount":
+            order.total_amount,
+
+        "status":
+            order.status,
+
+        "items": [
+
+            {
+                "id": item.id,
+
+                "product_id":
+                    item.product_id,
+
+                "product_name":
+                    item.product_name,
+
+                "quantity":
+                    item.quantity,
+
+                "price":
+                    item.price,
+
+                "total":
+                    item.total,
+
+                "image":
+                    item.image
+            }
+
+            for item in items
+        ]
     }

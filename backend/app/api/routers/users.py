@@ -34,6 +34,17 @@ def update_profile(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Phone number is already in use",
             )
+    if "email" in values and values["email"] is not None:
+        values["email"] = str(values["email"]).strip().lower()
+        duplicate = db.query(User.id).filter(
+            User.email == values["email"],
+            User.id != current_user.id,
+        ).first()
+        if duplicate:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Email address is already in use",
+            )
 
     for field, value in values.items():
         setattr(current_user, "name" if field == "full_name" else field, value)
@@ -43,10 +54,10 @@ def update_profile(
         db.commit()
     except IntegrityError as error:
         db.rollback()
-        if "phone" in values:
+        if "phone" in values or "email" in values:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Phone number is already in use",
+                detail="Email or phone number is already in use",
             ) from error
         raise
     db.refresh(current_user)

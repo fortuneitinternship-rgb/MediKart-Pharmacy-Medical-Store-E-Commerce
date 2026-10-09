@@ -8,6 +8,7 @@ class UserResponse(BaseModel):
     username: str
     email: EmailStr
     phone: str | None
+    address: str | None = None
     is_active: bool
     is_verified: bool
     is_admin: bool

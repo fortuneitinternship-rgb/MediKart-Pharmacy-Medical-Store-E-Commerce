@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import SearchBar from "../components/SearchBar/SearchBar";
 import ProductCard from "../components/ProductCard/ProductCard";
 import products from "../data/products";
-import api from "../services/api";
 import "./ProductListingPage.css";
 
 const categorySlugMap = {
@@ -32,27 +31,13 @@ const matchesCategory = (product, selectedCategory) => {
 const ProductListing = () => {
   const { category } = useParams();
   const [search, setSearch] = useState("");
-  const [catalog, setCatalog] = useState(products);
-
-  useEffect(() => {
-    let active = true;
-    api.get("/api/products")
-      .then(({ data }) => {
-        if (active && data.length) setCatalog(data);
-      })
-      .catch(() => {});
-
-    return () => {
-      active = false;
-    };
-  }, []);
 
   const normalizedCategory = category
     ? category.toLowerCase().replace(/-/g, " ").trim()
     : "";
 
   const filteredProducts = useMemo(() => {
-    return catalog.filter((item) => {
+    return products.filter((item) => {
       const keywordMatch =
         item.name.toLowerCase().includes(search.toLowerCase()) ||
         item.category.toLowerCase().includes(search.toLowerCase());
@@ -61,7 +46,7 @@ const ProductListing = () => {
 
       return keywordMatch && categoryMatch;
     });
-  }, [catalog, search, category]);
+  }, [search, category]);
 
   return (
     <div className="container">

@@ -1,3 +1,6 @@
+import axios from "axios";
+
+
 // =====================================================
 // MEDIKART AUTH + USER API
 // React Frontend ↔ FastAPI Backend
@@ -133,8 +136,8 @@ export const loginUser = async (
     localStorage.setItem(
       "username",
       data.user.username ||
-      data.user.name ||
-      ""
+        data.user.name ||
+        ""
     );
   }
 
@@ -204,25 +207,6 @@ export const getCurrentUser = async () => {
   return user;
 };
 
-export const getUserProfile = async () => {
-  const token = localStorage.getItem("access_token");
-  if (!token) throw new Error("Not logged in");
-
-  const response = await fetch(`${API_URL}/api/users/me`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-
-  if (!response.ok) {
-    if (response.status === 401 || response.status === 403) logoutUser();
-    throw new Error(await getErrorMessage(response));
-  }
-
-  const user = await response.json();
-  localStorage.setItem("user", JSON.stringify(user));
-  localStorage.setItem("username", user.full_name || "");
-  return user;
-};
-
 // =====================================================
 // UPDATE CURRENT USER
 // PUT /api/users/me
@@ -249,9 +233,13 @@ export const updateCurrentUser = async (
       },
 
       body: JSON.stringify({
-        full_name: userData.full_name || userData.name,
+        full_name:
+          userData.full_name ||
+          userData.name ||
+          userData.username,
+        email: userData.email,
         phone: userData.phone,
-        profile_image: userData.profile_image || null,
+        address: userData.address,
       }),
     }
   );
@@ -265,21 +253,26 @@ export const updateCurrentUser = async (
   const updatedUser =
     await response.json();
 
-  localStorage.setItem(
-    "user",
-    JSON.stringify(updatedUser)
-  );
+  const normalizedUser = {
+    ...updatedUser,
+    name: updatedUser.full_name || updatedUser.name,
+  };
 
-  if (
-    updatedUser.full_name ||
-    updatedUser.username ||
-    updatedUser.name
-  ) {
+  try {
     localStorage.setItem(
-      "username",
-      updatedUser.full_name ||
-      updatedUser.username ||
-      updatedUser.name
+      "user",
+      JSON.stringify(normalizedUser)
+    );
+    if (normalizedUser.username || normalizedUser.name) {
+      localStorage.setItem(
+        "username",
+        normalizedUser.username || normalizedUser.name
+      );
+    }
+  } catch (storageError) {
+    console.error(
+      "Profile was updated but local user data could not be cached:",
+      storageError
     );
   }
 
@@ -287,7 +280,7 @@ export const updateCurrentUser = async (
     new Event("userUpdated")
   );
 
-  return updatedUser;
+  return normalizedUser;
 };
 
 // =====================================================
@@ -328,211 +321,82 @@ export const isAuthenticated = () => {
   );
 };
 
-// =====================================================
-// FORGOT PASSWORD
-// STEP 1
-// POST /api/auth/forgot-password
-// =====================================================
+// ==========================================
+// FORGOT PASSWORD - SEND OTP
+// ==========================================
 
-export const forgotPassword = async (
-  email
-) => {
-  const response = await fetch(
-    `${API_URL}/api/auth/forgot-password`,
-    {
-      method: "POST",
+export const forgotPassword = async (email) => {
+  try {
+    const response = await axios.post(
+      `${API_URL}/api/auth/forgot-password`,
+      {
+        email: email.trim(),
+      }
+    );
 
-      headers: {
-        "Content-Type": "application/json",
-      },
+    return response.data;
 
-      body: JSON.stringify({
-        email,
-      }),
-    }
-  );
-
-  if (!response.ok) {
+  } catch (error) {
     throw new Error(
-      await getErrorMessage(response)
+      error.response?.data?.detail ||
+      "Unable to send OTP."
     );
   }
-
-  return await response.json();
 };
 
-// =====================================================
-// SEND OTP
-// POST /api/auth/send-otp
-// =====================================================
 
-export const sendOTP = async (
-  email
-) => {
-  const response = await fetch(
-    `${API_URL}/api/auth/send-otp`,
-    {
-      method: "POST",
-
-      headers: {
-        "Content-Type": "application/json",
-      },
-
-      body: JSON.stringify({
-        email,
-      }),
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error(
-      await getErrorMessage(response)
-    );
-  }
-
-  return await response.json();
-};
-
-// =====================================================
-// RESEND OTP
-// POST /api/auth/resend-otp
-// =====================================================
-
-export const resendOTP = async (email) => {
-  const response = await fetch(
-    `${API_URL}/api/auth/resend-otp`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ email }),
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error(await getErrorMessage(response));
-  }
-
-  return await response.json();
-};
-
-// =====================================================
+// ==========================================
 // VERIFY OTP
-// STEP 2
-// POST /api/auth/verify-otp
-// =====================================================
+// ==========================================
 
-export const verifyOTP = async (
-  email,
-  otp
-) => {
-  const response = await fetch(
-    `${API_URL}/api/auth/verify-otp`,
-    {
-      method: "POST",
+export const verifyOTP = async (email, otp) => {
+  try {
+    const response = await axios.post(
+      `${API_URL}/api/auth/verify-otp`,
+      {
+        email: email.trim(),
+        otp: otp,
+      }
+    );
 
-      headers: {
-        "Content-Type": "application/json",
-      },
+    return response.data;
 
-      body: JSON.stringify({
-        email,
-        otp,
-      }),
-    }
-  );
-
-  if (!response.ok) {
+  } catch (error) {
     throw new Error(
-      await getErrorMessage(response)
+      error.response?.data?.detail ||
+      "Invalid OTP."
     );
   }
-
-  return await response.json();
 };
 
-// =====================================================
+
+// ==========================================
 // RESET PASSWORD
-// STEP 3
-// POST /api/auth/reset-password
-// =====================================================
+// ==========================================
 
 export const resetPassword = async (
   email,
   otp,
-  newPassword
+  password
 ) => {
-  const response = await fetch(
-    `${API_URL}/api/auth/reset-password`,
-    {
-      method: "POST",
+  try {
+    const response = await axios.post(
+      `${API_URL}/api/auth/reset-password`,
+      {
+        email: email.trim(),
+        otp: otp,
+        new_password: password,
+      }
+    );
 
-      headers: {
-        "Content-Type": "application/json",
-      },
+    return response.data;
 
-      body: JSON.stringify({
-        email,
-        otp,
-        new_password: newPassword,
-      }),
-    }
-  );
-
-  if (!response.ok) {
+  } catch (error) {
     throw new Error(
-      await getErrorMessage(response)
+      error.response?.data?.detail ||
+      "Unable to reset password."
     );
   }
-
-  return await response.json();
-};
-
-// =====================================================
-// CHANGE PASSWORD
-// POST /api/auth/change-password
-// =====================================================
-
-export const changePassword = async (
-  currentPassword,
-  newPassword
-) => {
-  const token =
-    localStorage.getItem("access_token");
-
-  if (!token) {
-    throw new Error("Not logged in");
-  }
-
-  const response = await fetch(
-    `${API_URL}/api/auth/change-password`,
-    {
-      method: "POST",
-
-      headers: {
-        "Content-Type": "application/json",
-
-        Authorization: `Bearer ${token}`,
-      },
-
-      body: JSON.stringify({
-        current_password:
-          currentPassword,
-
-        new_password:
-          newPassword,
-      }),
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error(
-      await getErrorMessage(response)
-    );
-  }
-
-  return await response.json();
 };
 
 // =====================================================
@@ -657,11 +521,25 @@ export const getStoredUser = () => {
 // =====================================================
 
 export const clearAuthData = () => {
-  localStorage.removeItem("access_token");
-  localStorage.removeItem("user");
-  localStorage.removeItem("isLoggedIn");
-  localStorage.removeItem("username");
-  window.dispatchEvent(new Event("userUpdated"));
+  localStorage.removeItem(
+    "access_token"
+  );
+
+  localStorage.removeItem(
+    "user"
+  );
+
+  localStorage.removeItem(
+    "isLoggedIn"
+  );
+
+  localStorage.removeItem(
+    "username"
+  );
+
+  window.dispatchEvent(
+    new Event("userUpdated")
+  );
 };
 
 // =====================================================

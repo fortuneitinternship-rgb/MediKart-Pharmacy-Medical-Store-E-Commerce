@@ -65,7 +65,6 @@ import FAQ from "./pages/FAQ/FAQ";
 import Reviews from "./pages/Reviews/Reviews";
 import CompareProducts from "./pages/CompareProducts/CompareProducts";
 import Gallery from "./pages/Gallery/Gallery";
-import AdminProducts from "./pages/AdminProducts/AdminProducts";
 
 // Error Pages
 import Error404 from "./pages/Error404/Error404";
@@ -111,7 +110,6 @@ function Layout() {
 
         {/* Product Listing */}
         <Route path="/products" element={<ProductListingPage />} />
-        <Route path="/admin/products" element={<AdminProducts />} />
         <Route path="/product-listing" element={<ProductListing />} />
 
         {/* Product Details */}

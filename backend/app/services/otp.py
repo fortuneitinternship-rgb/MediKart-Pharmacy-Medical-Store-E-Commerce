@@ -3,13 +3,13 @@ import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from fastapi import BackgroundTasks, HTTPException, status
+from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.opt import EmailOTP
 from app.models.user import User
-from app.services.email import send_otp_email
+from app.services.email import EmailDeliveryError, send_otp_email
 
 logger = logging.getLogger(__name__)
 
@@ -26,17 +26,16 @@ def _hash_otp(email: str, otp: str) -> str:
 def send_email_otp(
     email: str,
     db: Session,
-    background_tasks: BackgroundTasks,
 ) -> None:
     normalized_email = email.lower().strip()
     user = db.query(User).filter(User.email == normalized_email).first()
     if not user:
         raise HTTPException(status_code=404, detail="Email is not registered")
 
-    if not settings.SMTP_EMAIL or not settings.SMTP_PASSWORD:
+    if not settings.SMTP_HOST or not settings.SMTP_EMAIL or not settings.SMTP_PASSWORD:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Email delivery is not configured. Set SMTP_EMAIL and SMTP_PASSWORD.",
+            detail="Email delivery is not configured. Set SMTP_HOST, SMTP_PORT, SMTP_EMAIL, and SMTP_PASSWORD.",
         )
 
     now = _now()
@@ -67,7 +66,18 @@ def send_email_otp(
     record.created_at = now
     db.commit()
 
-    background_tasks.add_task(send_otp_email, normalized_email, otp)
+    try:
+        send_otp_email(normalized_email, otp)
+    except EmailDeliveryError as error:
+        record.is_used = True
+        record.created_at = now - timedelta(
+            seconds=settings.OTP_RESEND_COOLDOWN_SECONDS
+        )
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="OTP could not be delivered. Check the SMTP settings and try again.",
+        ) from error
 
 
 def verify_email_otp(

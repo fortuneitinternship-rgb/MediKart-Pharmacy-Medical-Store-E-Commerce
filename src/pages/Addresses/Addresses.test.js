@@ -1,290 +1,443 @@
 import React from "react";
-import {
-    render,
-    screen,
-    fireEvent,
-} from "@testing-library/react";
-import "@testing-library/jest-dom";
-
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import Addresses from "./Addresses";
+
+import {
+    addAddress,
+    deleteAddress,
+    getAddresses,
+} from "../../api/addressApi";
+
+import { getApiErrorMessage } from "../../services/api";
+
+jest.mock("../../api/addressApi", () => ({
+    addAddress: jest.fn(),
+    deleteAddress: jest.fn(),
+    getAddresses: jest.fn(),
+}));
+
+jest.mock("../../services/api", () => ({
+    getApiErrorMessage: jest.fn(),
+}));
 
 describe("Addresses Component", () => {
     beforeEach(() => {
-        localStorage.clear();
         jest.clearAllMocks();
-    });
 
-    // ======================================================
-    // BASIC RENDERING
-    // ======================================================
+        getAddresses.mockResolvedValue([]);
+        addAddress.mockResolvedValue({
+            id: 1,
+            full_name: "Test",
+            phone: "0000000000",
+            address_line1: "Test Address",
+            city: "Test City",
+            state: "Test State",
+            pincode: "0000",
+            address_type: "Home",
+        });
 
-    test("renders Saved Addresses heading", () => {
-        render(<Addresses />);
-
-        expect(
-            screen.getByRole("heading", {
-                name: "Saved Addresses",
-            })
-        ).toBeInTheDocument();
-    });
-
-    // ======================================================
-    // ADD ADDRESS BUTTON
-    // ======================================================
-
-    test("renders Add Address button", () => {
-        render(<Addresses />);
-
-        expect(
-            screen.getByRole("button", {
-                name: /add address/i,
-            })
-        ).toBeInTheDocument();
-    });
-
-    // ======================================================
-    // ADDRESS CARDS
-    // ======================================================
-
-    test("renders saved address cards", () => {
-        render(<Addresses />);
-
-        expect(
-            screen.getByRole("heading", {
-                name: "Home",
-            })
-        ).toBeInTheDocument();
-
-        expect(
-            screen.getByRole("heading", {
-                name: "Office",
-            })
-        ).toBeInTheDocument();
-    });
-
-    // ======================================================
-    // DELETE BUTTONS
-    // ======================================================
-
-    test("renders delete buttons for saved addresses", () => {
-        render(<Addresses />);
-
-        const deleteButtons = screen.getAllByRole(
-            "button",
-            {
-                name: /delete/i,
-            }
+        deleteAddress.mockResolvedValue({});
+        getApiErrorMessage.mockImplementation(
+            (_, fallback) => fallback
         );
-
-        expect(deleteButtons).toHaveLength(2);
     });
 
-    // ======================================================
-    // DELETE FIRST ADDRESS
-    // ======================================================
-
-    test("removes an address when Delete is clicked", () => {
+    test("renders Saved Addresses heading", async () => {
         render(<Addresses />);
 
-        const deleteButtons = screen.getAllByRole(
-            "button",
-            {
-                name: /delete/i,
-            }
-        );
+        expect(
+            screen.getByRole("heading", { name: /saved addresses/i })
+        ).toBeInTheDocument();
 
-        fireEvent.click(deleteButtons[0]);
+        await waitFor(() => {
+            expect(getAddresses).toHaveBeenCalledTimes(1);
+        });
+    });
+
+    test("shows empty address message when no addresses exist", async () => {
+        getAddresses.mockResolvedValue([]);
+
+        render(<Addresses />);
 
         expect(
-            screen.queryByRole("heading", {
-                name: "Home",
-            })
+            await screen.findByText("No Address Found")
+        ).toBeInTheDocument();
+    });
+
+    test("opens and closes the address form", async () => {
+        render(<Addresses />);
+
+        const addButton = screen.getByRole("button", {
+            name: /add address/i,
+        });
+
+        fireEvent.click(addButton);
+
+        expect(
+            screen.getByPlaceholderText("Full name")
+        ).toBeInTheDocument();
+
+        expect(
+            screen.getByPlaceholderText("Phone")
+        ).toBeInTheDocument();
+
+        expect(
+            screen.getByPlaceholderText("Address")
+        ).toBeInTheDocument();
+
+        fireEvent.click(addButton);
+
+        expect(
+            screen.queryByPlaceholderText("Full name")
         ).not.toBeInTheDocument();
-
-        expect(
-            screen.getByRole("heading", {
-                name: "Office",
-            })
-        ).toBeInTheDocument();
     });
 
-    // ======================================================
-    // DELETE SECOND ADDRESS
-    // ======================================================
-
-    test("removes the second address when Delete is clicked", () => {
+    test("renders all address form fields", async () => {
         render(<Addresses />);
 
-        const deleteButtons = screen.getAllByRole(
-            "button",
-            {
-                name: /delete/i,
-            }
-        );
-
-        fireEvent.click(deleteButtons[1]);
-
-        expect(
-            screen.queryByRole("heading", {
-                name: "Office",
-            })
-        ).not.toBeInTheDocument();
-
-        expect(
-            screen.getByRole("heading", {
-                name: "Home",
-            })
-        ).toBeInTheDocument();
-    });
-
-    // ======================================================
-    // LOCAL STORAGE AFTER DELETE
-    // ======================================================
-
-    test("updates localStorage after deleting an address", () => {
-        render(<Addresses />);
-
-        const deleteButtons = screen.getAllByRole(
-            "button",
-            {
-                name: /delete/i,
-            }
-        );
-
-        fireEvent.click(deleteButtons[0]);
-
-        const savedAddresses = JSON.parse(
-            localStorage.getItem("addresses")
-        );
-
-        expect(savedAddresses).toHaveLength(1);
-
-        expect(savedAddresses[0].name).toBe(
-            "Office"
-        );
-    });
-
-    // ======================================================
-    // DELETE ALL ADDRESSES
-    // ======================================================
-
-    test("shows empty state after deleting all addresses", () => {
-        render(<Addresses />);
-
-        let deleteButtons = screen.getAllByRole(
-            "button",
-            {
-                name: /delete/i,
-            }
-        );
-
-        fireEvent.click(deleteButtons[0]);
-
-        deleteButtons = screen.getAllByRole(
-            "button",
-            {
-                name: /delete/i,
-            }
-        );
-
-        fireEvent.click(deleteButtons[0]);
-
-        expect(
-            screen.getByRole("heading", {
-                name: "No Address Found",
-            })
-        ).toBeInTheDocument();
-    });
-
-    // ======================================================
-    // EMPTY STATE
-    // ======================================================
-
-    test("displays No Address Found when address list is empty", () => {
-        render(<Addresses />);
-
-        const deleteButtons = screen.getAllByRole(
-            "button",
-            {
-                name: /delete/i,
-            }
-        );
-
-        fireEvent.click(deleteButtons[0]);
         fireEvent.click(
-            screen.getByRole("button", {
-                name: /delete/i,
-            })
+            screen.getByRole("button", { name: /add address/i })
+        );
+
+        expect(screen.getByPlaceholderText("Full name")).toBeInTheDocument();
+        expect(screen.getByPlaceholderText("Phone")).toBeInTheDocument();
+        expect(screen.getByPlaceholderText("Address")).toBeInTheDocument();
+        expect(screen.getByPlaceholderText("City")).toBeInTheDocument();
+        expect(screen.getByPlaceholderText("State")).toBeInTheDocument();
+        expect(screen.getByPlaceholderText("PIN code")).toBeInTheDocument();
+
+        expect(
+            screen.getByRole("button", { name: /save address/i })
+        ).toBeInTheDocument();
+
+        await waitFor(() => {
+            expect(getAddresses).toHaveBeenCalled();
+        });
+    });
+
+    test("updates address form fields", () => {
+        render(<Addresses />);
+
+        fireEvent.click(
+            screen.getByRole("button", { name: /add address/i })
+        );
+
+        const fullName = screen.getByPlaceholderText("Full name");
+        const phone = screen.getByPlaceholderText("Phone");
+        const address = screen.getByPlaceholderText("Address");
+        const city = screen.getByPlaceholderText("City");
+        const state = screen.getByPlaceholderText("State");
+        const pincode = screen.getByPlaceholderText("PIN code");
+
+        fireEvent.change(fullName, {
+            target: { value: "Test" },
+        });
+
+        fireEvent.change(phone, {
+            target: { value: "0000000000" },
+        });
+
+        fireEvent.change(address, {
+            target: { value: "Test Address" },
+        });
+
+        fireEvent.change(city, {
+            target: { value: "Test City" },
+        });
+
+        fireEvent.change(state, {
+            target: { value: "Test State" },
+        });
+
+        fireEvent.change(pincode, {
+            target: { value: "0000" },
+        });
+
+        expect(fullName).toHaveValue("Test");
+        expect(phone).toHaveValue("0000000000");
+        expect(address).toHaveValue("Test Address");
+        expect(city).toHaveValue("Test City");
+        expect(state).toHaveValue("Test State");
+        expect(pincode).toHaveValue("0000");
+    });
+
+    test("saves address successfully", async () => {
+        const savedAddress = {
+            id: 1,
+            full_name: "Test",
+            phone: "0000000000",
+            address_line1: "Test Address",
+            city: "Test City",
+            state: "Test State",
+            pincode: "0000",
+            address_type: "Home",
+        };
+
+        addAddress.mockResolvedValue(savedAddress);
+
+        render(<Addresses />);
+
+        fireEvent.click(
+            screen.getByRole("button", { name: /add address/i })
+        );
+
+        fireEvent.change(screen.getByPlaceholderText("Full name"), {
+            target: { value: "Test" },
+        });
+
+        fireEvent.change(screen.getByPlaceholderText("Phone"), {
+            target: { value: "0000000000" },
+        });
+
+        fireEvent.change(screen.getByPlaceholderText("Address"), {
+            target: { value: "Test Address" },
+        });
+
+        fireEvent.change(screen.getByPlaceholderText("City"), {
+            target: { value: "Test City" },
+        });
+
+        fireEvent.change(screen.getByPlaceholderText("State"), {
+            target: { value: "Test State" },
+        });
+
+        fireEvent.change(screen.getByPlaceholderText("PIN code"), {
+            target: { value: "0000" },
+        });
+
+        fireEvent.click(
+            screen.getByRole("button", { name: /save address/i })
+        );
+
+        await waitFor(() => {
+            expect(addAddress).toHaveBeenCalledTimes(1);
+        });
+
+        await waitFor(() => {
+            expect(
+                screen.queryByPlaceholderText("Full name")
+            ).not.toBeInTheDocument();
+        });
+    });
+
+    test("shows Saving state while address is being saved", async () => {
+        let resolveSave;
+
+        addAddress.mockImplementation(
+            () =>
+                new Promise((resolve) => {
+                    resolveSave = resolve;
+                })
+        );
+
+        render(<Addresses />);
+
+        fireEvent.click(
+            screen.getByRole("button", { name: /add address/i })
+        );
+
+        fireEvent.change(screen.getByPlaceholderText("Full name"), {
+            target: { value: "Test" },
+        });
+
+        fireEvent.change(screen.getByPlaceholderText("Phone"), {
+            target: { value: "0000000000" },
+        });
+
+        fireEvent.change(screen.getByPlaceholderText("Address"), {
+            target: { value: "Test Address" },
+        });
+
+        fireEvent.change(screen.getByPlaceholderText("City"), {
+            target: { value: "Test City" },
+        });
+
+        fireEvent.change(screen.getByPlaceholderText("State"), {
+            target: { value: "Test State" },
+        });
+
+        fireEvent.change(screen.getByPlaceholderText("PIN code"), {
+            target: { value: "0000" },
+        });
+
+        fireEvent.click(
+            screen.getByRole("button", { name: /save address/i })
         );
 
         expect(
-            screen.getByText("No Address Found")
-        ).toBeInTheDocument();
+            await screen.findByRole("button", { name: /saving/i })
+        ).toBeDisabled();
+
+        resolveSave({
+            id: 1,
+            full_name: "Test",
+            phone: "0000000000",
+            address_line1: "Test Address",
+            city: "Test City",
+            state: "Test State",
+            pincode: "0000",
+            address_type: "Home",
+        });
+
+        await waitFor(() => {
+            expect(
+                screen.queryByText("Saving...")
+            ).not.toBeInTheDocument();
+        });
     });
 
-    // ======================================================
-    // ADDRESS COUNT
-    // ======================================================
-
-    test("initially renders two saved addresses", () => {
-        render(<Addresses />);
-
-        const deleteButtons = screen.getAllByRole(
-            "button",
+    test("displays saved addresses", async () => {
+        getAddresses.mockResolvedValue([
             {
-                name: /delete/i,
-            }
-        );
-
-        expect(deleteButtons).toHaveLength(2);
-    });
-
-    // ======================================================
-    // LOCAL STORAGE CONTENT
-    // ======================================================
-
-    test("stores remaining address data in localStorage", () => {
-        render(<Addresses />);
-
-        const deleteButtons = screen.getAllByRole(
-            "button",
-            {
-                name: /delete/i,
-            }
-        );
-
-        fireEvent.click(deleteButtons[0]);
-
-        const storedData = JSON.parse(
-            localStorage.getItem("addresses")
-        );
-
-        expect(storedData).toEqual([
-            {
-                id: 2,
-                name: "Office",
-                person: "Satender Kashyap",
-                phone: "+91 9876543210",
-                address:
-                    "Medikart Pvt. Ltd., Sector 62, Noida, Uttar Pradesh - 201309",
+                id: 1,
+                full_name: "Test",
+                phone: "0000000000",
+                address_line1: "Test Address",
+                city: "Test City",
+                state: "Test State",
+                pincode: "0000",
+                address_type: "Home",
             },
         ]);
-    });
 
-    // ======================================================
-    // ADD ADDRESS BUTTON
-    // ======================================================
-
-    test("Add Address button is enabled", () => {
         render(<Addresses />);
 
-        const addButton = screen.getByRole(
-            "button",
+        await waitFor(() => {
+            expect(screen.getByText("Home")).toBeInTheDocument();
+            expect(screen.getByText("Test")).toBeInTheDocument();
+            expect(screen.getByText("0000000000")).toBeInTheDocument();
+        });
+    });
+
+    test("deletes an address successfully", async () => {
+        getAddresses.mockResolvedValue([
             {
-                name: /add address/i,
-            }
+                id: 1,
+                full_name: "Test",
+                phone: "0000000000",
+                address_line1: "Test Address",
+                city: "Test City",
+                state: "Test State",
+                pincode: "0000",
+                address_type: "Home",
+            },
+        ]);
+
+        render(<Addresses />);
+
+        await waitFor(() => {
+            expect(screen.getByText("Home")).toBeInTheDocument();
+        });
+
+        fireEvent.click(
+            screen.getByRole("button", { name: /delete/i })
         );
 
-        expect(addButton).toBeEnabled();
+        await waitFor(() => {
+            expect(deleteAddress).toHaveBeenCalledWith(1);
+        });
+
+        await waitFor(() => {
+            expect(
+                screen.getByText("No Address Found")
+            ).toBeInTheDocument();
+        });
+    });
+
+    test("shows loading error when addresses cannot be loaded", async () => {
+        getAddresses.mockRejectedValue(new Error("Load failed"));
+
+        getApiErrorMessage.mockReturnValue(
+            "Unable to load addresses."
+        );
+
+        render(<Addresses />);
+
+        expect(
+            await screen.findByRole("alert")
+        ).toHaveTextContent("Unable to load addresses.");
+
+        expect(getApiErrorMessage).toHaveBeenCalled();
+    });
+
+    test("shows save error when address cannot be saved", async () => {
+        addAddress.mockRejectedValue(new Error("Save failed"));
+
+        getApiErrorMessage.mockReturnValue(
+            "Unable to save this address."
+        );
+
+        render(<Addresses />);
+
+        fireEvent.click(
+            screen.getByRole("button", { name: /add address/i })
+        );
+
+        fireEvent.change(screen.getByPlaceholderText("Full name"), {
+            target: { value: "Test" },
+        });
+
+        fireEvent.change(screen.getByPlaceholderText("Phone"), {
+            target: { value: "0000000000" },
+        });
+
+        fireEvent.change(screen.getByPlaceholderText("Address"), {
+            target: { value: "Test Address" },
+        });
+
+        fireEvent.change(screen.getByPlaceholderText("City"), {
+            target: { value: "Test City" },
+        });
+
+        fireEvent.change(screen.getByPlaceholderText("State"), {
+            target: { value: "Test State" },
+        });
+
+        fireEvent.change(screen.getByPlaceholderText("PIN code"), {
+            target: { value: "0000" },
+        });
+
+        fireEvent.click(
+            screen.getByRole("button", { name: /save address/i })
+        );
+
+        expect(
+            await screen.findByRole("alert")
+        ).toHaveTextContent("Unable to save this address.");
+    });
+
+    test("shows delete error when address cannot be deleted", async () => {
+        getAddresses.mockResolvedValue([
+            {
+                id: 1,
+                full_name: "Test",
+                phone: "0000000000",
+                address_line1: "Test Address",
+                city: "Test City",
+                state: "Test State",
+                pincode: "0000",
+                address_type: "Home",
+            },
+        ]);
+
+        deleteAddress.mockRejectedValue(new Error("Delete failed"));
+
+        getApiErrorMessage.mockReturnValue(
+            "Unable to delete this address."
+        );
+
+        render(<Addresses />);
+
+        await waitFor(() => {
+            expect(screen.getByText("Home")).toBeInTheDocument();
+        });
+
+        fireEvent.click(
+            screen.getByRole("button", { name: /delete/i })
+        );
+
+        expect(
+            await screen.findByRole("alert")
+        ).toHaveTextContent("Unable to delete this address.");
     });
 });

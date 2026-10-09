@@ -1,45 +1,85 @@
-from datetime import datetime
+from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class OrderItemCreate(BaseModel):
     product_id: int
     product_name: str
-    quantity: int = Field(gt=0)
-    price: float = Field(ge=0)
+    quantity: int
+    price: float
+    total: float
+    image: Optional[str] = None
 
 
 class OrderCreate(BaseModel):
-    address_id: int
-    items: list[OrderItemCreate] = Field(min_length=1)
-    payment_method: str = "COD"
-    delivery_type: str = "Normal"
-    discount: float = Field(default=0, ge=0)
+    user_id: Optional[int] = None
+
+    customer_name: str
+    phone: str
+
+    address: str
+    city: str
+    state: str
+    pincode: str
+
+    payment_method: str
+
+    delivery_type: str
+    delivery_distance: str
+    delivery_time: Optional[str] = None
+
+    delivery_charge: float = 0
+    product_amount: float = 0
+    discount: float = 0
+    platform_fee: float = 0
+    total_amount: float = 0
+
+    items: List[OrderItemCreate]
 
 
 class OrderItemResponse(BaseModel):
+    id: int
     product_id: int
     product_name: str
     quantity: int
     price: float
+    total: float
+    image: Optional[str] = None
 
-    model_config = {"from_attributes": True}
+    class Config:
+        from_attributes = True
 
 
 class OrderResponse(BaseModel):
     id: int
     order_id: str
-    subtotal: float
-    discount: float
-    delivery_fee: float
-    total_amount: float
-    payment_method: str
-    payment_status: str
-    status: str
-    delivery_type: str
-    tracking_id: str | None
-    created_at: datetime
-    items: list[OrderItemResponse]
 
-    model_config = {"from_attributes": True}
+    user_id: Optional[int] = None
+
+    customer_name: str
+    phone: str
+
+    address: str
+    city: str
+    state: str
+    pincode: str
+
+    payment_method: str
+
+    delivery_type: str
+    delivery_distance: str
+    delivery_time: Optional[str] = None
+
+    delivery_charge: float
+    product_amount: float
+    discount: float
+    platform_fee: float
+    total_amount: float
+
+    status: str
+
+    items: List[OrderItemResponse] = []
+
+    class Config:
+        from_attributes = True

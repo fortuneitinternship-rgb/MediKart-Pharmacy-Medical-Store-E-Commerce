@@ -1,43 +1,20 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import "./Reviews.css";
-
-const initialReviews = [
-    {
-        id: 1,
-        name: "Rahul Sharma",
-        rating: 5,
-        product: "Paracetamol Tablets",
-        review:
-            "Excellent quality and very fast delivery. Highly recommended!",
-    },
-    {
-        id: 2,
-        name: "Priya Verma",
-        rating: 4,
-        product: "Vitamin D Capsules",
-        review:
-            "Good product and genuine medicines. Packaging was excellent.",
-    },
-    {
-        id: 3,
-        name: "Amit Kumar",
-        rating: 5,
-        product: "Blood Pressure Monitor",
-        review:
-            "Very accurate readings and easy to use.",
-    },
-    {
-        id: 4,
-        name: "Sneha Patel",
-        rating: 5,
-        product: "Face Wash",
-        review:
-            "Original product at an affordable price.",
-    },
-];
+import { getReviews, submitReview } from "../../api/submissionsApi";
+import { getApiErrorMessage } from "../../services/api";
 
 function Reviews() {
-    const [reviews, setReviews] = useState(initialReviews);
+    const [reviews, setReviews] = useState([]);
+    const [error, setError] = useState("");
+    const [submitting, setSubmitting] = useState(false);
+
+    useEffect(() => {
+        getReviews()
+            .then(setReviews)
+            .catch((loadError) => {
+                setError(getApiErrorMessage(loadError, "Unable to load reviews."));
+            });
+    }, []);
 
     const [form, setForm] = useState({
         name: "",
@@ -53,7 +30,7 @@ function Reviews() {
         });
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
 
         if (
@@ -65,22 +42,20 @@ function Reviews() {
             return;
         }
 
-        setReviews([
-            {
-                id: Date.now(),
+        setSubmitting(true);
+        setError("");
+        try {
+            const savedReview = await submitReview({
                 ...form,
-            },
-            ...reviews,
-        ]);
-
-        setForm({
-            name: "",
-            product: "",
-            rating: "5",
-            review: "",
-        });
-
-        alert("Review Added Successfully!");
+                rating: Number(form.rating),
+            });
+            setReviews((current) => [savedReview, ...current]);
+            setForm({ name: "", product: "", rating: "5", review: "" });
+        } catch (submitError) {
+            setError(getApiErrorMessage(submitError, "Unable to submit your review."));
+        } finally {
+            setSubmitting(false);
+        }
     };
 
     return (
@@ -98,6 +73,7 @@ function Reviews() {
                 className="review-form"
                 onSubmit={handleSubmit}
             >
+                {error && <p role="alert">{error}</p>}
 
                 <input
                     type="text"
@@ -135,8 +111,8 @@ function Reviews() {
                     onChange={handleChange}
                 />
 
-                <button type="submit">
-                    Submit Review
+                <button type="submit" disabled={submitting}>
+                    {submitting ? "Submitting..." : "Submit Review"}
                 </button>
 
             </form>

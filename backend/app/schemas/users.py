@@ -1,7 +1,14 @@
 import re
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 
 class UserProfileResponse(BaseModel):
@@ -9,6 +16,7 @@ class UserProfileResponse(BaseModel):
     full_name: str = Field(validation_alias="name")
     email: str
     phone: str | None
+    address: str | None
     profile_image: str | None
     is_active: bool
     created_at: datetime
@@ -19,7 +27,9 @@ class UserProfileResponse(BaseModel):
 
 class UserProfileUpdate(BaseModel):
     full_name: str | None = Field(default=None, min_length=2, max_length=100)
+    email: EmailStr | None = None
     phone: str | None = Field(default=None, max_length=20)
+    address: str | None = Field(default=None, max_length=500)
     profile_image: str | None = Field(default=None, max_length=2048)
 
     model_config = ConfigDict(extra="forbid")
@@ -47,6 +57,13 @@ class UserProfileUpdate(BaseModel):
             if 8 <= len(digits) <= 15:
                 return f"+{digits}" if value.startswith("+") else digits
         raise ValueError("Phone must be 10 digits or a valid international number")
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: EmailStr | None) -> EmailStr | None:
+        if value is None:
+            raise ValueError("Email cannot be empty")
+        return value
 
     @model_validator(mode="after")
     def require_editable_field(self):

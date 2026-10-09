@@ -1,19 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  FaTimes,
-  FaEnvelope,
-  FaLock,
-  FaArrowLeft,
-} from "react-icons/fa";
+import { FaTimes, FaEnvelope, FaLock, FaArrowLeft, } from "react-icons/fa";
 
 import "./ForgotPassword.css";
-import {
-  forgotPassword,
-  resendOTP,
-  resetPassword,
-  verifyOTP,
-} from "../../api/authApi";
+import { forgotPassword, resetPassword, verifyOTP, } from "../../api/authApi";
 
 const ForgotPassword = ({ onClose, onSwitchToLogin }) => {
   const navigate = useNavigate();
@@ -28,18 +18,6 @@ const ForgotPassword = ({ onClose, onSwitchToLogin }) => {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [statusMessage, setStatusMessage] = useState("");
-  const [resendSeconds, setResendSeconds] = useState(0);
-
-  useEffect(() => {
-    if (step !== "otp" || resendSeconds === 0) return undefined;
-
-    const timer = window.setTimeout(() => {
-      setResendSeconds((seconds) => Math.max(0, seconds - 1));
-    }, 1000);
-
-    return () => window.clearTimeout(timer);
-  }, [step, resendSeconds]);
 
   // ==========================================
   // SEND OTP
@@ -55,43 +33,21 @@ const ForgotPassword = ({ onClose, onSwitchToLogin }) => {
 
     setLoading(true);
     setError("");
-    setStatusMessage("");
 
     try {
       await forgotPassword(email);
 
       setStep("otp");
-      setResendSeconds(60);
-      setStatusMessage("OTP sent. Check your email.");
       setError("");
     } catch (err) {
       console.error('Send OTP Error:', err);
 
       // Handle network errors specifically
       if (err.message === 'Failed to fetch') {
-        setError(
-          "Cannot connect to server. Please check if the backend is running at http://127.0.0.1:8000"
-        );
+        setError("Cannot connect to server. Please check if the backend is running at http://127.0.0.1:8000");
       } else {
         setError(err.message || "Unable to send OTP. Please try again.");
       }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleResendOTP = async () => {
-    setLoading(true);
-    setError("");
-    setStatusMessage("");
-
-    try {
-      await resendOTP(email);
-      setOtp("");
-      setResendSeconds(60);
-      setStatusMessage("A new OTP has been sent to your email.");
-    } catch (err) {
-      setError(err.message || "Unable to resend OTP. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -111,21 +67,17 @@ const ForgotPassword = ({ onClose, onSwitchToLogin }) => {
 
     setLoading(true);
     setError("");
-    setStatusMessage("");
 
     try {
       await verifyOTP(email, otp);
 
       setStep("reset");
-      setResendSeconds(0);
       setError("");
     } catch (err) {
       console.error('Verify OTP Error:', err);
 
       if (err.message === 'Failed to fetch') {
-        setError(
-          "Cannot connect to server. Please check if the backend is running at http://127.0.0.1:8000"
-        );
+        setError("Cannot connect to server. Please check if the backend is running at http://127.0.0.1:8000");
       } else {
         setError(err.message || "Invalid OTP. Please try again.");
       }
@@ -174,9 +126,7 @@ const ForgotPassword = ({ onClose, onSwitchToLogin }) => {
       console.error('Reset Password Error:', err);
 
       if (err.message === 'Failed to fetch') {
-        setError(
-          "Cannot connect to server. Please check if the backend is running at http://127.0.0.1:8000"
-        );
+        setError("Cannot connect to server. Please check if the backend is running at http://127.0.0.1:8000");
       } else {
         setError(err.message || "Unable to reset password. Please try again.");
       }
@@ -211,8 +161,6 @@ const ForgotPassword = ({ onClose, onSwitchToLogin }) => {
     if (step === "otp") {
       setStep("email");
       setOtp("");
-      setResendSeconds(0);
-      setStatusMessage("");
       setError("");
     } else if (step === "reset") {
       setStep("otp");
@@ -245,12 +193,7 @@ const ForgotPassword = ({ onClose, onSwitchToLogin }) => {
       <div className="forgot-popup">
 
         {/* CLOSE BUTTON */}
-        <button
-          type="button"
-          className="forgot-close"
-          onClick={handleClose}
-          aria-label="Close"
-        >
+        <button type="button" className="forgot-close" onClick={handleClose} aria-label="Close" >
           <FaTimes />
         </button>
 
@@ -260,9 +203,7 @@ const ForgotPassword = ({ onClose, onSwitchToLogin }) => {
 
         {step === "email" && (
           <>
-            <div className="forgot-lock-icon">
-              <FaLock />
-            </div>
+            <div className="forgot-lock-icon"> <FaLock /> </div>
 
             <h2>Forgot Password?</h2>
 
@@ -275,42 +216,15 @@ const ForgotPassword = ({ onClose, onSwitchToLogin }) => {
               <div className="forgot-input">
                 <FaEnvelope />
 
-                <input
-                  type="email"
-                  placeholder="Enter your email"
-                  value={email}
-                  onChange={(e) =>
-                    setEmail(e.target.value)
-                  }
-                  required
-                />
+                <input type="email" placeholder="Enter your email" value={email} onChange={(e) => setEmail(e.target.value)} required />
               </div>
 
-              {error && (
-                <div className="forgot-error">
-                  {error}
-                </div>
-              )}
+              {error && (<div className="forgot-error"> {error} </div>)}
 
-              <button
-                type="submit"
-                className="send-reset-btn"
-                disabled={loading}
-              >
-                {loading
-                  ? "Sending OTP..."
-                  : "Send OTP"}
-              </button>
+              <button type="submit" className="send-reset-btn" disabled={loading} > {loading ? "Sending OTP..." : "Send OTP"} </button>
             </form>
 
-            <button
-              type="button"
-              className="back-login"
-              onClick={handleBackToLogin}
-            >
-              <FaArrowLeft />
-              Back to Login
-            </button>
+            <button type="button" className="back-login" onClick={handleBackToLogin} > <FaArrowLeft /> Back to Login </button>
           </>
         )}
 
@@ -320,34 +234,17 @@ const ForgotPassword = ({ onClose, onSwitchToLogin }) => {
 
         {step === "otp" && (
           <>
-            <div className="forgot-lock-icon">
-              <FaEnvelope />
-            </div>
+            <div className="forgot-lock-icon"> <FaEnvelope /> </div>
 
             <h2>Verify OTP</h2>
 
-            <p>
-              Enter the 6-digit OTP sent to
-              <br />
-              <strong>{email}</strong>
-            </p>
+            <p> Enter the 6-digit OTP sent to <br /> <strong>{email}</strong> </p>
 
             <form onSubmit={handleVerifyOTP}>
               <div className="otp-input">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={6}
-                  placeholder="Enter OTP"
-                  value={otp}
-                  onChange={(e) =>
-                    setOtp(
-                      e.target.value.replace(
-                        /\D/g,
-                        ""
-                      )
-                    )
-                  }
+                <input type="text" inputMode="numeric" maxLength={6} placeholder="Enter OTP" value={otp} 
+                onChange={(e) =>
+                    setOtp( e.target.value.replace( /\D/g,"" ) ) }
                   required
                 />
               </div>
@@ -368,25 +265,6 @@ const ForgotPassword = ({ onClose, onSwitchToLogin }) => {
                   : "Verify OTP"}
               </button>
             </form>
-
-            {statusMessage && (
-              <div className="forgot-success" role="status">
-                {statusMessage}
-              </div>
-            )}
-
-            <button
-              type="button"
-              className="resend-otp-btn"
-              onClick={handleResendOTP}
-              disabled={loading || resendSeconds > 0}
-            >
-              {loading
-                ? "Resending..."
-                : resendSeconds > 0
-                  ? `Resend OTP in ${String(Math.floor(resendSeconds / 60)).padStart(2, "0")}:${String(resendSeconds % 60).padStart(2, "0")}`
-                  : "Resend OTP"}
-            </button>
 
             <button
               type="button"
@@ -466,14 +344,7 @@ const ForgotPassword = ({ onClose, onSwitchToLogin }) => {
               </button>
             </form>
 
-            <button
-              type="button"
-              className="back-login"
-              onClick={handleBack}
-            >
-              <FaArrowLeft />
-              Back
-            </button>
+            <button type="button" className="back-login" onClick={handleBack} > <FaArrowLeft /> Back </button>
           </>
         )}
 
@@ -483,27 +354,10 @@ const ForgotPassword = ({ onClose, onSwitchToLogin }) => {
 
         {step === "success" && (
           <>
-            <div className="success-icon">
-              ✓
-            </div>
-
-            <h2>
-              Password Reset Successfully
-            </h2>
-
-            <p>
-              Your password has been changed
-              successfully. You can now login with
-              your new password.
-            </p>
-
-            <button
-              type="button"
-              className="send-reset-btn"
-              onClick={handleBackToLogin}
-            >
-              Back to Login
-            </button>
+            <div className="success-icon"> ✓ </div>
+            <h2> Password Reset Successfully </h2>
+            <p> Your password has been changed successfully. You can now login with your new password. </p>
+            <button type="button" className="send-reset-btn" onClick={handleBackToLogin} > Back to Login </button>
           </>
         )}
       </div>

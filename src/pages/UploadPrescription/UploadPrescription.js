@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
     FaFileMedical,
     FaUpload,
@@ -7,15 +7,50 @@ import {
 } from "react-icons/fa";
 
 import "./UploadPrescription.css";
+import {
+    getPrescriptions,
+    uploadPrescription,
+} from "../../api/submissionsApi";
+import { getApiErrorMessage } from "../../services/api";
 
 const UploadPrescription = () => {
     const [file, setFile] = useState(null);
+    const [prescriptions, setPrescriptions] = useState([]);
+    const [isUploading, setIsUploading] = useState(false);
+    const [error, setError] = useState("");
+
+    useEffect(() => {
+        getPrescriptions()
+            .then(setPrescriptions)
+            .catch((loadError) => {
+                setError(getApiErrorMessage(
+                    loadError,
+                    "Sign in to view and upload prescriptions."
+                ));
+            });
+    }, []);
 
     const handleFileChange = (event) => {
         const selectedFiles = event.target.files;
 
         if (selectedFiles && selectedFiles.length > 0) {
-            setFile(selectedFiles[0]);
+            const selectedFile = selectedFiles[0];
+            const allowedTypes = [
+                "application/pdf",
+                "image/jpeg",
+                "image/png",
+            ];
+
+            if (!allowedTypes.includes(selectedFile.type)) {
+                setError("Choose a PDF, JPEG, or PNG file.");
+                setFile(null);
+            } else if (selectedFile.size > 10 * 1024 * 1024) {
+                setError("Prescription file must be 10 MB or smaller.");
+                setFile(null);
+            } else {
+                setError("");
+                setFile(selectedFile);
+            }
         }
     };
 
@@ -23,13 +58,27 @@ const UploadPrescription = () => {
         setFile(null);
     };
 
-    const submitPrescription = () => {
+    const submitPrescription = async () => {
         if (!file) {
             window.alert("Please upload a prescription.");
             return;
         }
 
-        window.alert("Prescription uploaded successfully!");
+        setIsUploading(true);
+        setError("");
+        try {
+            const savedPrescription = await uploadPrescription(file);
+            setPrescriptions((current) => [savedPrescription, ...current]);
+            setFile(null);
+            window.alert("Prescription saved successfully.");
+        } catch (uploadError) {
+            setError(getApiErrorMessage(
+                uploadError,
+                "Unable to upload prescription. Please try again."
+            ));
+        } finally {
+            setIsUploading(false);
+        }
     };
 
     return (
@@ -43,6 +92,7 @@ const UploadPrescription = () => {
                     Upload your doctor's prescription to order
                     medicines easily from MEDIKART.
                 </p>
+                {error && <p role="alert">{error}</p>}
 
                 <label className="upload-box">
                     <FaUpload />
@@ -82,9 +132,21 @@ const UploadPrescription = () => {
                     type="button"
                     className="submit-btn"
                     onClick={submitPrescription}
+                    disabled={isUploading}
                 >
-                    Upload Prescription
+                    {isUploading ? "Uploading..." : "Upload Prescription"}
                 </button>
+
+                {prescriptions.length > 0 && (
+                    <div className="uploaded-prescriptions">
+                        <h3>Uploaded prescriptions</h3>
+                        {prescriptions.map((prescription) => (
+                            <p key={prescription.id}>
+                                {prescription.filename}
+                            </p>
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
     );

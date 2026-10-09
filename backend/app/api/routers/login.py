@@ -1,4 +1,7 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.core.security import create_access_token, verify_password
@@ -11,8 +14,17 @@ router = APIRouter()
 
 @router.post("/login", response_model=TokenResponse)
 def login(data: LoginRequest, db: Session = Depends(get_db)):
-    email = data.email.lower().strip()
-    user = db.query(User).filter(User.email == email).first()
+    identifier = data.email.strip().lower()
+    user = (
+        db.query(User)
+        .filter(
+            or_(
+                User.email == identifier,
+                func.lower(User.name) == identifier,
+            )
+        )
+        .first()
+    )
 
     if not user or not verify_password(data.password, user.hashed_password):
         raise HTTPException(
@@ -26,6 +38,10 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User account is inactive",
         )
+
+    user.last_login = datetime.now(timezone.utc).replace(tzinfo=None)
+    db.commit()
+    db.refresh(user)
 
     token = create_access_token({
         "sub": str(user.id),

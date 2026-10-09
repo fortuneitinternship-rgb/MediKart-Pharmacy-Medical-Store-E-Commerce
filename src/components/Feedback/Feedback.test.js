@@ -1,621 +1,468 @@
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import Feedback from "./Feedback";
+import FeedbackPopup from "./Feedback";
 
-// Mock react-icons
-jest.mock("react-icons/fa", () => ({
-  FaStar: () => <span data-testid="star-icon">★</span>,
-  FaTimes: () => <span data-testid="close-icon">×</span>,
+import { submitOrderFeedback } from "../../api/submissionsApi";
+import { getApiErrorMessage } from "../../services/api";
+
+jest.mock("../../api/submissionsApi", () => ({
+    submitOrderFeedback: jest.fn(),
 }));
 
-describe("Feedback Component", () => {
-  const mockOnClose = jest.fn();
-
-  const mockOrder = {
-    orderId: "TEST123",
-  };
-
-  beforeEach(() => {
-    jest.clearAllMocks();
-    localStorage.clear();
-
-    // Mock alert
-    window.alert = jest.fn();
-  });
-
-  // ==========================================
-  // RENDER TEST
-  // ==========================================
-
-  test("renders feedback popup correctly", () => {
-    render(
-      <Feedback
-        order={mockOrder}
-        onClose={mockOnClose}
-      />
-    );
-
-    expect(
-      screen.getByText("How was your order?")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByText("Order #TEST123")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByText("Your feedback helps us improve MEDIKART.")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByText("Rate your experience")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByText("Write a review")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByText("Maybe Later")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByText("Submit Feedback")
-    ).toBeInTheDocument();
-  });
-
-  // ==========================================
-  // CLOSE BUTTON TEST
-  // ==========================================
-
-  test("calls onClose when close button is clicked", () => {
-    render(
-      <Feedback
-        order={mockOrder}
-        onClose={mockOnClose}
-      />
-    );
-
-    const closeButton = screen.getByRole("button", {
-      name: "Close",
-    });
-
-    fireEvent.click(closeButton);
-
-    expect(mockOnClose).toHaveBeenCalledTimes(1);
-  });
-
-  // ==========================================
-  // MAYBE LATER TEST
-  // ==========================================
-
-  test("closes popup when Maybe Later is clicked", () => {
-    render(
-      <Feedback
-        order={mockOrder}
-        onClose={mockOnClose}
-      />
-    );
-
-    const maybeLaterButton = screen.getByRole("button", {
-      name: "Maybe Later",
-    });
-
-    fireEvent.click(maybeLaterButton);
-
-    expect(mockOnClose).toHaveBeenCalledTimes(1);
-
-    expect(
-      localStorage.getItem(
-        "feedbackSubmitted_TEST123"
-      )
-    ).toBeNull();
-  });
-
-  // ==========================================
-  // INITIAL RATING TEST
-  // ==========================================
-
-  test("shows default rating text when no star is selected", () => {
-    render(
-      <Feedback
-        order={mockOrder}
-        onClose={mockOnClose}
-      />
-    );
-
-    expect(
-      screen.getByText("Tap a star to rate")
-    ).toBeInTheDocument();
-  });
-
-  // ==========================================
-  // STAR RATING TEST
-  // ==========================================
-
-  test("allows user to select a star rating", () => {
-    render(
-      <Feedback
-        order={mockOrder}
-        onClose={mockOnClose}
-      />
-    );
-
-    const starButtons = screen.getAllByRole("button");
-
-    // First 5 star buttons are the rating buttons
-    const ratingButtons = starButtons.filter(
-      (button) =>
-        button.querySelector('[data-testid="star-icon"]')
-    );
-
-    expect(ratingButtons).toHaveLength(5);
-
-    fireEvent.click(ratingButtons[3]);
-
-    expect(
-      screen.getByText("Good")
-    ).toBeInTheDocument();
-  });
-
-  // ==========================================
-  // ONE STAR TEST
-  // ==========================================
-
-  test("shows Very Poor for one star", () => {
-    render(
-      <Feedback
-        order={mockOrder}
-        onClose={mockOnClose}
-      />
-    );
-
-    const stars = screen.getAllByTestId("star-icon");
-
-    fireEvent.click(stars[0].closest("button"));
-
-    expect(
-      screen.getByText("Very Poor")
-    ).toBeInTheDocument();
-  });
-
-  // ==========================================
-  // TWO STAR TEST
-  // ==========================================
-
-  test("shows Poor for two stars", () => {
-    render(
-      <Feedback
-        order={mockOrder}
-        onClose={mockOnClose}
-      />
-    );
-
-    const stars = screen.getAllByTestId("star-icon");
-
-    fireEvent.click(stars[1].closest("button"));
-
-    expect(
-      screen.getByText("Poor")
-    ).toBeInTheDocument();
-  });
-
-  // ==========================================
-  // THREE STAR TEST
-  // ==========================================
-
-  test("shows Average for three stars", () => {
-    render(
-      <Feedback
-        order={mockOrder}
-        onClose={mockOnClose}
-      />
-    );
-
-    const stars = screen.getAllByTestId("star-icon");
-
-    fireEvent.click(stars[2].closest("button"));
-
-    expect(
-      screen.getByText("Average")
-    ).toBeInTheDocument();
-  });
-
-  // ==========================================
-  // FOUR STAR TEST
-  // ==========================================
-
-  test("shows Good for four stars", () => {
-    render(
-      <Feedback
-        order={mockOrder}
-        onClose={mockOnClose}
-      />
-    );
-
-    const stars = screen.getAllByTestId("star-icon");
-
-    fireEvent.click(stars[3].closest("button"));
-
-    expect(
-      screen.getByText("Good")
-    ).toBeInTheDocument();
-  });
-
-  // ==========================================
-  // FIVE STAR TEST
-  // ==========================================
-
-  test("shows Excellent for five stars", () => {
-    render(
-      <Feedback
-        order={mockOrder}
-        onClose={mockOnClose}
-      />
-    );
-
-    const stars = screen.getAllByTestId("star-icon");
-
-    fireEvent.click(stars[4].closest("button"));
-
-    expect(
-      screen.getByText("Excellent")
-    ).toBeInTheDocument();
-  });
-
-  // ==========================================
-  // TEXTAREA TEST
-  // ==========================================
-
-  test("allows user to enter feedback", () => {
-    render(
-      <Feedback
-        order={mockOrder}
-        onClose={mockOnClose}
-      />
-    );
-
-    const textarea = screen.getByPlaceholderText(
-      "Tell us about your order experience..."
-    );
-
-    fireEvent.change(textarea, {
-      target: {
-        value: "Great service and good experience.",
-      },
-    });
-
-    expect(textarea).toHaveValue(
-      "Great service and good experience."
-    );
-  });
-
-  // ==========================================
-  // CHARACTER COUNT TEST
-  // ==========================================
-
-  test("updates character count when feedback is entered", () => {
-    render(
-      <Feedback
-        order={mockOrder}
-        onClose={mockOnClose}
-      />
-    );
-
-    const textarea = screen.getByPlaceholderText(
-      "Tell us about your order experience..."
-    );
-
-    fireEvent.change(textarea, {
-      target: {
-        value: "Excellent service",
-      },
-    });
-
-    expect(
-      screen.getByText("17/500")
-    ).toBeInTheDocument();
-  });
-
-  // ==========================================
-  // EMPTY RATING SUBMIT TEST
-  // ==========================================
-
-  test("shows alert when submitting without rating", () => {
-    render(
-      <Feedback
-        order={mockOrder}
-        onClose={mockOnClose}
-      />
-    );
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Submit Feedback",
-      })
-    );
-
-    expect(window.alert).toHaveBeenCalledWith(
-      "Please select a star rating."
-    );
-
-    expect(mockOnClose).not.toHaveBeenCalled();
-
-    expect(
-      localStorage.getItem("feedbacks")
-    ).toBeNull();
-  });
-
-  // ==========================================
-  // SUBMIT FEEDBACK TEST
-  // ==========================================
-
-  test("submits feedback successfully", () => {
-    render(
-      <Feedback
-        order={mockOrder}
-        onClose={mockOnClose}
-      />
-    );
-
-    const stars = screen.getAllByTestId("star-icon");
-
-    fireEvent.click(stars[4].closest("button"));
-
-    const textarea = screen.getByPlaceholderText(
-      "Tell us about your order experience..."
-    );
-
-    fireEvent.change(textarea, {
-      target: {
-        value: "Excellent experience!",
-      },
-    });
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Submit Feedback",
-      })
-    );
-
-    const savedFeedback = JSON.parse(
-      localStorage.getItem("feedbacks")
-    );
-
-    expect(savedFeedback).toHaveLength(1);
-
-    expect(savedFeedback[0]).toMatchObject({
-      orderId: "TEST123",
-      rating: 5,
-      feedback: "Excellent experience!",
-    });
-
-    expect(
-      localStorage.getItem(
-        "feedbackSubmitted_TEST123"
-      )
-    ).toBe("true");
-
-    expect(mockOnClose).toHaveBeenCalledTimes(1);
-  });
-
-  // ==========================================
-  // SAVES MULTIPLE FEEDBACKS TEST
-  // ==========================================
-
-  test("preserves existing feedbacks when adding new feedback", () => {
-    const existingFeedback = {
-      id: 111,
-      orderId: "OLD123",
-      rating: 4,
-      feedback: "Good",
-      date: "01/01/2026",
+jest.mock("../../services/api", () => ({
+    getApiErrorMessage: jest.fn(),
+}));
+
+describe("FeedbackPopup Component", () => {
+    const mockOrder = {
+        orderId: "TEST-001",
     };
 
-    localStorage.setItem(
-      "feedbacks",
-      JSON.stringify([existingFeedback])
-    );
+    const mockOnClose = jest.fn();
 
-    render(
-      <Feedback
-        order={mockOrder}
-        onClose={mockOnClose}
-      />
-    );
+    beforeEach(() => {
+        jest.clearAllMocks();
+        localStorage.clear();
 
-    const stars = screen.getAllByTestId("star-icon");
-
-    fireEvent.click(stars[2].closest("button"));
-
-    const textarea = screen.getByPlaceholderText(
-      "Tell us about your order experience..."
-    );
-
-    fireEvent.change(textarea, {
-      target: {
-        value: "Average experience",
-      },
+        getApiErrorMessage.mockImplementation(
+            (error, fallback) => error?.message || fallback
+        );
     });
 
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Submit Feedback",
-      })
-    );
+    // 1. Render popup
+    test("renders feedback popup correctly", () => {
+        render(
+            <FeedbackPopup
+                order={mockOrder}
+                onClose={mockOnClose}
+            />
+        );
 
-    const savedFeedback = JSON.parse(
-      localStorage.getItem("feedbacks")
-    );
+        expect(
+            screen.getByText("How was your order?")
+        ).toBeInTheDocument();
 
-    expect(savedFeedback).toHaveLength(2);
+        expect(
+            screen.getByText("Order #TEST-001")
+        ).toBeInTheDocument();
 
-    expect(savedFeedback[0]).toEqual(
-      existingFeedback
-    );
+        expect(
+            screen.getByText("Rate your experience")
+        ).toBeInTheDocument();
 
-    expect(savedFeedback[1]).toMatchObject({
-      orderId: "TEST123",
-      rating: 3,
-      feedback: "Average experience",
-    });
-  });
+        expect(
+            screen.getByText("Write a review")
+        ).toBeInTheDocument();
 
-  // ==========================================
-  // OPTIONAL REVIEW TEST
-  // ==========================================
-
-  test("allows submitting feedback without writing a review", () => {
-    render(
-      <Feedback
-        order={mockOrder}
-        onClose={mockOnClose}
-      />
-    );
-
-    const stars = screen.getAllByTestId("star-icon");
-
-    fireEvent.click(stars[3].closest("button"));
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Submit Feedback",
-      })
-    );
-
-    const savedFeedback = JSON.parse(
-      localStorage.getItem("feedbacks")
-    );
-
-    expect(savedFeedback[0]).toMatchObject({
-      orderId: "TEST123",
-      rating: 4,
-      feedback: "",
+        expect(
+            screen.getByRole("button", {
+                name: "Submit Feedback",
+            })
+        ).toBeInTheDocument();
     });
 
-    expect(mockOnClose).toHaveBeenCalledTimes(1);
-  });
+    // 2. Shows N/A when order is missing
+    test("shows N/A when order ID is missing", () => {
+        render(
+            <FeedbackPopup
+                order={{}}
+                onClose={mockOnClose}
+            />
+        );
 
-  // ==========================================
-  // WITHOUT ORDER TEST
-  // ==========================================
-
-  test("renders N/A when order is not provided", () => {
-    render(
-      <Feedback
-        onClose={mockOnClose}
-      />
-    );
-
-    expect(
-      screen.getByText("Order #N/A")
-    ).toBeInTheDocument();
-  });
-
-  // ==========================================
-  // SUBMIT WITHOUT ORDER TEST
-  // ==========================================
-
-  test("submits feedback without order information", () => {
-    render(
-      <Feedback
-        onClose={mockOnClose}
-      />
-    );
-
-    const stars = screen.getAllByTestId("star-icon");
-
-    fireEvent.click(stars[4].closest("button"));
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Submit Feedback",
-      })
-    );
-
-    const savedFeedback = JSON.parse(
-      localStorage.getItem("feedbacks")
-    );
-
-    expect(savedFeedback).toHaveLength(1);
-
-    expect(savedFeedback[0]).toMatchObject({
-      orderId: "N/A",
-      rating: 5,
-      feedback: "",
+        expect(
+            screen.getByText("Order #N/A")
+        ).toBeInTheDocument();
     });
 
-    expect(mockOnClose).toHaveBeenCalledTimes(1);
+    // 3. Selects one star
+    test("selects a star rating", () => {
+        render(
+            <FeedbackPopup
+                order={mockOrder}
+                onClose={mockOnClose}
+            />
+        );
 
-    // No orderId means this key should not be created
-    expect(
-      Object.keys(localStorage)
-    ).not.toContain(
-      "feedbackSubmitted_undefined"
-    );
-  });
+        const starButtons = screen.getAllByRole("button");
 
-  // ==========================================
-  // MAX LENGTH TEST
-  // ==========================================
+        // First button after close button is the first star
+        fireEvent.click(starButtons[1]);
 
-  test("textarea has maximum length of 500 characters", () => {
-    render(
-      <Feedback
-        order={mockOrder}
-        onClose={mockOnClose}
-      />
-    );
+        expect(
+            screen.getByText("Very Poor")
+        ).toBeInTheDocument();
+    });
 
-    const textarea = screen.getByPlaceholderText(
-      "Tell us about your order experience..."
-    );
+    // 4. Selects different ratings
+    test("updates rating text when different stars are selected", () => {
+        render(
+            <FeedbackPopup
+                order={mockOrder}
+                onClose={mockOnClose}
+            />
+        );
 
-    expect(textarea).toHaveAttribute(
-      "maxLength",
-      "500"
-    );
-  });
+        const buttons = screen.getAllByRole("button");
 
-  // ==========================================
-  // CLOSE FUNCTION SAFETY TEST
-  // ==========================================
+        // Star 3
+        fireEvent.click(buttons[3]);
 
-  test("does not throw error when onClose is not provided", () => {
-    expect(() => {
-      render(
-        <Feedback order={mockOrder} />
-      );
-    }).not.toThrow();
-  });
+        expect(
+            screen.getByText("Average")
+        ).toBeInTheDocument();
 
-  // ==========================================
-  // FEEDBACK DATA DATE TEST
-  // ==========================================
+        // Star 5
+        fireEvent.click(buttons[5]);
 
-  test("stores a date when feedback is submitted", () => {
-    render(
-      <Feedback
-        order={mockOrder}
-        onClose={mockOnClose}
-      />
-    );
+        expect(
+            screen.getByText("Excellent")
+        ).toBeInTheDocument();
+    });
 
-    const stars = screen.getAllByTestId("star-icon");
+    // 5. Textarea works
+    test("allows user to enter feedback", () => {
+        render(
+            <FeedbackPopup
+                order={mockOrder}
+                onClose={mockOnClose}
+            />
+        );
 
-    fireEvent.click(stars[4].closest("button"));
+        const textarea = screen.getByPlaceholderText(
+            "Tell us about your order experience..."
+        );
 
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Submit Feedback",
-      })
-    );
+        fireEvent.change(textarea, {
+            target: {
+                value: "Test feedback message",
+            },
+        });
 
-    const savedFeedback = JSON.parse(
-      localStorage.getItem("feedbacks")
-    );
+        expect(textarea).toHaveValue(
+            "Test feedback message"
+        );
 
-    expect(savedFeedback[0].date).toBeDefined();
-    expect(savedFeedback[0].date).not.toBe("");
-  });
+        expect(
+            screen.getByText("21/500")
+        ).toBeInTheDocument();
+    });
+
+    // 6. Character count starts at zero
+    test("shows initial character count", () => {
+        render(
+            <FeedbackPopup
+                order={mockOrder}
+                onClose={mockOnClose}
+            />
+        );
+
+        expect(
+            screen.getByText("0/500")
+        ).toBeInTheDocument();
+    });
+
+    // 7. Prevents submission without rating
+    test("shows alert when submitting without rating", () => {
+        const alertMock = jest
+            .spyOn(window, "alert")
+            .mockImplementation(() => {});
+
+        render(
+            <FeedbackPopup
+                order={mockOrder}
+                onClose={mockOnClose}
+            />
+        );
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "Submit Feedback",
+            })
+        );
+
+        expect(alertMock).toHaveBeenCalledWith(
+            "Please select a star rating."
+        );
+
+        expect(
+            submitOrderFeedback
+        ).not.toHaveBeenCalled();
+
+        alertMock.mockRestore();
+    });
+
+    // 8. Shows error when order cannot be identified
+    test("shows error when order ID is missing during submission", () => {
+        render(
+            <FeedbackPopup
+                order={{}}
+                onClose={mockOnClose}
+            />
+        );
+
+        const buttons = screen.getAllByRole("button");
+
+        // Select first star
+        fireEvent.click(buttons[1]);
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "Submit Feedback",
+            })
+        );
+
+        expect(
+            screen.getByRole("alert")
+        ).toHaveTextContent(
+            "The order could not be identified."
+        );
+
+        expect(
+            submitOrderFeedback
+        ).not.toHaveBeenCalled();
+    });
+
+    // 9. Successfully submits feedback
+    test("submits feedback successfully", async () => {
+        submitOrderFeedback.mockResolvedValue({
+            success: true,
+        });
+
+        render(
+            <FeedbackPopup
+                order={mockOrder}
+                onClose={mockOnClose}
+            />
+        );
+
+        const buttons = screen.getAllByRole("button");
+
+        // Select 5 stars
+        fireEvent.click(buttons[5]);
+
+        const textarea = screen.getByPlaceholderText(
+            "Tell us about your order experience..."
+        );
+
+        fireEvent.change(textarea, {
+            target: {
+                value: "Test feedback",
+            },
+        });
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "Submit Feedback",
+            })
+        );
+
+        await waitFor(() => {
+            expect(
+                submitOrderFeedback
+            ).toHaveBeenCalledWith({
+                order_id: "TEST-001",
+                rating: 5,
+                feedback: "Test feedback",
+            });
+        });
+
+        expect(mockOnClose).toHaveBeenCalledTimes(1);
+
+        expect(
+            localStorage.getItem(
+                "feedbackSubmitted_TEST-001"
+            )
+        ).toBe("true");
+    });
+
+    // 10. Shows submitting state
+    test("shows submitting state while API request is pending", async () => {
+        let resolveRequest;
+
+        submitOrderFeedback.mockImplementation(
+            () =>
+                new Promise((resolve) => {
+                    resolveRequest = resolve;
+                })
+        );
+
+        render(
+            <FeedbackPopup
+                order={mockOrder}
+                onClose={mockOnClose}
+            />
+        );
+
+        const buttons = screen.getAllByRole("button");
+
+        fireEvent.click(buttons[2]);
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "Submit Feedback",
+            })
+        );
+
+        expect(
+            screen.getByRole("button", {
+                name: "Submitting...",
+            })
+        ).toBeDisabled();
+
+        expect(
+            screen.getByRole("button", {
+                name: "Maybe Later",
+            })
+        ).toBeDisabled();
+
+        resolveRequest({ success: true });
+
+        await waitFor(() => {
+            expect(mockOnClose).toHaveBeenCalled();
+        });
+    });
+
+    // 11. Handles API error
+    test("shows API error when submission fails", async () => {
+        const apiError = new Error("Server error");
+
+        submitOrderFeedback.mockRejectedValue(apiError);
+
+        getApiErrorMessage.mockReturnValue(
+            "Unable to submit feedback."
+        );
+
+        render(
+            <FeedbackPopup
+                order={mockOrder}
+                onClose={mockOnClose}
+            />
+        );
+
+        const buttons = screen.getAllByRole("button");
+
+        // Select rating
+        fireEvent.click(buttons[3]);
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "Submit Feedback",
+            })
+        );
+
+        await waitFor(() => {
+            expect(
+                screen.getByRole("alert")
+            ).toHaveTextContent(
+                "Unable to submit feedback."
+            );
+        });
+
+        expect(mockOnClose).not.toHaveBeenCalled();
+
+        expect(getApiErrorMessage).toHaveBeenCalled();
+    });
+
+    // 12. Maybe Later closes popup
+    test("closes popup when Maybe Later is clicked", () => {
+        render(
+            <FeedbackPopup
+                order={mockOrder}
+                onClose={mockOnClose}
+            />
+        );
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "Maybe Later",
+            })
+        );
+
+        expect(mockOnClose).toHaveBeenCalledTimes(1);
+    });
+
+    // 13. Close X button closes popup
+    test("closes popup using close button", () => {
+        render(
+            <FeedbackPopup
+                order={mockOrder}
+                onClose={mockOnClose}
+            />
+        );
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "Close",
+            })
+        );
+
+        expect(mockOnClose).toHaveBeenCalledTimes(1);
+    });
+
+    // 14. Supports order_id format
+    test("supports order_id when orderId is not available", async () => {
+        submitOrderFeedback.mockResolvedValue({
+            success: true,
+        });
+
+        const orderWithSnakeCase = {
+            order_id: "TEST-002",
+        };
+
+        render(
+            <FeedbackPopup
+                order={orderWithSnakeCase}
+                onClose={mockOnClose}
+            />
+        );
+
+        const buttons = screen.getAllByRole("button");
+
+        fireEvent.click(buttons[2]);
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "Submit Feedback",
+            })
+        );
+
+        await waitFor(() => {
+            expect(
+                submitOrderFeedback
+            ).toHaveBeenCalledWith({
+                order_id: "TEST-002",
+                rating: 2,
+                feedback: "",
+            });
+        });
+    });
+
+    // 15. Feedback can be up to 500 characters
+    test("accepts feedback text up to 500 characters", () => {
+        render(
+            <FeedbackPopup
+                order={mockOrder}
+                onClose={mockOnClose}
+            />
+        );
+
+        const textarea = screen.getByPlaceholderText(
+            "Tell us about your order experience..."
+        );
+
+        const testText = "A".repeat(500);
+
+        fireEvent.change(textarea, {
+            target: {
+                value: testText,
+            },
+        });
+
+        expect(textarea).toHaveValue(testText);
+
+        expect(
+            screen.getByText("500/500")
+        ).toBeInTheDocument();
+    });
 });

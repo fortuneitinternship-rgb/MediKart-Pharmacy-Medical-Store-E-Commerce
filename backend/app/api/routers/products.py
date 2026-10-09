@@ -1,11 +1,15 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
+from app.api.deps import get_current_admin
 from app.database.database import get_db
+from app.models.category import Category
 from app.models.product import Product
-from app.schemas.product import ProductResponse
+from app.models.user import User
+from app.schemas.product import ProductCreate, ProductResponse, ProductUpdate
 
 
 router = APIRouter(
@@ -43,7 +47,7 @@ def product_response(product):
         "discount_percentage":
             calculate_discount(product),
 
-        "category": product.category,
+        "category": product.category.name if product.category else None,
 
         "stock": product.stock,
 
@@ -71,6 +75,97 @@ def product_response(product):
         "updated_at":
             product.updated_at,
     }
+
+
+# -------------------------------------------------
+# PRODUCT COLLECTION AND ADMIN MUTATIONS
+# -------------------------------------------------
+
+@router.get("", response_model=list[ProductResponse])
+def get_products(db: Session = Depends(get_db)):
+    products = (
+        db.query(Product)
+        .options(joinedload(Product.category))
+        .filter(Product.is_active.is_(True))
+        .order_by(Product.name)
+        .all()
+    )
+    return [product_response(product) for product in products]
+
+
+def get_or_create_category(db: Session, name: str) -> Category:
+    category_name = name.strip()
+    category = db.query(Category).filter(Category.name == category_name).first()
+    if category is None:
+        category = Category(name=category_name)
+        db.add(category)
+        db.flush()
+    return category
+
+
+@router.post("", response_model=ProductResponse, status_code=status.HTTP_201_CREATED)
+def create_product(
+    data: ProductCreate,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    values = data.model_dump(exclude={"category"})
+    product = Product(**values)
+    product.category = get_or_create_category(db, data.category)
+    db.add(product)
+    try:
+        db.commit()
+    except IntegrityError as error:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A product with these details already exists.",
+        ) from error
+    db.refresh(product)
+    return product_response(product)
+
+
+@router.put("/{product_id}", response_model=ProductResponse)
+def update_product(
+    product_id: int,
+    data: ProductUpdate,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if product is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
+
+    values = data.model_dump(exclude_unset=True)
+    category_name = values.pop("category", None)
+    if category_name is not None:
+        product.category = get_or_create_category(db, category_name)
+    for field, value in values.items():
+        setattr(product, field, value)
+    try:
+        db.commit()
+    except IntegrityError as error:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="The product could not be updated because of a database conflict.",
+        ) from error
+    db.refresh(product)
+    return product_response(product)
+
+
+@router.delete("/{product_id}")
+def delete_product(
+    product_id: int,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if product is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
+    db.delete(product)
+    db.commit()
+    return {"message": "Product deleted successfully"}
 
 
 # -------------------------------------------------
