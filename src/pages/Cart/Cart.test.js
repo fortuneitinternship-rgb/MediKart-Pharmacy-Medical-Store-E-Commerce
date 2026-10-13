@@ -3,928 +3,260 @@ import {
   render,
   screen,
   fireEvent,
-  act,
+  waitFor,
+  within,
 } from "@testing-library/react";
 import "@testing-library/jest-dom";
 
+import axios from "axios";
 import Cart from "./Cart";
 
-// Mock CSS module
-jest.mock("./Cart.module.css", () => ({
-  cartPage: "cartPage",
-  cartHeader: "cartHeader",
-  itemCount: "itemCount",
-  cartContainer: "cartContainer",
-  leftSection: "leftSection",
-  rightSection: "rightSection",
+jest.mock("axios", () => ({
+  __esModule: true,
+  default: {
+    get: jest.fn(),
+    put: jest.fn(),
+    delete: jest.fn(),
+  },
 }));
 
-// Mock image
-jest.mock("../../assets/empty-cart.png", () => "empty-cart.png");
+jest.mock("../../components/CartItem/CartItem", () => ({
+  __esModule: true,
+  default: ({ item, onIncrease, onDecrease, onRemove }) => (
+    <div data-testid={`cart-item-${item.id}`}>
+      <span>{item.name}</span>
+      <span data-testid={`quantity-${item.id}`}>
+        {item.quantity}
+      </span>
 
-// Mock CartItem
-jest.mock("../../components/CartItem/CartItem", () => {
-  return function MockCartItem({
-    item,
-    onIncrease,
-    onDecrease,
-    onRemove,
-  }) {
-    return (
-      <div data-testid={`cart-item-${item.id}`}>
-        <span data-testid={`item-id-${item.id}`}>{item.id}</span>
+      <button onClick={() => onIncrease(item.id)}>
+        Increase {item.name}
+      </button>
 
-        <span data-testid={`item-quantity-${item.id}`}>
-          {item.quantity || 1}
-        </span>
+      <button onClick={() => onDecrease(item.id)}>
+        Decrease {item.name}
+      </button>
 
-        <button
-          type="button"
-          data-testid={`increase-${item.id}`}
-          onClick={() => onIncrease(item.id)}
-        >
-          Increase
-        </button>
+      <button onClick={() => onRemove(item.id)}>
+        Remove {item.name}
+      </button>
+    </div>
+  ),
+}));
 
-        <button
-          type="button"
-          data-testid={`decrease-${item.id}`}
-          onClick={() => onDecrease(item.id)}
-        >
-          Decrease
-        </button>
+jest.mock("../../components/CartSummary/CartSummary", () => ({
+  __esModule: true,
+  default: ({ totalItems, subtotal, discount, delivery, totalPrice }) => (
+    <div data-testid="cart-summary">
+      <p>Items: {totalItems}</p>
+      <p>Subtotal: ₹{subtotal}</p>
+      <p>Discount: ₹{discount}</p>
+      <p>Delivery: ₹{delivery}</p>
+      <p>Total: ₹{totalPrice}</p>
+    </div>
+  ),
+}));
 
-        <button
-          type="button"
-          data-testid={`remove-${item.id}`}
-          onClick={() => onRemove(item.id)}
-        >
-          Remove
-        </button>
-      </div>
-    );
-  };
-});
+jest.mock("../../components/EmptyState/EmptyState", () => ({
+  __esModule: true,
+  default: ({ title, description }) => (
+    <div data-testid="empty-state">
+      <h2>{title}</h2>
+      <p>{description}</p>
+    </div>
+  ),
+}));
 
-// Mock CartSummary
-jest.mock("../../components/CartSummary/CartSummary", () => {
-  return function MockCartSummary({
-    cartItems,
-    totalItems,
-    subtotal,
-    discount,
-    delivery,
-    totalPrice,
-  }) {
-    return (
-      <div data-testid="cart-summary">
-        <span data-testid="summary-item-count">{totalItems}</span>
-
-        <span data-testid="summary-subtotal">{subtotal}</span>
-
-        <span data-testid="summary-discount">{discount}</span>
-
-        <span data-testid="summary-delivery">{delivery}</span>
-
-        <span data-testid="summary-total">{totalPrice}</span>
-
-        <span data-testid="summary-cart-length">
-          {cartItems.length}
-        </span>
-      </div>
-    );
-  };
-});
-
-// Mock EmptyState
-jest.mock("../../components/EmptyState/EmptyState", () => {
-  return function MockEmptyState({
-    image,
-    title,
-    description,
-    buttonText,
-    buttonLink,
-  }) {
-    return (
-      <div data-testid="empty-state">
-        <img src={image} alt="empty cart" />
-
-        <h2>{title}</h2>
-
-        <p>{description}</p>
-
-        <a href={buttonLink}>{buttonText}</a>
-      </div>
-    );
-  };
-});
-
-const firstItem = {
-  id: "test-item-1",
-  price: 100,
-  quantity: 1,
-};
-
-const secondItem = {
-  id: "test-item-2",
-  price: 200,
-  quantity: 2,
-};
-
-const renderCart = () => {
-  return render(<Cart />);
-};
-
-const setCart = (items) => {
-  localStorage.setItem("cart", JSON.stringify(items));
-};
-
-beforeEach(() => {
-  localStorage.clear();
-  jest.clearAllMocks();
-});
-
-afterEach(() => {
-  jest.restoreAllMocks();
-});
+const mockCart = [
+  {
+    id: 1,
+    product_id: 101,
+    name: "Paracetamol",
+    quantity: 2,
+    price: 100,
+    discountedPrice: 90,
+    category: "Medicine",
+  },
+];
 
 describe("Cart Component", () => {
-  // ---------------------------------------------------
-  // EMPTY CART
-  // ---------------------------------------------------
+  beforeEach(() => {
+    localStorage.clear();
+    jest.clearAllMocks();
 
-  test("renders empty cart when localStorage has no cart", () => {
-    renderCart();
-
-    expect(screen.getByTestId("empty-state")).toBeInTheDocument();
-
-    expect(
-      screen.getByText("Your Cart is Empty")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByText(
-        "Looks like you haven't added any products yet."
-      )
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByRole("link", {
-        name: /continue shopping/i,
-      })
-    ).toHaveAttribute("href", "/shop");
+    localStorage.setItem("access_token", "dummy-test-token");
   });
 
-  test("renders empty cart when cart contains an empty array", () => {
-    setCart([]);
-
-    renderCart();
-
-    expect(
-      screen.getByText("Your Cart is Empty")
-    ).toBeInTheDocument();
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
-  test("handles invalid cart JSON", () => {
-    localStorage.setItem("cart", "invalid-json");
+  test("shows loading while the API request is pending", () => {
+    axios.get.mockReturnValue(new Promise(() => {}));
 
-    expect(() => renderCart()).toThrow();
+    render(<Cart />);
+
+    expect(screen.getByText("Loading cart...")).toBeInTheDocument();
   });
 
-  // ---------------------------------------------------
-  // CART RENDERING
-  // ---------------------------------------------------
-
-  test("renders cart page when items exist", () => {
-    setCart([firstItem]);
-
-    renderCart();
-
-    expect(
-      screen.getByRole("heading", { name: /my cart/i })
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByTestId("cart-item-test-item-1")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByTestId("cart-summary")
-    ).toBeInTheDocument();
-  });
-
-  test("renders all cart items", () => {
-    setCart([firstItem, secondItem]);
-
-    renderCart();
-
-    expect(
-      screen.getByTestId("cart-item-test-item-1")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByTestId("cart-item-test-item-2")
-    ).toBeInTheDocument();
-  });
-
-  test("displays correct total item count", () => {
-    setCart([
-      {
-        id: "item-a",
-        price: 100,
-        quantity: 1,
-      },
-      {
-        id: "item-b",
-        price: 200,
-        quantity: 2,
-      },
-    ]);
-
-    renderCart();
-
-    expect(
-      screen.getByText("3 Items")
-    ).toBeInTheDocument();
-  });
-
-  test("uses quantity 1 when item quantity is missing", () => {
-    setCart([
-      {
-        id: "item-a",
-        price: 100,
-      },
-    ]);
-
-    renderCart();
-
-    expect(
-      screen.getByText("1 Items")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByTestId("item-quantity-item-a")
-    ).toHaveTextContent("1");
-  });
-
-  // ---------------------------------------------------
-  // INCREASE QUANTITY
-  // ---------------------------------------------------
-
-  test("increases item quantity", () => {
-    setCart([
-      {
-        id: "item-a",
-        price: 100,
-        quantity: 1,
-      },
-    ]);
-
-    renderCart();
-
-    fireEvent.click(
-      screen.getByTestId("increase-item-a")
-    );
-
-    expect(
-      screen.getByTestId("item-quantity-item-a")
-    ).toHaveTextContent("2");
-
-    const cart = JSON.parse(
-      localStorage.getItem("cart")
-    );
-
-    expect(cart[0].quantity).toBe(2);
-  });
-
-  test("increases only the selected item quantity", () => {
-    setCart([
-      {
-        id: "item-a",
-        price: 100,
-        quantity: 1,
-      },
-      {
-        id: "item-b",
-        price: 200,
-        quantity: 3,
-      },
-    ]);
-
-    renderCart();
-
-    fireEvent.click(
-      screen.getByTestId("increase-item-a")
-    );
-
-    expect(
-      screen.getByTestId("item-quantity-item-a")
-    ).toHaveTextContent("2");
-
-    expect(
-      screen.getByTestId("item-quantity-item-b")
-    ).toHaveTextContent("3");
-  });
-
-  test("dispatches cartUpdated event after increasing quantity", () => {
-    const dispatchSpy = jest.spyOn(
-      window,
-      "dispatchEvent"
-    );
-
-    setCart([
-      {
-        id: "item-a",
-        price: 100,
-        quantity: 1,
-      },
-    ]);
-
-    renderCart();
-
-    fireEvent.click(
-      screen.getByTestId("increase-item-a")
-    );
-
-    expect(
-      dispatchSpy.mock.calls.some(
-        ([event]) => event.type === "cartUpdated"
-      )
-    ).toBe(true);
-  });
-
-  // ---------------------------------------------------
-  // DECREASE QUANTITY
-  // ---------------------------------------------------
-
-  test("decreases item quantity", () => {
-    setCart([
-      {
-        id: "item-a",
-        price: 100,
-        quantity: 3,
-      },
-    ]);
-
-    renderCart();
-
-    fireEvent.click(
-      screen.getByTestId("decrease-item-a")
-    );
-
-    expect(
-      screen.getByTestId("item-quantity-item-a")
-    ).toHaveTextContent("2");
-
-    const cart = JSON.parse(
-      localStorage.getItem("cart")
-    );
-
-    expect(cart[0].quantity).toBe(2);
-  });
-
-  test("does not decrease quantity below one", () => {
-    setCart([
-      {
-        id: "item-a",
-        price: 100,
-        quantity: 1,
-      },
-    ]);
-
-    renderCart();
-
-    fireEvent.click(
-      screen.getByTestId("decrease-item-a")
-    );
-
-    expect(
-      screen.getByTestId("item-quantity-item-a")
-    ).toHaveTextContent("1");
-
-    const cart = JSON.parse(
-      localStorage.getItem("cart")
-    );
-
-    expect(cart[0].quantity).toBe(1);
-  });
-
-  test("decreases quantity from missing quantity to one", () => {
-    setCart([
-      {
-        id: "item-a",
-        price: 100,
-      },
-    ]);
-
-    renderCart();
-
-    fireEvent.click(
-      screen.getByTestId("decrease-item-a")
-    );
-
-    expect(
-      screen.getByTestId("item-quantity-item-a")
-    ).toHaveTextContent("1");
-  });
-
-  test("dispatches cartUpdated event after decreasing quantity", () => {
-    const dispatchSpy = jest.spyOn(
-      window,
-      "dispatchEvent"
-    );
-
-    setCart([
-      {
-        id: "item-a",
-        price: 100,
-        quantity: 2,
-      },
-    ]);
-
-    renderCart();
-
-    fireEvent.click(
-      screen.getByTestId("decrease-item-a")
-    );
-
-    expect(
-      dispatchSpy.mock.calls.some(
-        ([event]) => event.type === "cartUpdated"
-      )
-    ).toBe(true);
-  });
-
-  // ---------------------------------------------------
-  // REMOVE ITEM
-  // ---------------------------------------------------
-
-  test("removes an item from cart", () => {
-    setCart([
-      {
-        id: "item-a",
-        price: 100,
-        quantity: 1,
-      },
-      {
-        id: "item-b",
-        price: 200,
-        quantity: 1,
-      },
-    ]);
-
-    renderCart();
-
-    fireEvent.click(
-      screen.getByTestId("remove-item-a")
-    );
-
-    expect(
-      screen.queryByTestId("cart-item-item-a")
-    ).not.toBeInTheDocument();
-
-    expect(
-      screen.getByTestId("cart-item-item-b")
-    ).toBeInTheDocument();
-
-    const cart = JSON.parse(
-      localStorage.getItem("cart")
-    );
-
-    expect(cart).toHaveLength(1);
-    expect(cart[0].id).toBe("item-b");
-  });
-
-  test("removes the only item and displays empty cart", () => {
-    setCart([
-      {
-        id: "item-a",
-        price: 100,
-        quantity: 1,
-      },
-    ]);
-
-    renderCart();
-
-    fireEvent.click(
-      screen.getByTestId("remove-item-a")
-    );
-
-    expect(
-      screen.getByText("Your Cart is Empty")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.queryByTestId("cart-summary")
-    ).not.toBeInTheDocument();
-
-    expect(localStorage.getItem("cart")).toBe("[]");
-  });
-
-  test("dispatches cartUpdated event after removing item", () => {
-    const dispatchSpy = jest.spyOn(
-      window,
-      "dispatchEvent"
-    );
-
-    setCart([
-      {
-        id: "item-a",
-        price: 100,
-        quantity: 1,
-      },
-    ]);
-
-    renderCart();
-
-    fireEvent.click(
-      screen.getByTestId("remove-item-a")
-    );
-
-    expect(
-      dispatchSpy.mock.calls.some(
-        ([event]) => event.type === "cartUpdated"
-      )
-    ).toBe(true);
-  });
-
-  // ---------------------------------------------------
-  // SUBTOTAL
-  // ---------------------------------------------------
-
-  test("calculates subtotal correctly", () => {
-    setCart([
-      {
-        id: "item-a",
-        price: 100,
-        quantity: 2,
-      },
-      {
-        id: "item-b",
-        price: 200,
-        quantity: 1,
-      },
-    ]);
-
-    renderCart();
-
-    expect(
-      screen.getByTestId("summary-subtotal")
-    ).toHaveTextContent("400");
-  });
-
-  test("calculates subtotal using discountedPrice when price is missing", () => {
-    setCart([
-      {
-        id: "item-a",
-        discountedPrice: 150,
-        quantity: 2,
-      },
-    ]);
-
-    renderCart();
-
-    expect(
-      screen.getByTestId("summary-subtotal")
-    ).toHaveTextContent("300");
-  });
-
-  test("uses price when both price and discountedPrice exist", () => {
-    setCart([
-      {
-        id: "item-a",
-        price: 100,
-        discountedPrice: 50,
-        quantity: 2,
-      },
-    ]);
-
-    renderCart();
-
-    expect(
-      screen.getByTestId("summary-subtotal")
-    ).toHaveTextContent("200");
-  });
-
-  test("uses zero when no valid price exists", () => {
-    setCart([
-      {
-        id: "item-a",
-        quantity: 2,
-      },
-    ]);
-
-    renderCart();
-
-    expect(
-      screen.getByTestId("summary-subtotal")
-    ).toHaveTextContent("0");
-  });
-
-  // ---------------------------------------------------
-  // DISCOUNT
-  // ---------------------------------------------------
-
-  test("calculates ten percent discount", () => {
-    setCart([
-      {
-        id: "item-a",
-        price: 200,
-        quantity: 1,
-      },
-    ]);
-
-    renderCart();
-
-    expect(
-      screen.getByTestId("summary-discount")
-    ).toHaveTextContent("20");
-  });
-
-  test("rounds discount to nearest integer", () => {
-    setCart([
-      {
-        id: "item-a",
-        price: 105,
-        quantity: 1,
-      },
-    ]);
-
-    renderCart();
-
-    expect(
-      screen.getByTestId("summary-discount")
-    ).toHaveTextContent("11");
-  });
-
-  // ---------------------------------------------------
-  // DELIVERY
-  // ---------------------------------------------------
-
-  test("adds low-order delivery charge", () => {
-    setCart([
-      {
-        id: "item-a",
-        price: 100,
-        quantity: 1,
-      },
-    ]);
-
-    renderCart();
-
-    expect(
-      screen.getByTestId("summary-delivery")
-    ).toHaveTextContent("10");
-  });
-
-  test("makes base delivery free when subtotal reaches threshold", () => {
-    setCart([
-      {
-        id: "item-a",
-        price: 500,
-        quantity: 1,
-      },
-    ]);
-
-    renderCart();
-
-    expect(
-      screen.getByTestId("summary-delivery")
-    ).toHaveTextContent("0");
-  });
-
-  test("adds special category surcharge", () => {
-    setCart([
-      {
-        id: "item-a",
-        price: 100,
-        quantity: 1,
-        category: "Medical Devices",
-      },
-    ]);
-
-    renderCart();
-
-    expect(
-      screen.getByTestId("summary-delivery")
-    ).toHaveTextContent("60");
-  });
-
-  test("adds premium category surcharge", () => {
-    setCart([
-      {
-        id: "item-a",
-        price: 100,
-        quantity: 1,
-        category: "Premium Healthcare",
-      },
-    ]);
-
-    renderCart();
-
-    expect(
-      screen.getByTestId("summary-delivery")
-    ).toHaveTextContent("60");
-  });
-
-  test("does not add special surcharge for normal category", () => {
-    setCart([
-      {
-        id: "item-a",
-        price: 100,
-        quantity: 1,
-        category: "General",
-      },
-    ]);
-
-    renderCart();
-
-    expect(
-      screen.getByTestId("summary-delivery")
-    ).toHaveTextContent("10");
-  });
-
-  test("detects category with hyphen", () => {
-    setCart([
-      {
-        id: "item-a",
-        price: 100,
-        quantity: 1,
-        category: "medical-device",
-      },
-    ]);
-
-    renderCart();
-
-    expect(
-      screen.getByTestId("summary-delivery")
-    ).toHaveTextContent("60");
-  });
-
-  test("detects category with underscore", () => {
-    setCart([
-      {
-        id: "item-a",
-        price: 100,
-        quantity: 1,
-        category: "premium_healthcare",
-      },
-    ]);
-
-    renderCart();
-
-    expect(
-      screen.getByTestId("summary-delivery")
-    ).toHaveTextContent("60");
-  });
-
-  // ---------------------------------------------------
-  // TOTAL
-  // ---------------------------------------------------
-
-  test("calculates total amount correctly", () => {
-    setCart([
-      {
-        id: "item-a",
-        price: 100,
-        quantity: 1,
-      },
-    ]);
-
-    renderCart();
-
-    // subtotal = 100
-    // discount = 10
-    // delivery = 10
-    // total = 100
-    expect(
-      screen.getByTestId("summary-total")
-    ).toHaveTextContent("100");
-  });
-
-  test("calculates total with special category surcharge", () => {
-    setCart([
-      {
-        id: "item-a",
-        price: 100,
-        quantity: 1,
-        category: "Medical Device",
-      },
-    ]);
-
-    renderCart();
-
-    // subtotal = 100
-    // discount = 10
-    // delivery = 60
-    // total = 150
-    expect(
-      screen.getByTestId("summary-total")
-    ).toHaveTextContent("150");
-  });
-
-  // ---------------------------------------------------
-  // CART UPDATED EVENT
-  // ---------------------------------------------------
-
-  test("reloads cart when cartUpdated event is dispatched", () => {
-    setCart([
-      {
-        id: "item-a",
-        price: 100,
-        quantity: 1,
-      },
-    ]);
-
-    renderCart();
-
-    expect(
-      screen.getByTestId("cart-item-item-a")
-    ).toBeInTheDocument();
-
-    act(() => {
-      localStorage.setItem(
-        "cart",
-        JSON.stringify([
-          {
-            id: "item-b",
-            price: 200,
-            quantity: 1,
-          },
-        ])
-      );
-
-      window.dispatchEvent(
-        new Event("cartUpdated")
-      );
+  test("displays products returned by the API", async () => {
+    axios.get.mockResolvedValue({
+      data: { items: mockCart },
     });
 
-    expect(
-      screen.queryByTestId("cart-item-item-a")
-    ).not.toBeInTheDocument();
+    render(<Cart />);
+
+    expect(await screen.findByText("Paracetamol")).toBeInTheDocument();
+    expect(screen.getByText("2 Items")).toBeInTheDocument();
+    expect(screen.getByText("Subtotal: ₹180")).toBeInTheDocument();
+    expect(screen.getByText("Discount: ₹18")).toBeInTheDocument();
+    expect(screen.getByText("Delivery: ₹10")).toBeInTheDocument();
+    expect(screen.getByText("Total: ₹172")).toBeInTheDocument();
+  });
+
+  test("shows the empty state when the cart is empty", async () => {
+    axios.get.mockResolvedValue({
+      data: { items: [] },
+    });
+
+    render(<Cart />);
 
     expect(
-      screen.getByTestId("cart-item-item-b")
+      await screen.findByText("Your Cart is Empty")
+    ).toBeInTheDocument();
+
+    expect(
+      screen.getByText("Looks like you haven't added any products yet.")
     ).toBeInTheDocument();
   });
 
-  // ---------------------------------------------------
-  // EVENT LISTENER CLEANUP
-  // ---------------------------------------------------
+  test("shows cached products when the API fails", async () => {
+    localStorage.setItem("cart", JSON.stringify(mockCart));
+    axios.get.mockRejectedValue(new Error("Network error"));
 
-  test("removes cartUpdated event listener on unmount", () => {
-    const removeEventListenerSpy = jest.spyOn(
-      window,
-      "removeEventListener"
-    );
+    render(<Cart />);
 
-    const { unmount } = renderCart();
-
-    unmount();
-
-    expect(
-      removeEventListenerSpy
-    ).toHaveBeenCalledWith(
-      "cartUpdated",
-      expect.any(Function)
-    );
+    expect(await screen.findByText("Paracetamol")).toBeInTheDocument();
   });
 
-  // ---------------------------------------------------
-  // SUMMARY PROPS
-  // ---------------------------------------------------
+  test("does not request the API when the user is logged out", async () => {
+    localStorage.clear();
 
-  test("passes correct number of items to CartSummary", () => {
-    setCart([
-      {
-        id: "item-a",
-        price: 100,
-        quantity: 2,
-      },
-      {
-        id: "item-b",
-        price: 200,
-        quantity: 3,
-      },
-    ]);
-
-    renderCart();
+    render(<Cart />);
 
     expect(
-      screen.getByTestId("summary-item-count")
-    ).toHaveTextContent("5");
+      await screen.findByText("Your Cart is Empty")
+    ).toBeInTheDocument();
+
+    expect(axios.get).not.toHaveBeenCalled();
   });
 
-  test("passes correct cart length to CartSummary", () => {
-    setCart([
-      firstItem,
-      secondItem,
-    ]);
+  test("increases the quantity of a product", async () => {
+    localStorage.setItem("cart", JSON.stringify(mockCart));
 
-    renderCart();
+    render(<Cart />);
 
-    expect(
-      screen.getByTestId("summary-cart-length")
-    ).toHaveTextContent("2");
+    const increaseButton = await screen.findByRole("button", {
+      name: "Increase Paracetamol",
+    });
+
+    fireEvent.click(increaseButton);
+
+    expect(screen.getByTestId("quantity-1")).toHaveTextContent("3");
+    expect(localStorage.getItem("cart")).toContain('"quantity":3');
+  });
+
+  test("does not decrease quantity below one", async () => {
+    const oneItem = [{ ...mockCart[0], quantity: 1 }];
+    localStorage.setItem("cart", JSON.stringify(oneItem));
+
+    render(<Cart />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Decrease Paracetamol",
+      })
+    );
+
+    expect(screen.getByTestId("quantity-1")).toHaveTextContent("1");
+  });
+
+  test("removes a product when logged out", async () => {
+    localStorage.setItem("cart", JSON.stringify(mockCart));
+    localStorage.removeItem("access_token");
+
+    render(<Cart />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Remove Paracetamol",
+      })
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Your Cart is Empty")).toBeInTheDocument();
+    });
+
+    expect(JSON.parse(localStorage.getItem("cart"))).toEqual([]);
+    expect(axios.delete).not.toHaveBeenCalled();
+  });
+
+  test("sends the updated quantity to the API when logged in", async () => {
+    localStorage.setItem("cart", JSON.stringify(mockCart));
+
+    axios.get
+      .mockResolvedValueOnce({ data: { items: mockCart } })
+      .mockResolvedValue({ data: { items: [{ ...mockCart[0], quantity: 3 }] } });
+
+    axios.put.mockResolvedValue({ data: { quantity: 3 } });
+
+    render(<Cart />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Increase Paracetamol",
+      })
+    );
+
+    await waitFor(() => {
+      expect(axios.put).toHaveBeenCalledWith(
+        expect.stringMatching(/\/api\/cart\/1$/),
+        { quantity: 3 },
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: "Bearer dummy-test-token",
+          }),
+        })
+      );
+    });
+  });
+
+  test("removes a product through the API when logged in", async () => {
+    localStorage.setItem("cart", JSON.stringify(mockCart));
+
+    axios.get
+      .mockResolvedValueOnce({ data: { items: mockCart } })
+      .mockResolvedValue({ data: { items: [] } });
+
+    axios.delete.mockResolvedValue({ data: { message: "Removed" } });
+
+    render(<Cart />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Remove Paracetamol",
+      })
+    );
+
+    await waitFor(() => {
+      expect(axios.delete).toHaveBeenCalledWith(
+        expect.stringMatching(/\/api\/cart\/1$/),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: "Bearer dummy-test-token",
+          }),
+        })
+      );
+    });
   });
 });

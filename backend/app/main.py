@@ -1,10 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.routers.otp import router as otp_router
-from app.api.routers import (admin,addresses,auth,cards,newsletter,orders,payments,products,submissions,users,)
+from app.api.routers import (admin,addresses,auth,newsletter,orders,payments,products,submissions,users,)
 from app.database.database import (Base,engine,ensure_schema_compatibility,)
 from app.database import base  # noqa: F401
 from app.core.config import settings
+from medikart.backend.app.api.routers import cart
 
 
 # ============================================================
@@ -74,7 +75,7 @@ def health():
 app.include_router(auth.router)             
 app.include_router(addresses.router)        # Addresses
 app.include_router(newsletter.router)       # NewsLetters
-app.include_router(cards.router)            # Cards
+app.include_router(cart.router)            # Cards
 app.include_router(orders.router)           # Orders
 app.include_router(payments.router)         # Payments
 app.include_router(admin.router)            # Admin

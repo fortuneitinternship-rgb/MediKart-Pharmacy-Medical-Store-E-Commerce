@@ -1,0 +1,43 @@
+.user-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.wishlist-btn,
+.cart-btn,
+.login-btn {
+  padding: 8px 15px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.wishlist-btn {
+  background-color: #fff0f3;
+  color: #e63946;
+  border: 1px solid #e63946;
+}
+
+.cart-btn {
+  background-color: #f5f5f5;
+  color: #333;
+}
+
+.login-btn {
+  background-color: #0a7b36;
+  color: white;
+}
+
+.wishlist-btn:hover {
+  background-color: #ffe5e9;
+}
+
+.cart-btn:hover {
+  background-color: #e9ecef;
+}
+
+.login-btn:hover {
+  background-color: #08662d;
+}
