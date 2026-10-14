@@ -1,149 +1,185 @@
-// src/api/cartApi.js
-
 import axios from "axios";
 
-const API_URL =
-    process.env.REACT_APP_API_URL || "http://127.0.0.1:8000";
+const API_BASE_URL = (
+  import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
+).replace(/\/+$/, "");
 
-const CART_URL = `${API_URL}/api/cart`;
+const CART_URL = `${API_BASE_URL}/api/cart`;
 
-/* Get authentication token */
-export const getCartToken = () =>
+export function getAccessToken() {
+  return (
     localStorage.getItem("access_token") ||
+    localStorage.getItem("accessToken") ||
     localStorage.getItem("token") ||
-    localStorage.getItem("accessToken");
+    ""
+  );
+}
 
-/* Axios request configuration */
-const getConfig = () => {
-    const token = getCartToken();
+function getAuthConfig() {
+  const token = getAccessToken();
 
-    return {
-        headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-    };
-};
+  if (!token) {
+    throw new Error("Please log in to manage your server cart.");
+  }
 
-/* Normalize cart item data */
-export const normalizeCartItem = (item) => {
-    const product = item.product || {};
+  return {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+  };
+}
 
-    const price = Number(
+export function normalizeCartItem(item = {}) {
+  const product = item.product || {};
+
+  return {
+    ...item,
+    id: item.id ?? item.cart_item_id ?? item.cartItemId ?? null,
+    product_id: item.product_id ?? item.productId ?? product.id ?? null,
+    name: item.name ?? product.name ?? item.title ?? "Product",
+    price: Number(
+      item.price ?? item.unit_price ?? product.price ?? 0
+    ),
+    discountedPrice: Number(
+      item.discountedPrice ??
+        item.discounted_price ??
+        item.discount_price ??
+        product.discounted_price ??
+        product.discount_price ??
         item.price ??
         item.unit_price ??
         product.price ??
         0
-    );
+    ),
+    quantity: Math.max(1, Number(item.quantity) || 1),
+    image:
+      item.image ??
+      item.image_url ??
+      product.image ??
+      product.image_url ??
+      "",
+    category: item.category ?? product.category ?? "",
+  };
+}
 
-    const discountedPrice = Number(
-        item.discountedPrice ??
-        item.discount_price ??
-        product.discount_price ??
-        price
-    );
+export function getCartErrorMessage(error) {
+  const status = error?.response?.status;
+  const detail = error?.response?.data?.detail;
 
-    return {
-        ...item,
-        id: item.id,
-        product_id:
-            item.product_id ??
-            item.productId ??
-            product.id ??
-            null,
-        name: item.name || product.name || "Product",
-        quantity: Math.max(1, Number(item.quantity) || 1),
-        price,
-        discountedPrice,
-        image:
-            item.image ||
-            item.image_url ||
-            product.image ||
-            product.image_url ||
-            "",
-        category:
-            item.category ||
-            product.category ||
-            "",
-    };
+  if (status === 401) {
+    return "Please log in again. Your session is missing or expired.";
+  }
+
+  if (status === 403) {
+    return "You are not authorized to change this cart.";
+  }
+
+  if (status === 404) {
+    return "Cart item not found. Refresh the cart and try again.";
+  }
+
+  if (Array.isArray(detail)) {
+    return detail.map((item) => item.msg).join(", ");
+  }
+
+  if (typeof detail === "string") {
+    return detail;
+  }
+
+  if (!error?.response) {
+    return "Cannot connect to MEDIKART. Check that the backend is running.";
+  }
+
+  return error?.message || "Something went wrong. Please try again.";
+}
+
+// GET /api/cart
+export async function getCart() {
+  const response = await axios.get(CART_URL, getAuthConfig());
+  const data = response.data;
+
+  const items = Array.isArray(data)
+    ? data
+    : data?.items ?? data?.cart_items ?? data?.cart ?? [];
+
+  if (!Array.isArray(items)) {
+    throw new Error("Unexpected response from the cart API.");
+  }
+
+  return items.map((item) => ({
+    ...normalizeCartItem(item),
+    _serverItem: true,
+  }));
+}
+
+// POST /api/cart
+export async function addToCart(productId, quantity = 1) {
+  if (productId == null) {
+    throw new Error("Product ID is required.");
+  }
+
+  const parsedQuantity = Number(quantity);
+
+  if (!Number.isInteger(parsedQuantity) || parsedQuantity < 1) {
+    throw new Error("Quantity must be at least 1.");
+  }
+
+  const response = await axios.post(
+    CART_URL,
+    {
+      product_id: productId,
+      quantity: parsedQuantity,
+    },
+    getAuthConfig()
+  );
+
+  return response.data;
+}
+
+// PUT /api/cart/{cart_item_id}
+export async function updateCartItem(cartItemId, quantity) {
+  if (cartItemId == null) {
+    throw new Error("Cart item ID is missing.");
+  }
+
+  const parsedQuantity = Number(quantity);
+
+  if (!Number.isInteger(parsedQuantity) || parsedQuantity < 1) {
+    throw new Error("Quantity must be at least 1.");
+  }
+
+  const response = await axios.put(
+    `${CART_URL}/${encodeURIComponent(cartItemId)}`,
+    { quantity: parsedQuantity },
+    getAuthConfig()
+  );
+
+  return response.data;
+}
+
+// DELETE /api/cart/{cart_item_id}
+export async function removeCartItem(cartItemId) {
+  if (cartItemId == null) {
+    throw new Error("Cart item ID is missing.");
+  }
+
+  const response = await axios.delete(
+    `${CART_URL}/${encodeURIComponent(cartItemId)}`,
+    getAuthConfig()
+  );
+
+  return response.data;
+}
+
+const cartApi = {
+  getCart,
+  addToCart,
+  updateCartItem,
+  removeCartItem,
+  normalizeCartItem,
+  getCartErrorMessage,
+  getAccessToken,
 };
 
-/* GET: Fetch cart */
-export const getCart = async () => {
-    const response = await axios.get(CART_URL, getConfig());
-
-    const data = response.data;
-
-    const items = Array.isArray(data)
-        ? data
-        : Array.isArray(data?.items)
-            ? data.items
-            : Array.isArray(data?.cart_items)
-                ? data.cart_items
-                : [];
-
-    return {
-        ...(!Array.isArray(data) && data && typeof data === "object"
-            ? data
-            : {}),
-        items: items.map(normalizeCartItem),
-    };
-};
-
-/* PUT: Update item quantity */
-export const updateCartItem = async (id, quantity) => {
-    if (id === undefined || id === null) {
-        throw new Error("Cart item ID is missing.");
-    }
-
-    if (!Number.isInteger(Number(quantity)) || Number(quantity) < 1) {
-        throw new Error("Quantity must be at least 1.");
-    }
-
-    return axios.put(
-        `${CART_URL}/${encodeURIComponent(id)}`,
-        { quantity: Number(quantity) },
-        getConfig()
-    );
-};
-
-/* DELETE: Remove cart item */
-export const removeCartItem = async (id) => {
-    if (id === undefined || id === null) {
-        throw new Error("Cart item ID is missing.");
-    }
-
-    return axios.delete(
-        `${CART_URL}/${encodeURIComponent(id)}`,
-        getConfig()
-    );
-};
-
-/* Read FastAPI or Axios error messages */
-export const getCartErrorMessage = (error) => {
-    const detail = error?.response?.data?.detail;
-
-    if (Array.isArray(detail)) {
-        return detail
-            .map((item) => item.msg || "Invalid request")
-            .join(", ");
-    }
-
-    if (typeof detail === "string") {
-        return detail;
-    }
-
-    if (typeof error?.response?.data?.message === "string") {
-        return error.response.data.message;
-    }
-
-    if (error?.response?.status === 401) {
-        return "Your session has expired. Please log in again.";
-    }
-
-    if (error?.message && !error.response) {
-        return "Unable to connect to the server. Check that FastAPI is running.";
-    }
-
-    return error?.message || "Something went wrong with your cart.";
-};
+export default cartApi;

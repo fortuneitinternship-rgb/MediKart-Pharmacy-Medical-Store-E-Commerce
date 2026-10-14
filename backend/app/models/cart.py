@@ -1,36 +1,25 @@
-from sqlalchemy import Column, Integer, ForeignKey, DateTime
+from sqlalchemy import Column, ForeignKey, Integer
 from sqlalchemy.orm import relationship
-from datetime import datetime, timezone
 
 from app.database.database import Base
 
 
-class Cart(Base):
-    __tablename__ = "carts"
+class CartItem(Base):
+    __tablename__ = "cart"
 
     id = Column(Integer, primary_key=True, index=True)
-
     user_id = Column(
         Integer,
         ForeignKey("users.id"),
         nullable=False,
-        unique=True,
-        index=True
+        index=True,
     )
+    product_id = Column(
+        Integer,
+        ForeignKey("products.id"),
+        nullable=False,
+    )
+    quantity = Column(Integer, nullable=False, default=1)
 
-    created_at = Column(
-        DateTime,
-        default=lambda: datetime.now(timezone.utc)
-    )
-
-    updated_at = Column(
-        DateTime,
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc)
-    )
-
-    items = relationship(
-        "CartItem",
-        back_populates="cart",
-        cascade="all, delete-orphan"
-    )
+    user = relationship("User")
+    product = relationship("Product")

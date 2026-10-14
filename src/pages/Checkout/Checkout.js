@@ -1,21 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
+import { FaCheck, FaMapMarkerAlt, FaCreditCard, FaUniversity, FaMoneyBillWave, FaTruck, FaBolt, FaClock, FaPlus, FaMinus, FaLocationArrow, FaEdit, FaMap, } from "react-icons/fa";
 import {
-    FaCheck,
-    FaMapMarkerAlt,
-    FaCreditCard,
-    FaUniversity,
-    FaMoneyBillWave,
-    FaTruck,
-    FaBolt,
-    FaClock,
-    FaPlus,
-    FaMinus,
-    FaLocationArrow,
-    FaEdit,
-    FaMap,
-} from "react-icons/fa";
+    getCheckoutCart,
+    saveCheckoutAddress,
+    createCheckoutOrder,
+} from "../../api/checkoutApi";
 
 import "./Checkout.css";
 
@@ -61,18 +52,32 @@ const Checkout = () => {
     // ======================= LOAD CART =======================
 
     useEffect(() => {
-        try {
-            const storedCart = JSON.parse(
-                localStorage.getItem("cart") || "[]"
-            );
+        let cancelled = false;
 
-            setCartItems(
-                Array.isArray(storedCart) ? storedCart : []
-            );
-        } catch (error) {
-            console.error("Failed to load cart:", error);
-            setCartItems([]);
-        }
+        const loadCart = async () => {
+            try {
+                const data = await getCheckoutCart();
+
+                const items = Array.isArray(data)
+                    ? data
+                    : data.items || data.cart_items || [];
+
+                if (!cancelled) {
+                    setCartItems(items);
+                }
+            } catch (error) {
+                console.error(
+                    "Failed to load checkout cart:",
+                    error.response?.data || error.message
+                );
+            }
+        };
+
+        loadCart();
+
+        return () => {
+            cancelled = true;
+        };
     }, [routeProductId]);
 
     // ======================= LOAD SAVED ADDRESS =======================
@@ -559,153 +564,137 @@ const Checkout = () => {
 
     // ======================= STEP 2 → STEP 3 =======================
 
-    const continueToPayment = () => {
-        if (!validateAddress()) {
-            return;
+    const [setAddressSaving] = useState(false);
+
+    const continueToPayment = async () => {
+        if (!validateAddress()) return;
+
+        setAddressSaving(true);
+
+        try {
+            const savedAddress = {
+                ...address,
+                addressMode,
+                deliveryDistance,
+            };
+
+            await saveCheckoutAddress(savedAddress);
+
+            localStorage.setItem(
+                "deliveryAddress",
+                JSON.stringify(savedAddress)
+            );
+
+            setStep(3);
+        } catch (error) {
+            console.error(
+                "Address save failed:",
+                error.response?.data || error.message
+            );
+
+            alert("Unable to save address. Please try again.");
+        } finally {
+            setAddressSaving(false);
         }
-
-        const addressToSave = {
-            ...address,
-            addressMode,
-            deliveryDistance,
-        };
-
-        localStorage.setItem(
-            "deliveryAddress",
-            JSON.stringify(
-                addressToSave
-            )
-        );
-
-        setStep(3);
     };
 
     // =====================================================
     // PLACE ORDER
     // =====================================================
 
-    const placeOrder = () => {
-        if (!paymentMethod) {
-            alert(
-                "Please select a payment method."
-            );
+    const placeOrder = async () => {
+        if (!paymentMethod || visibleCartItems.length === 0) {
+            alert("Please select a payment method and check your cart.");
             return;
         }
-
-        if (visibleCartItems.length === 0) {
-            alert(
-                "Your cart is empty."
-            );
-            return;
-        }
-
-        const generatedOrderId =
-            "MK" +
-            Date.now()
-                .toString()
-                .slice(-10);
-
-        setOrderId(
-            generatedOrderId
-        );
-
-        const newOrder = {
-            orderId:
-                generatedOrderId,
-
-            orderDate:
-                new Date().toLocaleDateString(
-                    "en-IN"
-                ),
-
-            items: visibleCartItems,
-
-            address,
-
-            paymentMethod,
-
-            deliveryType,
-
-            deliveryDistance,
-
-            deliveryDistanceLabel:
-                getDistanceLabel(),
-
-            deliveryTime:
-                getDeliveryTime(),
-
-            deliveryCharge,
-
-            productAmount:
-                productTotal,
-
-            discount,
-
-            platformFee,
-
-            totalAmount,
-
-            estimatedDelivery:
-                getDeliveryDate(),
-
-            status:
-                "Order Confirmed",
-        };
-
-        let existingOrders = [];
 
         try {
-            existingOrders =
-                JSON.parse(
-                    localStorage.getItem(
-                        "orders"
-                    )
-                ) || [];
-        } catch (error) {
-            console.error(
-                "Failed to load previous orders:",
-                error
+            const orderData = {
+                items: visibleCartItems.map((item) => ({
+                    product_id: Number(item.id),
+                    quantity: Number(item.quantity || 1),
+                })),
+
+                shipping_address: {
+                    name: address.name,
+                    phone: address.phone,
+                    address: address.address,
+                    city: address.city,
+                    state: address.state,
+                    pincode: address.pincode,
+                },
+
+                payment_method: paymentMethod,
+                delivery_type: deliveryType,
+                delivery_distance: deliveryDistance,
+            };
+
+            const response = await createCheckoutOrder(orderData);
+
+            // Adapt these fields to your backend's response schema.
+            const createdOrder = response.order || response;
+
+            const generatedOrderId =
+                createdOrder.order_id ||
+                createdOrder.orderId ||
+                createdOrder.id;
+
+            if (!generatedOrderId) {
+                throw new Error("The server did not return an order ID.");
+            }
+
+            setOrderId(String(generatedOrderId));
+
+            // Use the server response as the source of truth.
+            const savedOrder = {
+                ...createdOrder,
+                orderId: String(generatedOrderId),
+            };
+
+            let existingOrders = [];
+
+            try {
+                existingOrders = JSON.parse(
+                    localStorage.getItem("orders") || "[]"
+                );
+
+                if (!Array.isArray(existingOrders)) {
+                    existingOrders = [];
+                }
+            } catch {
+                existingOrders = [];
+            }
+
+            existingOrders.unshift(savedOrder);
+
+            localStorage.setItem(
+                "orders",
+                JSON.stringify(existingOrders)
             );
 
-            existingOrders = [];
+            // Clear the local cart only after the server confirms the order.
+            localStorage.removeItem("cart");
+            localStorage.removeItem("buyNow");
+
+            setCartItems([]);
+
+            window.dispatchEvent(new Event("ordersUpdated"));
+            window.dispatchEvent(new Event("cartUpdated"));
+
+            setStep(5);
+        } catch (error) {
+            console.error(
+                "Order creation failed:",
+                error.response?.data || error.message
+            );
+
+            alert(
+                error.response?.data?.detail ||
+                "Unable to place order. Please try again."
+            );
+
+            setStep(3);
         }
-
-        existingOrders.unshift(
-            newOrder
-        );
-
-        localStorage.setItem(
-            "orders",
-            JSON.stringify(
-                existingOrders
-            )
-        );
-
-        // Clear cart
-
-        localStorage.removeItem(
-            "cart"
-        );
-
-        localStorage.removeItem(
-            "buyNow"
-        );
-
-        setCartItems([]);
-
-        window.dispatchEvent(
-            new Event(
-                "ordersUpdated"
-            )
-        );
-
-        window.dispatchEvent(
-            new Event(
-                "cartUpdated"
-            )
-        );
-
-        setStep(5);
     };
 
     // ======================= EMPTY CART =======================
