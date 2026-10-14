@@ -23,6 +23,7 @@ from app.api.routers import (
     submissions,
     users,
     wishlist,
+    checkout
 )
 from app.api.routers.otp import router as otp_router
 
@@ -86,6 +87,7 @@ app.include_router(admin.router)
 app.include_router(products.router)
 app.include_router(users.router)
 app.include_router(submissions.router)
+app.include_router(checkout.router)
 
 
 # ============================================================

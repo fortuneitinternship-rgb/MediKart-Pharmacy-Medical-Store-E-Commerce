@@ -257,10 +257,6 @@ const Cart = () => {
     };
   }, [cartItems]);
 
-  if (loading) {
-    return <div className={styles.cartPage}>Loading your cart...</div>;
-  }
-
   if (cartItems.length === 0) {
     return (
       <>

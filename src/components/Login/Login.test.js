@@ -12,14 +12,14 @@ import Login from "./Login";
 import {
     loginUser,
     getCurrentUser,
-} from "../../api/authApi";
+} from "../../api/loginApi";
 
 
 // ======================================================
 // MOCK API
 // ======================================================
 
-jest.mock("../../api/authApi", () => ({
+jest.mock("../../api/loginApi", () => ({
     loginUser: jest.fn(),
     getCurrentUser: jest.fn(),
 }));

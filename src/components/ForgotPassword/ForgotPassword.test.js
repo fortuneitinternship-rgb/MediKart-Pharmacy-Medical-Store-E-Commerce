@@ -8,13 +8,13 @@ import {
   forgotPassword,
   verifyOTP,
   resetPassword,
-} from "../../api/authApi";
+} from "../../api/loginApi";
 
 // =====================================================
 // MOCK API
 // =====================================================
 
-jest.mock("../../api/authApi", () => ({
+jest.mock("../../api/loginApi", () => ({
   forgotPassword: jest.fn(),
   verifyOTP: jest.fn(),
   resetPassword: jest.fn(),

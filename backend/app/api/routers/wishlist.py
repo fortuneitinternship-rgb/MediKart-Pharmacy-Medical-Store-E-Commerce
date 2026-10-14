@@ -7,7 +7,7 @@ from app.models.product import Product
 from app.schemas.wishlist import ( WishlistCreate )
 # Adjust this import if get_current_user lives elsewhere
 # in your existing authentication code.
-from app.api.routers.auth import get_current_user
+from app.api.deps import get_current_user
 
 router = APIRouter(
     prefix="/api/wishlist",

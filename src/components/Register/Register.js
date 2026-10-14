@@ -10,7 +10,7 @@ import {
 } from "react-icons/fa";
 
 import "./Register.css";
-import { registerUser } from "../../api/authApi";
+import { registerUser } from "../../api/loginApi";
 
 import registerImage from "../../assets/register/register.png";
 

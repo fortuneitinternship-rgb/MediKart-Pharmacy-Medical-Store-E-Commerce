@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const API_BASE_URL = (
-  import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
+  process.env.REACT_APP_API_URL || "http://127.0.0.1:8000"
 ).replace(/\/+$/, "");
 
 const CART_URL = `${API_BASE_URL}/api/cart`;
@@ -85,10 +85,6 @@ export function getCartErrorMessage(error) {
 
   if (typeof detail === "string") {
     return detail;
-  }
-
-  if (!error?.response) {
-    return "Cannot connect to MEDIKART. Check that the backend is running.";
   }
 
   return error?.message || "Something went wrong. Please try again.";

@@ -3,12 +3,12 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
 
 import Register from "./Register";
-import { registerUser } from "../../api/authApi";
+import { registerUser } from "../../api/loginApi";
 
 // --------------------------------------------------
 // MOCK API
 // --------------------------------------------------
-jest.mock("../../api/authApi", () => ({
+jest.mock("../../api/loginApi", () => ({
   registerUser: jest.fn(),
 }));
 

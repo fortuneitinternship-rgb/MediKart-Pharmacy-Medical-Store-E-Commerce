@@ -3,9 +3,9 @@ import {render,screen,fireEvent,waitFor,} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import Profile from "./Profile";
 
-import {getCurrentUser,updateCurrentUser,} from "../../api/authApi";
+import {getCurrentUser,updateCurrentUser,} from "../../api/loginApi";
 
-jest.mock("../../api/authApi", () => ({getCurrentUser: jest.fn(),updateCurrentUser: jest.fn(),}));
+jest.mock("../../api/loginApi", () => ({getCurrentUser: jest.fn(),updateCurrentUser: jest.fn(),}));
 
 describe("Profile Component", () => {
     beforeEach(() => {

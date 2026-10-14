@@ -18,6 +18,7 @@ const Checkout = () => {
 
     const [step, setStep] = useState(1);
     const [cartItems, setCartItems] = useState([]);
+    const [placingOrder, setPlacingOrder] = useState(false);
     const visibleCartItems = routeProductId
         ? cartItems.filter(
             (item) => String(item.id) === String(routeProductId)
@@ -564,7 +565,7 @@ const Checkout = () => {
 
     // ======================= STEP 2 → STEP 3 =======================
 
-    const [setAddressSaving] = useState(false);
+    const [addressSaving, setAddressSaving] = useState(false);
 
     const continueToPayment = async () => {
         if (!validateAddress()) return;
@@ -2502,12 +2503,10 @@ const Checkout = () => {
 
                         <button
                             className="continue-btn"
-                            onClick={
-                                continueToPayment
-                            }
+                            disabled={addressSaving}
+                            onClick={continueToPayment}
                         >
-                            Continue to
-                            Payment
+                            {addressSaving ? "Saving Address..." : "Continue to Payment"}
                         </button>
 
                     </div>
@@ -2866,20 +2865,21 @@ const Checkout = () => {
                         <button
                             className="place-order-btn"
                             data-testid="place-order"
-                            onClick={() => {
+                            disabled={placingOrder}
+                            onClick={async () => {
+                                if (placingOrder) return;
 
+                                setPlacingOrder(true);
                                 setStep(4);
 
-                                setTimeout(
-                                    () => {
-                                        placeOrder();
-                                    },
-                                    800
-                                );
-
+                                try {
+                                    await placeOrder();
+                                } finally {
+                                    setPlacingOrder(false);
+                                }
                             }}
                         >
-                            Place Order
+                            {placingOrder ? "Placing Order..." : "Place Order"}
                         </button>
 
                     </div>

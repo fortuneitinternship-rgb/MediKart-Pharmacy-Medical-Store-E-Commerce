@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { FaTimes, FaEnvelope, FaLock, FaArrowLeft, } from "react-icons/fa";
 
 import "./ForgotPassword.css";
-import { forgotPassword, resetPassword, verifyOTP, } from "../../api/authApi";
+import { forgotPassword, resetPassword, verifyOTP, } from "../../api/loginApi";
 
 const ForgotPassword = ({ onClose, onSwitchToLogin }) => {
   const navigate = useNavigate();

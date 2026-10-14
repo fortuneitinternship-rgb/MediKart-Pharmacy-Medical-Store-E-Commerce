@@ -1,77 +1,48 @@
+
 import axios from "axios";
 
 const API_BASE_URL =
-  process.env.REACT_APP_API_URL ||
-  "http://127.0.0.1:8000";
+  process.env.REACT_APP_API_URL || "http://127.0.0.1:8000";
 
 const checkoutApi = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: `${API_BASE_URL}/api/checkout`,
   headers: {
     "Content-Type": "application/json",
   },
 });
 
-// JWT authentication
-const getAuthConfig = () => {
-  const token =
+function getToken() {
+  return (
     localStorage.getItem("access_token") ||
+    localStorage.getItem("accessToken") ||
     localStorage.getItem("token") ||
-    localStorage.getItem("accessToken");
-
-  return {
-    headers: token
-      ? { Authorization: `Bearer ${token}` }
-      : {},
-  };
-};
-
-// Get cart items from backend
-export const getCheckoutCart = async () => {
-  const response = await checkoutApi.get(
-    "/api/cart",
-    getAuthConfig()
+    ""
   );
+}
 
+checkoutApi.interceptors.request.use((config) => {
+  const token = getToken();
+
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+
+  return config;
+});
+
+export async function getCheckoutCart() {
+  const response = await checkoutApi.get("/cart");
   return response.data;
-};
+}
 
-// Save delivery address
-export const saveCheckoutAddress = async (address) => {
-  const response = await checkoutApi.post(
-    "/api/addresses",
-    {
-      name: address.name,
-      phone: address.phone,
-      address: address.address,
-      city: address.city,
-      state: address.state,
-      pincode: address.pincode,
-    },
-    getAuthConfig()
-  );
-
+export async function saveCheckoutAddress(address) {
+  const response = await checkoutApi.post("/address", address);
   return response.data;
-};
+}
 
-// Place order
-export const createCheckoutOrder = async (orderData) => {
-  const response = await checkoutApi.post(
-    "/api/orders",
-    orderData,
-    getAuthConfig()
-  );
-
+export async function createCheckoutOrder(orderData) {
+  const response = await checkoutApi.post("/orders", orderData);
   return response.data;
-};
-
-// Get order details
-export const getCheckoutOrder = async (orderId) => {
-  const response = await checkoutApi.get(
-    `/api/orders/${encodeURIComponent(orderId)}`,
-    getAuthConfig()
-  );
-
-  return response.data;
-};
+}
 
 export default checkoutApi;

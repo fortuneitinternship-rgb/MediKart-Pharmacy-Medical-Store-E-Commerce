@@ -11,7 +11,7 @@ import "./Profile.css";
 import {
     getCurrentUser,
     updateCurrentUser,
-} from "../../api/authApi";
+} from "../../api/loginApi";
 
 const Profile = () => {
     const [editing, setEditing] = useState(false);

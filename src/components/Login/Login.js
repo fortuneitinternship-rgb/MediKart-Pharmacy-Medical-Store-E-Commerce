@@ -14,7 +14,7 @@ import {
 
 import image from "../../assets/Login.png";
 import "./Login.css";
-import { getCurrentUser, loginUser } from "../../api/authApi";
+import { getCurrentUser, loginUser } from "../../api/loginApi";
 
 const Login = ({
   onClose,
