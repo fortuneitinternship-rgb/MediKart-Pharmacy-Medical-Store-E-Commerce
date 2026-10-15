@@ -1,48 +1,66 @@
+// src/api/CheckoutApi.js
 
-import axios from "axios";
+const API_BASE_URL = (
+  process.env.REACT_APP_API_URL || "http://127.0.0.1:8000"
+).replace(/\/$/, "");
 
-const API_BASE_URL =
-  process.env.REACT_APP_API_URL || "http://127.0.0.1:8000";
-
-const checkoutApi = axios.create({
-  baseURL: `${API_BASE_URL}/api/checkout`,
-  headers: {
-    "Content-Type": "application/json",
-  },
-});
-
-function getToken() {
-  return (
+function getAuthHeaders() {
+  const token =
     localStorage.getItem("access_token") ||
-    localStorage.getItem("accessToken") ||
-    localStorage.getItem("token") ||
-    ""
-  );
-}
+    localStorage.getItem("token");
 
-checkoutApi.interceptors.request.use((config) => {
-  const token = getToken();
-
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  if (!token) {
+    throw new Error("Please log in before placing your order.");
   }
 
-  return config;
-});
-
-export async function getCheckoutCart() {
-  const response = await checkoutApi.get("/cart");
-  return response.data;
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  };
 }
 
-export async function saveCheckoutAddress(address) {
-  const response = await checkoutApi.post("/address", address);
-  return response.data;
+async function handleResponse(response) {
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const message =
+      typeof data.detail === "string"
+        ? data.detail
+        : `Request failed with status ${response.status}`;
+
+    throw new Error(message);
+  }
+
+  return data;
 }
 
-export async function createCheckoutOrder(orderData) {
-  const response = await checkoutApi.post("/orders", orderData);
-  return response.data;
+export async function createOrder(orderData) {
+  const response = await fetch(`${API_BASE_URL}/api/orders/`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(orderData),
+  });
+
+  return handleResponse(response);
 }
 
-export default checkoutApi;
+export async function getMyOrders() {
+  const response = await fetch(`${API_BASE_URL}/api/orders/`, {
+    method: "GET",
+    headers: getAuthHeaders(),
+  });
+
+  return handleResponse(response);
+}
+
+export async function getOrderById(orderId) {
+  const response = await fetch(
+    `${API_BASE_URL}/api/orders/${encodeURIComponent(orderId)}`,
+    {
+      method: "GET",
+      headers: getAuthHeaders(),
+    }
+  );
+
+  return handleResponse(response);
+}

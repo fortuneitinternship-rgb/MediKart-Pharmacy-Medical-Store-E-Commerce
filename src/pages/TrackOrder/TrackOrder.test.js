@@ -1,57 +1,179 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
-import TrackOrder from "./TrackOrder";
-import { getOrder, getOrderTracking, getOrders } from "../../api/ordersApi";
 
-jest.mock("../../api/ordersApi", () => ({
-    getOrder: jest.fn(),
-    getOrderTracking: jest.fn(),
-    getOrders: jest.fn(),
+import React from "react";
+import {
+  render,
+  screen,
+  fireEvent,
+} from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+
+import TrackOrder from "./TrackOrder";
+
+const mockNavigate = jest.fn();
+
+jest.mock("react-router-dom", () => ({
+  ...jest.requireActual("react-router-dom"),
+  useNavigate: () => mockNavigate,
 }));
 
-const renderTrackingPage = () =>
-    render(
-        <MemoryRouter initialEntries={["/track"]}>
-            <Routes>
-                <Route path="/track" element={<TrackOrder />} />
-            </Routes>
-        </MemoryRouter>
+jest.mock("react-toastify", () => ({
+  toast: {
+    success: jest.fn(),
+    error: jest.fn(),
+  },
+}));
+
+const renderComponent = (path = "/track-order") =>
+  render(
+    <MemoryRouter initialEntries={[path]}>
+      <Routes>
+        <Route path="/track-order" element={<TrackOrder />} />
+        <Route path="/track-order/:orderId" element={<TrackOrder />} />
+      </Routes>
+    </MemoryRouter>
+  );
+
+describe("TrackOrder Component", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    localStorage.clear();
+
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: jest.fn().mockResolvedValue(undefined),
+      },
+    });
+
+    jest.spyOn(window, "alert").mockImplementation(() => {});
+    jest.spyOn(window, "print").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  test("renders the tracking page", () => {
+    renderComponent();
+
+    expect(
+      screen.getByRole("heading", { name: "Track Your Order" })
+    ).toBeInTheDocument();
+
+    expect(
+      screen.getByPlaceholderText(/enter order id/i)
+    ).toBeInTheDocument();
+  });
+
+  test("shows an alert when the order ID is empty", () => {
+    renderComponent();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /track order/i })
     );
 
-describe("Order tracking page", () => {
-    beforeEach(() => {
-        jest.clearAllMocks();
-        getOrders.mockResolvedValue([]);
-        getOrder.mockResolvedValue({
-            orderId: "MK1234567890",
-            orderDate: "2026-01-01",
-            paymentMethod: "Cash on Delivery",
-            totalAmount: 100,
-            items: [],
-            address: null,
-        });
-        getOrderTracking.mockResolvedValue({
-            status: "In Transit",
-            tracking_id: "TRK123456789",
-        });
+    expect(window.alert).toHaveBeenCalledWith(
+      "Please enter your Order ID"
+    );
+  });
+
+  test("searches when Enter is pressed", () => {
+    renderComponent();
+
+    const input = screen.getByPlaceholderText(/enter order id/i);
+
+    fireEvent.change(input, {
+      target: { value: "MK12345" },
     });
 
-    test("loads tracking and order details from the API", async () => {
-        renderTrackingPage();
-        fireEvent.change(screen.getByPlaceholderText(/enter order id/i), {
-            target: { value: "mk1234567890" },
-        });
+    fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+
+    expect(
+      screen.getByRole("heading", { name: "#MK12345" })
+    ).toBeInTheDocument();
+  });
+
+  test("shows demo tracking when an order ID is searched", () => {
+    renderComponent();
+
+    const input = screen.getByPlaceholderText(/enter order id/i);
+
+    fireEvent.change(input, {
+      target: { value: "MK7721605963" },
     });
 
-    test("shows the API error instead of fabricated tracking data", async () => {
-        getOrder.mockRejectedValue({
-            response: { data: { detail: "Order not found" } },
-        });
-        renderTrackingPage();
-        fireEvent.change(screen.getByPlaceholderText(/enter order id/i), {
-            target: { value: "MK0000000000" },
-        });
-        fireEvent.click(screen.getByRole("button", { name: /track order/i }));
-        expect(screen.queryByText(/TRK/)).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: /track order/i })
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "#MK7721605963" })
+    ).toBeInTheDocument();
+
+    expect(
+      screen.getByText("Live Shipment Tracking")
+    ).toBeInTheDocument();
+  });
+
+  test("loads demo tracking using Quick Track", () => {
+    renderComponent();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "MK7721605963" })
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "#MK7721605963" })
+    ).toBeInTheDocument();
+  });
+
+  test("navigates back when Back is clicked", () => {
+    renderComponent();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /back/i })
+    );
+
+    expect(mockNavigate).toHaveBeenCalledWith(-1);
+  });
+
+  test("prints the receipt", () => {
+    renderComponent();
+
+    const input = screen.getByPlaceholderText(/enter order id/i);
+
+    fireEvent.change(input, {
+      target: { value: "MK7721605963" },
     });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /track order/i })
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /print receipt/i })
+    );
+
+    expect(window.print).toHaveBeenCalledTimes(1);
+  });
+
+  test("displays the tracking stages", () => {
+    renderComponent();
+
+    const input = screen.getByPlaceholderText(/enter order id/i);
+
+    fireEvent.change(input, {
+      target: { value: "MK7721605963" },
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /track order/i })
+    );
+
+    expect(screen.getByText("Order Placed")).toBeInTheDocument();
+    expect(screen.getByText("Packed")).toBeInTheDocument();
+    expect(screen.getByText("Out for Delivery")).toBeInTheDocument();
+    expect(screen.getByText("Delivered")).toBeInTheDocument();
+  });
 });

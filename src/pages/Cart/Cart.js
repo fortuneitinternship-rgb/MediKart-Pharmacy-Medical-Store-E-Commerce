@@ -1,53 +1,58 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+
+import React, { useEffect, useState, useCallback } from "react";
 import styles from "./Cart.module.css";
 
 import CartItem from "../../components/CartItem/CartItem";
 import CartSummary from "../../components/CartSummary/CartSummary";
 import EmptyState from "../../components/EmptyState/EmptyState";
 import emptyCart from "../../assets/empty-cart.png";
-import { getCart, updateCartItem, removeCartItem, normalizeCartItem, getCartErrorMessage, getAccessToken, } from "../../api/cartApi";
+
+import {
+  getCart,
+  updateCartItem,
+  removeCartItem,
+} from "../../api/cartApi";
 
 const Cart = () => {
-  const navigate = useNavigate();
-
   const [cartItems, setCartItems] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [modal, setModal] = useState(null);
 
-  const isLoggedIn = Boolean(getAccessToken());
+  const saveLocalCart = (items) => {
+    localStorage.setItem("cart", JSON.stringify(items));
+    window.dispatchEvent(new Event("cartUpdated"));
+  };
+
+  const normalizeCart = (response) => {
+    const items = Array.isArray(response)
+      ? response
+      : response?.items || response?.cart_items || [];
+
+    return items.map((item) => ({
+      ...item,
+      // Preserve the existing CartItem component's expected fields.
+      id: item.id ?? item.product_id,
+      quantity: Number(item.quantity) || 1,
+      price: Number(item.price ?? item.discountedPrice) || 0,
+    }));
+  };
 
   const loadCart = useCallback(async () => {
-    setError("");
-
-    if (!getAccessToken()) {
-      try {
-        const saved = JSON.parse(localStorage.getItem("cart") || "[]");
-        setCartItems(
-          Array.isArray(saved) ? saved.map(normalizeCartItem) : []
-        );
-      } catch {
-        setCartItems([]);
-      }
-
-      setLoading(false);
-      return;
-    }
-
     try {
-      const serverItems = await getCart();
-      setCartItems(serverItems);
-    } catch (err) {
-      setError(getCartErrorMessage(err));
+      const response = await getCart();
+      const items = normalizeCart(response);
 
-      if (err?.response?.status === 401) {
-        setModal({
-          type: "login",
-          message: "Your login session has expired. Please log in again.",
-        });
-      }
+      setCartItems(items);
+      localStorage.setItem("cart", JSON.stringify(items));
+      setError("");
+    } catch (err) {
+      // Allow the existing local cart to work if the API is unavailable.
+      const localItems = JSON.parse(
+        localStorage.getItem("cart") || "[]"
+      );
+
+      setCartItems(localItems);
+      console.error("Failed to load cart:", err);
     } finally {
       setLoading(false);
     }
@@ -56,216 +61,136 @@ const Cart = () => {
   useEffect(() => {
     loadCart();
 
-    const refreshCart = () => loadCart();
-    window.addEventListener("cartUpdated", refreshCart);
+    const handleCartUpdated = () => loadCart();
+
+    window.addEventListener("cartUpdated", handleCartUpdated);
 
     return () => {
-      window.removeEventListener("cartUpdated", refreshCart);
+      window.removeEventListener(
+        "cartUpdated",
+        handleCartUpdated
+      );
     };
   }, [loadCart]);
 
-  const saveGuestCart = (items) => {
-    localStorage.setItem("cart", JSON.stringify(items));
-    window.dispatchEvent(new Event("cartUpdated"));
-  };
-
-  const findItem = (id) =>
-    cartItems.find((item) => String(item.id) === String(id));
-
-  const handleQuantityChange = async (id, change) => {
-    if (busy) return;
-
-    const item = findItem(id);
+  const handleIncrease = async (id) => {
+    const item = cartItems.find((product) => product.id === id);
     if (!item) return;
 
-    const newQuantity = Number(item.quantity || 1) + change;
-    if (newQuantity < 1) return;
+    const quantity = (Number(item.quantity) || 1) + 1;
 
-    const previousItems = [...cartItems];
-    const updatedItems = cartItems.map((current) =>
-      String(current.id) === String(id)
-        ? { ...current, quantity: newQuantity }
-        : current
+    // Update the UI immediately.
+    const updatedCart = cartItems.map((product) =>
+      product.id === id ? { ...product, quantity } : product
     );
 
-    // Update the screen immediately.
-    setCartItems(updatedItems);
-    setError("");
-
-    // Guest cart: update localStorage only.
-    if (!getAccessToken()) {
-      saveGuestCart(updatedItems);
-      return;
-    }
-
-    // Do not send a product ID as a cart-row ID.
-    if (!item._serverItem) {
-      setCartItems(previousItems);
-      setError("This item is not linked to your server cart. Please refresh.");
-      return;
-    }
-
-    setBusy(true);
+    setCartItems(updatedCart);
+    saveLocalCart(updatedCart);
 
     try {
-      await updateCartItem(item.id, newQuantity);
-      window.dispatchEvent(new Event("cartUpdated"));
+      await updateCartItem(item.cart_item_id ?? item.id, quantity);
+      await loadCart();
     } catch (err) {
-      setCartItems(previousItems);
-      setError(getCartErrorMessage(err));
-
-      if (err?.response?.status === 401) {
-        setModal({
-          type: "login",
-          message: "Please log in again to update your cart.",
-        });
-      }
-    } finally {
-      setBusy(false);
+      console.error("Failed to update cart quantity:", err);
+      setError("Quantity was updated locally, but server sync failed.");
     }
   };
 
-  const handleIncrease = (id) => handleQuantityChange(id, 1);
-  const handleDecrease = (id) => handleQuantityChange(id, -1);
-
-  const handleRemove = (id) => {
-    const item = findItem(id);
+  const handleDecrease = async (id) => {
+    const item = cartItems.find((product) => product.id === id);
     if (!item) return;
 
-    setModal({
-      type: "confirm",
-      item,
-      message: `Are you sure you want to remove "${item.name}" from your cart?`,
-    });
-  };
+    const quantity = Math.max(
+      1,
+      (Number(item.quantity) || 1) - 1
+    );
 
-  const confirmRemove = async () => {
-    if (busy || !modal?.item) return;
+    if (quantity === Number(item.quantity)) return;
 
-    const item = modal.item;
-    const previousItems = [...cartItems];
+    const updatedCart = cartItems.map((product) =>
+      product.id === id ? { ...product, quantity } : product
+    );
 
-    setError("");
-
-    // Guest cart: remove locally.
-    if (!getAccessToken()) {
-      const updatedItems = cartItems.filter(
-        (current) => String(current.id) !== String(item.id)
-      );
-
-      setCartItems(updatedItems);
-      saveGuestCart(updatedItems);
-      setModal({
-        type: "success",
-        message: `"${item.name}" was removed from your cart.`,
-      });
-      return;
-    }
-
-    if (!item._serverItem) {
-      setModal({
-        type: "error",
-        message: "This item is not linked to your server cart. Please refresh.",
-      });
-      return;
-    }
-
-    setBusy(true);
+    setCartItems(updatedCart);
+    saveLocalCart(updatedCart);
 
     try {
-      await removeCartItem(item.id);
-
-      const updatedItems = previousItems.filter(
-        (current) => String(current.id) !== String(item.id)
-      );
-
-      setCartItems(updatedItems);
-      setModal({
-        type: "success",
-        message: `"${item.name}" was successfully removed from your cart.`,
-      });
-      window.dispatchEvent(new Event("cartUpdated"));
+      await updateCartItem(item.cart_item_id ?? item.id, quantity);
+      await loadCart();
     } catch (err) {
-      setCartItems(previousItems);
-      const message = getCartErrorMessage(err);
-      setModal({
-        type: err?.response?.status === 401 ? "login" : "error",
-        message,
-      });
-    } finally {
-      setBusy(false);
+      console.error("Failed to update cart quantity:", err);
+      setError("Quantity was updated locally, but server sync failed.");
     }
   };
 
-  const handleCheckout = () => {
-    if (!getAccessToken()) {
-      setModal({
-        type: "login",
-        message: "Please log in before proceeding to checkout.",
-      });
-      return;
-    }
+  const handleRemove = async (id) => {
+    const item = cartItems.find((product) => product.id === id);
+    if (!item) return;
 
-    if (cartItems.length === 0) {
-      setError("Your cart is empty. Add a product before checkout.");
-      return;
-    }
+    const updatedCart = cartItems.filter(
+      (product) => product.id !== id
+    );
 
-    navigate("/checkout");
+    setCartItems(updatedCart);
+    saveLocalCart(updatedCart);
+
+    try {
+      await removeCartItem(item.cart_item_id ?? item.id);
+      await loadCart();
+      setError("");
+    } catch (err) {
+      console.error("Failed to remove cart item:", err);
+      setError("Item was removed locally, but server deletion failed.");
+    }
   };
 
-  const totals = useMemo(() => {
-    const totalItems = cartItems.reduce(
-      (sum, item) => sum + (Number(item.quantity) || 1),
-      0
+  const totalItems = cartItems.reduce(
+    (sum, item) => sum + (Number(item.quantity) || 1),
+    0
+  );
+
+  const subtotal = cartItems.reduce(
+    (sum, item) =>
+      sum +
+      (Number(item.price ?? item.discountedPrice) || 0) *
+        (Number(item.quantity) || 1),
+    0
+  );
+
+  const discount = Math.round(subtotal * 0.1);
+
+  const isSpecialCategory = (category) => {
+    if (!category) return false;
+
+    const cat = String(category)
+      .toLowerCase()
+      .replace(/[-_]/g, " ");
+
+    return (
+      cat.includes("medical device") ||
+      cat.includes("device") ||
+      cat.includes("premium healthcare") ||
+      cat.includes("premium")
     );
+  };
 
-    const subtotal = cartItems.reduce((sum, item) => {
-      const price = Number(item.price ?? item.discountedPrice) || 0;
-      return sum + price * (Number(item.quantity) || 1);
-    }, 0);
+  const hasSpecialItem = cartItems.some((item) =>
+    isSpecialCategory(item.category)
+  );
 
-    const discount = Math.round(subtotal * 0.1);
+  const baseDelivery = subtotal >= 499 ? 0 : 10;
+  const specialSurcharge = hasSpecialItem ? 50 : 0;
+  const delivery = baseDelivery + specialSurcharge;
+  const totalAmount = subtotal - discount + delivery;
 
-    const isSpecialCategory = (category) => {
-      const value = String(category || "")
-        .toLowerCase()
-        .replace(/[-_]/g, " ");
-
-      return (
-        value.includes("device") ||
-        value.includes("premium healthcare") ||
-        value.includes("premium")
-      );
-    };
-
-    const hasSpecialItem = cartItems.some((item) =>
-      isSpecialCategory(item.category)
-    );
-
-    const baseDelivery = subtotal >= 499 ? 0 : subtotal > 0 ? 10 : 0;
-    const specialSurcharge = hasSpecialItem ? 50 : 0;
-    const delivery = baseDelivery + specialSurcharge;
-    const totalAmount = subtotal - discount + delivery;
-
-    return {
-      totalItems,
-      subtotal,
-      discount,
-      delivery,
-      totalAmount,
-    };
-  }, [cartItems]);
+  if (loading) {
+    return <div className={styles.cartPage}>Loading cart...</div>;
+  }
 
   if (cartItems.length === 0) {
     return (
       <>
-        {error && (
-          <p role="alert" className={styles.cartError}>
-            {error}
-          </p>
-        )}
-
+        {error && <p role="alert">{error}</p>}
         <EmptyState
           image={emptyCart}
           title="Your Cart is Empty"
@@ -273,151 +198,51 @@ const Cart = () => {
           buttonText="Continue Shopping"
           buttonLink="/shop"
         />
-
-        {modal && (
-          <CartPopup
-            modal={modal}
-            busy={busy}
-            onClose={() => setModal(null)}
-            onConfirm={confirmRemove}
-            onLogin={() => navigate("/login", { state: { from: "/checkout" } })}
-          />
-        )}
       </>
     );
   }
 
   return (
-    <>
-      <div className={styles.cartPage}>
-        <div className={styles.cartHeader}>
-          <h1>🛒 My Cart</h1>
-          <span className={styles.itemCount}>
-            {totals.totalItems} Items
-          </span>
-        </div>
-
-        {error && (
-          <div role="alert" className={styles.cartError}>
-            {error}
-            <button type="button" onClick={loadCart}>
-              Retry
-            </button>
-          </div>
-        )}
-
-        <div className={styles.cartContainer}>
-          <div className={styles.leftSection}>
-            {cartItems.map((item) => (
-              <CartItem
-                key={item.id ?? item.product_id}
-                item={item}
-                onIncrease={handleIncrease}
-                onDecrease={handleDecrease}
-                onRemove={handleRemove}
-                disabled={busy}
-              />
-            ))}
-          </div>
-
-          <div className={styles.rightSection}>
-            <CartSummary
-              cartItems={cartItems}
-              totalItems={totals.totalItems}
-              subtotal={totals.subtotal}
-              discount={totals.discount}
-              delivery={totals.delivery}
-              totalPrice={totals.totalAmount}
-              onCheckout={handleCheckout}
-              isLoggedIn={isLoggedIn}
-            />
-          </div>
-        </div>
+    <div className={styles.cartPage}>
+      <div className={styles.cartHeader}>
+        <h1>🛒 My Cart</h1>
+        <span className={styles.itemCount}>
+          {totalItems} Items
+        </span>
       </div>
 
-      {modal && (
-        <CartPopup
-          modal={modal}
-          busy={busy}
-          onClose={() => setModal(null)}
-          onConfirm={confirmRemove}
-          onLogin={() => {
-            setModal(null);
-            navigate("/login", { state: { from: "/checkout" } });
-          }}
-        />
+      {error && (
+        <p role="alert" className={styles.cartError}>
+          {error}
+        </p>
       )}
-    </>
-  );
-};
 
-function CartPopup({ modal, busy, onClose, onConfirm, onLogin }) {
-  return (
-    <div className={styles.cartModalOverlay} onClick={onClose}>
-      <div
-        className={styles.cartModal}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="cart-popup-title"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <h2 id="cart-popup-title">
-          {modal.type === "confirm"
-            ? "Remove Product?"
-            : modal.type === "success"
-            ? "Success"
-            : modal.type === "login"
-            ? "Login Required"
-            : "Unable to Complete"}
-        </h2>
+      <div className={styles.cartContainer}>
+        <div className={styles.leftSection}>
+          {cartItems.map((item) => (
+            <CartItem
+              key={item.id}
+              item={item}
+              onIncrease={handleIncrease}
+              onDecrease={handleDecrease}
+              onRemove={handleRemove}
+            />
+          ))}
+        </div>
 
-        <p>{modal.message}</p>
-
-        <div className={styles.cartModalActions}>
-          {modal.type === "confirm" && (
-            <>
-              <button type="button" onClick={onClose} disabled={busy}>
-                Cancel
-              </button>
-              <button
-                type="button"
-                className={styles.cartModalDanger}
-                onClick={onConfirm}
-                disabled={busy}
-              >
-                {busy ? "Removing..." : "Yes, Remove"}
-              </button>
-            </>
-          )}
-
-          {modal.type === "login" && (
-            <>
-              <button type="button" onClick={onClose}>
-                Cancel
-              </button>
-              <button
-                type="button"
-                className={styles.cartModalPrimary}
-                onClick={onLogin}
-              >
-                Go to Login
-              </button>
-            </>
-          )}
-
-          {(modal.type === "success" || modal.type === "error") && (
-            <button
-              type="button"
-              className={styles.cartModalPrimary}
-              onClick={onClose}
-            >
-              OK
-            </button>
-          )}
+        <div className={styles.rightSection}>
+          <CartSummary
+            cartItems={cartItems}
+            totalItems={totalItems}
+            subtotal={subtotal}
+            discount={discount}
+            delivery={delivery}
+            totalPrice={totalAmount}
+          />
         </div>
       </div>
     </div>
   );
-}
+};
 
 export default Cart;

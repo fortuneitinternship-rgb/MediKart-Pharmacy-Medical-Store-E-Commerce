@@ -1,25 +1,32 @@
-import json
-from decimal import Decimal, ROUND_HALF_UP
-from typing import Literal
+
+from typing import List, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.database.database import get_db
-from app.api.routers.auth import get_current_user
-from app.models.cart_item import CartItem
+from app.api.deps import get_current_user
 from app.models.product import Product
-from app.models.order import Order, OrderItem
+from app.models.order import Order
+from app.models.order_item import OrderItem
+
+# IMPORTANT:
+# Import get_db from the actual module used by your existing
+# orders.py or products.py router. Do not guess this import.
+from app.database.database import get_db
 
 
-router = APIRouter(
-    prefix="/api/checkout",
-    tags=["Checkout"],
-)
+router = APIRouter(prefix="/checkout", tags=["Checkout"])
 
 
-# -------------------- REQUEST SCHEMAS --------------------
+# -------------------------
+# Request schemas
+# -------------------------
+
+class CheckoutItem(BaseModel):
+    product_id: int = Field(gt=0)
+    quantity: int = Field(ge=1, le=100)
+
 
 class ShippingAddress(BaseModel):
     name: str = Field(min_length=1, max_length=100)
@@ -30,293 +37,149 @@ class ShippingAddress(BaseModel):
     pincode: str = Field(pattern=r"^\d{6}$")
 
 
-class CheckoutAddressRequest(ShippingAddress):
-    addressMode: str = "form"
-    deliveryDistance: Literal["short", "medium", "long"] = "short"
-
-
-class CheckoutItemRequest(BaseModel):
-    product_id: int = Field(gt=0)
-    quantity: int = Field(gt=0, le=100)
-
-
-class CheckoutOrderRequest(BaseModel):
-    items: list[CheckoutItemRequest] = Field(min_length=1)
+class CheckoutCreate(BaseModel):
+    items: List[CheckoutItem] = Field(min_length=1)
     shipping_address: ShippingAddress
-    payment_method: Literal["COD", "CARD", "NETBANKING"]
-    delivery_type: Literal["normal", "express", "today"] = "normal"
-    delivery_distance: Literal["short", "medium", "long"] = "short"
+    payment_method: Literal["CARD", "NETBANKING", "COD"]
+    delivery_type: Literal["standard", "express", "today"]
 
 
-# -------------------- HELPERS --------------------
+# -------------------------
+# Create an order
+# -------------------------
 
-def get_product_price(product):
-    """Read the price from the existing Product model."""
-    discounted = getattr(product, "discounted_price", None)
-
-    if discounted is None:
-        discounted = getattr(product, "discount_price", None)
-
-    price = discounted if discounted is not None else getattr(
-        product, "price", 0
-    )
-
-    try:
-        amount = Decimal(str(price))
-    except Exception:
-        raise HTTPException(
-            status_code=500,
-            detail="A product has an invalid price.",
-        )
-
-    if not amount.is_finite() or amount < 0:
-        raise HTTPException(
-            status_code=500,
-            detail="A product has an invalid price.",
-        )
-
-    return amount.quantize(
-        Decimal("0.01"),
-        rounding=ROUND_HALF_UP,
-    )
-
-
-def money(value):
-    return value.quantize(
-        Decimal("0.01"),
-        rounding=ROUND_HALF_UP,
-    )
-
-
-def product_to_dict(cart_item, product):
-    price = get_product_price(product)
-
-    return {
-        # Cart item ID and product ID are different identifiers.
-        "id": product.id,
-        "cart_item_id": cart_item.id,
-        "product_id": product.id,
-        "name": (
-            getattr(product, "name", None)
-            or getattr(product, "title", None)
-            or "Healthcare Product"
-        ),
-        "title": getattr(product, "title", None),
-        "brand": getattr(product, "brand", None),
-        "category": getattr(product, "category", None),
-        "price": float(price),
-        "discountedPrice": float(price),
-        "discounted_price": float(price),
-        "image": (
-            getattr(product, "image_url", None)
-            or getattr(product, "image", None)
-            or ""
-        ),
-        "quantity": cart_item.quantity,
-    }
-
-
-def get_owned_cart_item(db, user_id, cart_item_id):
-    item = (
-        db.query(CartItem)
-        .filter(
-            CartItem.id == cart_item_id,
-            CartItem.user_id == user_id,
-        )
-        .first()
-    )
-
-    if item is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Cart item not found.",
-        )
-
-    return item
-
-
-# -------------------- GET CART FOR CHECKOUT --------------------
-
-@router.get("/cart")
-def get_checkout_cart(
-    db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
-    cart_items = (
-        db.query(CartItem)
-        .filter(CartItem.user_id == current_user.id)
-        .all()
-    )
-
-    results = []
-
-    for cart_item in cart_items:
-        product = (
-            db.query(Product)
-            .filter(Product.id == cart_item.product_id)
-            .first()
-        )
-
-        if product is None:
-            continue
-
-        results.append(product_to_dict(cart_item, product))
-
-    return {
-        "items": results,
-        "count": sum(item["quantity"] for item in results),
-    }
-
-
-# -------------------- SAVE / VALIDATE ADDRESS --------------------
-
-@router.post("/address")
-def save_checkout_address(
-    payload: CheckoutAddressRequest,
-    current_user=Depends(get_current_user),
-):
-    # This endpoint validates the address and returns it to React.
-    # React also stores it in localStorage. This does not insert it
-    # into a database addresses table.
-    return {
-        "message": "Delivery address validated.",
-        "user_id": current_user.id,
-        "address": payload.model_dump(),
-    }
-
-
-# -------------------- CREATE ORDER --------------------
-
-@router.post("/orders", status_code=status.HTTP_201_CREATED)
+@router.post("/", status_code=status.HTTP_201_CREATED)
 def create_checkout_order(
-    payload: CheckoutOrderRequest,
+    payload: CheckoutCreate,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    # Combine duplicate product IDs to prevent duplicate lines.
-    quantities = {}
-
-    for item in payload.items:
-        quantities[item.product_id] = (
-            quantities.get(item.product_id, 0) + item.quantity
-        )
-
-    # Calculate prices using the database, not frontend totals.
-    order_lines = []
-    subtotal = Decimal("0.00")
-
-    for product_id, quantity in quantities.items():
-        product = (
-            db.query(Product)
-            .filter(Product.id == product_id)
-            .first()
-        )
-
-        if product is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Product {product_id} was not found.",
-            )
-
-        unit_price = get_product_price(product)
-        line_total = money(unit_price * quantity)
-        subtotal += line_total
-
-        order_lines.append({
-            "product_id": product_id,
-            "quantity": quantity,
-            "unit_price": unit_price,
-            "line_total": line_total,
-        })
-
-    subtotal = money(subtotal)
-
-    # These are example checkout rules. Keep them consistent with
-    # the pricing rules that your store intends to enforce.
-    discount = money(subtotal * Decimal("0.10"))
-
-    if payload.delivery_type == "express":
-        if subtotal < Decimal("299"):
-            raise HTTPException(
-                status_code=400,
-                detail="Express delivery requires an order of at least ₹299.",
-            )
-        delivery_charge = Decimal("49.00")
-
-    elif payload.delivery_type == "today":
-        if subtotal < Decimal("999"):
-            raise HTTPException(
-                status_code=400,
-                detail="Today delivery requires an order of at least ₹999.",
-            )
-        delivery_charge = Decimal("99.00")
-
-    else:
-        delivery_charge = (
-            Decimal("0.00")
-            if subtotal >= Decimal("499")
-            else Decimal("10.00")
-        )
-
-    total = money(subtotal - discount + delivery_charge)
-
-    # IMPORTANT:
-    # The following constructor fields must exist in your current
-    # Order model. Adapt these names if your model differs.
-    order = Order(
-        user_id=current_user.id,
-        total_amount=float(total),
-        status="Pending",
-        payment_method=payload.payment_method,
-        shipping_address=json.dumps(
-            payload.shipping_address.model_dump()
-        ),
-    )
-
     try:
-        db.add(order)
-        db.flush()  # Obtain order.id before adding order items.
+        subtotal = 0.0
+        validated_items = []
 
-        for line in order_lines:
-            # These fields must match your existing OrderItem model.
+        # Verify every product using the database.
+        for item in payload.items:
+            product = (
+                db.query(Product)
+                .filter(Product.id == item.product_id)
+                .first()
+            )
+
+            if product is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Product {item.product_id} was not found",
+                )
+
+            # Adjust these price fields to match your Product model.
+            unit_price = getattr(product, "discounted_price", None)
+            if unit_price is None:
+                unit_price = getattr(product, "price", None)
+
+            if unit_price is None:
+                raise HTTPException(
+                    status_code=500,
+                    detail="Product price is not configured",
+                )
+
+            unit_price = float(unit_price)
+
+            if unit_price < 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid product price",
+                )
+
+            line_total = unit_price * item.quantity
+            subtotal += line_total
+
+            validated_items.append({
+                "product_id": product.id,
+                "quantity": item.quantity,
+                "price": unit_price,
+            })
+
+        # Calculate fees on the backend rather than trusting the client.
+        discount = round(subtotal * 0.10, 2)
+        delivery_fee = 0.0 if subtotal >= 499 else 10.0
+
+        if payload.delivery_type == "express":
+            delivery_fee += 49.0
+        elif payload.delivery_type == "today":
+            delivery_fee += 99.0
+
+        total = round(subtotal - discount + delivery_fee, 2)
+
+        # Adjust the fields below to match your Order model.
+        order = Order(
+            user_id=current_user.id,
+            total_amount=total,
+            status="pending",
+            payment_method=payload.payment_method,
+            shipping_address=payload.shipping_address.model_dump(),
+        )
+
+        db.add(order)
+        db.flush()
+
+        # Adjust field names to match your OrderItem model.
+        for item in validated_items:
             order_item = OrderItem(
                 order_id=order.id,
-                product_id=line["product_id"],
-                quantity=line["quantity"],
-                price=float(line["unit_price"]),
+                product_id=item["product_id"],
+                quantity=item["quantity"],
+                price=item["price"],
             )
             db.add(order_item)
-
-        # Clear only the current user's cart, after creating order lines.
-        (
-            db.query(CartItem)
-            .filter(CartItem.user_id == current_user.id)
-            .delete(synchronize_session=False)
-        )
 
         db.commit()
         db.refresh(order)
 
+        return {
+            "message": "Order placed successfully",
+            "order_id": order.id,
+            "status": order.status,
+            "subtotal": round(subtotal, 2),
+            "discount": discount,
+            "delivery_fee": round(delivery_fee, 2),
+            "total_amount": total,
+            "payment_method": payload.payment_method,
+        }
+
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception:
         db.rollback()
         raise HTTPException(
             status_code=500,
-            detail=(
-                "Could not save the order. Check that the Order and "
-                "OrderItem fields match your database models."
-            ),
+            detail="Unable to create order. Check the backend model fields and database logs.",
         )
 
-    return {
-        "message": "Order created successfully.",
-        "order": {
-            "id": order.id,
-            "order_id": getattr(order, "order_id", None) or order.id,
-            "total_amount": float(total),
-            "status": getattr(order, "status", "Pending"),
-            "payment_method": payload.payment_method,
-            "subtotal": float(subtotal),
-            "discount": float(discount),
-            "delivery_charge": float(delivery_charge),
-        },
-    }
+
+# -------------------------
+# Get the logged-in user's orders
+# -------------------------
+
+@router.get("/")
+def get_checkout_orders(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    orders = (
+        db.query(Order)
+        .filter(Order.user_id == current_user.id)
+        .order_by(Order.id.desc())
+        .all()
+    )
+
+    return [
+        {
+            "order_id": order.id,
+            "status": order.status,
+            "total_amount": order.total_amount,
+            "payment_method": order.payment_method,
+        }
+        for order in orders
+    ]
