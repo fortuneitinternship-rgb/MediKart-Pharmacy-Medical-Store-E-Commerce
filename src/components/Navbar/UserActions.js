@@ -13,6 +13,8 @@ import {
 import Login from "../Login/Login";
 import Register from "../Register/Register";
 import ForgotPassword from "../ForgotPassword/ForgotPassword";
+import { getAccessToken, getCart } from "../../api/cartApi";
+import { getWishlist } from "../../api/wishlistApi";
 
 function UserActions() {
   const navigate = useNavigate();
@@ -28,15 +30,24 @@ function UserActions() {
   // UPDATE COUNTS & USER
   // ==============================
 
-  const updateCount = () => {
-    const cart =
-      JSON.parse(localStorage.getItem("cart")) || [];
-
-    const wishlist =
-      JSON.parse(localStorage.getItem("wishlist")) || [];
-
-    setCartCount(cart.length);
-    setWishlistCount(wishlist.length);
+  const updateCount = async () => {
+    if (!getAccessToken()) {
+      setCartCount(0);
+      setWishlistCount(0);
+    } else {
+      try {
+        const [cart, wishlist] = await Promise.all([
+          getCart(),
+          getWishlist(),
+        ]);
+        setCartCount(cart.reduce((total, item) => total + item.quantity, 0));
+        setWishlistCount(wishlist.items?.length || 0);
+      } catch (error) {
+        console.error("Unable to load shopping counts:", error);
+        setCartCount(0);
+        setWishlistCount(0);
+      }
+    }
 
     const user = localStorage.getItem("username");
 

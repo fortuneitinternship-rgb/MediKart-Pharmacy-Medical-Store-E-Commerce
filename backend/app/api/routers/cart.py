@@ -1,93 +1,102 @@
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
-# IMPORTANT:
-# Replace this import with the actual module where get_db is defined.
 from app.database.database import get_db
-
 from app.models.cart_item import CartItem
 from app.models.product import Product
-from app.models.user import User
 from app.api.deps import get_current_user
 
+router = APIRouter(prefix="/api/cart", tags=["Cart"])
 
-router = APIRouter(prefix="/cart", tags=["Cart"])
+
+class CartQuantityUpdate(BaseModel):
+    quantity: int = Field(ge=1)
 
 
-class CartCreate(BaseModel):
+class CartItemCreate(BaseModel):
     product_id: int
     quantity: int = Field(default=1, ge=1)
 
 
-class CartUpdate(BaseModel):
-    quantity: int = Field(ge=1)
-
-
-def serialize_cart_item(item: CartItem):
-    product = item.product
+def get_product_data(db: Session, product_id):
+    """Return product display fields without exposing an ORM object."""
+    product = db.query(Product).filter(Product.id == product_id).first()
 
     if product is None:
         return {
-            "id": item.id,
-            "cart_item_id": item.id,
-            "product_id": item.product_id,
-            "quantity": item.quantity,
-            "name": "",
-            "title": "",
-            "price": 0.0,
-            "discountedPrice": 0.0,
-            "category": None,
-            "image": None,
+            "name": "Product",
+            "price": 0,
+            "discounted_price": 0,
+            "image": "",
+            "category": "",
         }
 
-    price = float(getattr(product, "price", 0) or 0)
-    discounted_price = getattr(product, "discounted_price", None)
+    price = getattr(product, "price", 0) or 0
+    discounted_price = (
+        getattr(product, "discounted_price", None)
+        or getattr(product, "discount_price", None)
+        or price
+    )
+
+    image = (
+        getattr(product, "image_url", None)
+        or getattr(product, "image", None)
+        or ""
+    )
+
+    category = getattr(product, "category", "") or ""
+    if not isinstance(category, str):
+        category = getattr(category, "name", "") or ""
+
+    return {
+        "name": getattr(product, "name", "Product") or "Product",
+        "price": float(price),
+        "discounted_price": float(discounted_price),
+        "image": image,
+        "category": category,
+    }
+
+
+def serialize_cart_item(db: Session, item: CartItem):
+    product_data = get_product_data(db, item.product_id)
 
     return {
         "id": item.id,
-        "cart_item_id": item.id,
         "product_id": item.product_id,
         "quantity": item.quantity,
-        "name": getattr(product, "name", "") or "",
-        "title": getattr(product, "title", "") or "",
-        "price": price,
-        "discountedPrice": (
-            float(discounted_price)
-            if discounted_price is not None
-            else price
-        ),
-        "category": getattr(product, "category", None),
-        "image": getattr(product, "image", None),
+        "name": product_data["name"],
+        "price": product_data["price"],
+        "discounted_price": product_data["discounted_price"],
+        "image": product_data["image"],
+        "category": product_data["category"],
     }
 
 
-def get_user_cart(db: Session, user_id: int):
-    return (
+@router.get("")
+@router.get("/")
+@router.get("")
+def get_cart(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    items = (
         db.query(CartItem)
-        .options(joinedload(CartItem.product))
-        .filter(CartItem.user_id == user_id)
+        .filter(CartItem.user_id == current_user.id)
         .all()
     )
 
-
-@router.get("/")
-def get_cart(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    items = get_user_cart(db, current_user.id)
-
-    return {
-        "items": [serialize_cart_item(item) for item in items]
-    }
+    return {"items": [serialize_cart_item(db, item) for item in items]}
 
 
+@router.post("", status_code=status.HTTP_201_CREATED)
 @router.post("/", status_code=status.HTTP_201_CREATED)
-def add_to_cart(
-    payload: CartCreate,
+@router.post("", status_code=status.HTTP_201_CREATED)
+def add_cart_item(
+    payload: CartItemCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user=Depends(get_current_user),
 ):
     product = (
         db.query(Product)
@@ -98,10 +107,11 @@ def add_to_cart(
     if product is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Product not found",
+            detail="Product not found.",
         )
 
-    item = (
+    # If this product is already in the user's cart, increase its quantity.
+    existing_item = (
         db.query(CartItem)
         .filter(
             CartItem.user_id == current_user.id,
@@ -110,40 +120,36 @@ def add_to_cart(
         .first()
     )
 
-    if item is not None:
-        item.quantity += payload.quantity
-    else:
-        item = CartItem(
-            user_id=current_user.id,
-            product_id=payload.product_id,
-            quantity=payload.quantity,
-        )
-        db.add(item)
+    if existing_item:
+        existing_item.quantity += payload.quantity
+        db.commit()
+        db.refresh(existing_item)
+        return serialize_cart_item(db, existing_item)
 
+    item = CartItem(
+        user_id=current_user.id,
+        product_id=payload.product_id,
+        quantity=payload.quantity,
+    )
+
+    db.add(item)
     db.commit()
     db.refresh(item)
 
-    item = (
-        db.query(CartItem)
-        .options(joinedload(CartItem.product))
-        .filter(CartItem.id == item.id)
-        .first()
-    )
-
-    return serialize_cart_item(item)
+    return serialize_cart_item(db, item)
 
 
-@router.patch("/{item_id}")
+@router.put("/{cart_item_id}")
 def update_cart_item(
-    item_id: int,
-    payload: CartUpdate,
+    cart_item_id: int,
+    payload: CartQuantityUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user=Depends(get_current_user),
 ):
     item = (
         db.query(CartItem)
         .filter(
-            CartItem.id == item_id,
+            CartItem.id == cart_item_id,
             CartItem.user_id == current_user.id,
         )
         .first()
@@ -152,33 +158,29 @@ def update_cart_item(
     if item is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Cart item not found",
+            detail="Cart item not found.",
         )
 
     item.quantity = payload.quantity
     db.commit()
     db.refresh(item)
 
-    item = (
-        db.query(CartItem)
-        .options(joinedload(CartItem.product))
-        .filter(CartItem.id == item_id)
-        .first()
-    )
-
-    return serialize_cart_item(item)
+    return {
+        "message": "Cart quantity updated successfully.",
+        "item": serialize_cart_item(db, item),
+    }
 
 
-@router.delete("/{item_id}")
-def remove_cart_item(
-    item_id: int,
+@router.delete("/{cart_item_id}")
+def delete_cart_item(
+    cart_item_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user=Depends(get_current_user),
 ):
     item = (
         db.query(CartItem)
         .filter(
-            CartItem.id == item_id,
+            CartItem.id == cart_item_id,
             CartItem.user_id == current_user.id,
         )
         .first()
@@ -187,24 +189,23 @@ def remove_cart_item(
     if item is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Cart item not found",
+            detail="Cart item not found.",
         )
 
     db.delete(item)
     db.commit()
 
-    return {"message": "Product removed from cart successfully"}
+    return {"message": "Product removed from cart successfully."}
 
 
+@router.delete("")
 @router.delete("/")
 def clear_cart(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user=Depends(get_current_user),
 ):
     db.query(CartItem).filter(
         CartItem.user_id == current_user.id
     ).delete(synchronize_session=False)
-
     db.commit()
-
-    return {"message": "Cart cleared successfully"}
+    return {"message": "Cart cleared successfully."}

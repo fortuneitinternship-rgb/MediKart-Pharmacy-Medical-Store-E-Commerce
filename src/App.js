@@ -1,7 +1,15 @@
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import {
+  BrowserRouter,
+  Navigate,
+  Routes,
+  Route,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import "./mobile-responsive.css";
+import { isAuthenticated } from "./api/loginApi";
 
 // Layout
 import Navbar from "./components/Navbar/Navbar";
@@ -76,11 +84,23 @@ import EmptyState from "./pages/EmptyState/EmptyState";
 
 function Layout() {
   const location = useLocation();
+  const navigate = useNavigate();
 
-  const hideNavbar =
+  const isPublicRoute =
     location.pathname === "/login" ||
     location.pathname === "/register" ||
     location.pathname === "/forgot-password";
+  const hideNavbar = isPublicRoute;
+
+  if (!isAuthenticated() && !isPublicRoute) {
+    return (
+      <Navigate
+        to="/login"
+        state={{ from: location }}
+        replace
+      />
+    );
+  }
 
   return (
     <>
@@ -93,7 +113,18 @@ function Layout() {
         <Route path="/" element={<Home />} />
 
         {/* Authentication */}
-        <Route path="/login" element={<Login />} />
+        <Route
+          path="/login"
+          element={
+            <Login
+              onLoginSuccess={() =>
+                navigate(location.state?.from || "/", {
+                  replace: true,
+                })
+              }
+            />
+          }
+        />
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/feedback" element={<Feedback />} />

@@ -57,7 +57,7 @@ export const removeWishlistItem = async (productId) => {
 // Move product to cart
 export const moveWishlistItemToCart = async (productId) => {
     const response = await wishlistApi.post(
-        `/api/cart/items`,
+        `/api/cart`,
         {
             product_id: productId,
             quantity: 1,

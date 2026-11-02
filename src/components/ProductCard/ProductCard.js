@@ -3,9 +3,16 @@ import { Link } from "react-router-dom";
 import { toast } from "react-toastify";
 import { FaHeart } from "react-icons/fa";
 import styles from "./ProductCard.module.css";
+import { addProductToCart } from "../../api/cartApi";
+import {
+  getProductImage,
+  handleProductImageError,
+} from "../../utils/productImage";
 
 const ProductCard = ({ product, showWishlist = true }) => {
   const [isWishlisted, setIsWishlisted] = useState(false);
+  const salePrice = Number(product.discount_price ?? product.price ?? 0);
+  const originalPrice = Number(product.originalPrice ?? product.price ?? 0);
 
   useEffect(() => {
     const wishlist =
@@ -17,27 +24,13 @@ const ProductCard = ({ product, showWishlist = true }) => {
   }, [product.id]);
 
   // Add to Cart
-  const handleAddToCart = () => {
-    let cart = JSON.parse(localStorage.getItem("cart")) || [];
-
-    const existingProduct = cart.find(
-      (item) => item.id === product.id
-    );
-
-    if (existingProduct) {
-      existingProduct.quantity += 1;
-    } else {
-      cart.push({
-        ...product,
-        quantity: 1,
-      });
+  const handleAddToCart = async () => {
+    try {
+      await addProductToCart(product);
+      toast.success(`${product.name} added to cart!`);
+    } catch (error) {
+      toast.error(error.message || "Unable to add this product to your cart.");
     }
-
-    localStorage.setItem("cart", JSON.stringify(cart));
-
-    window.dispatchEvent(new Event("cartUpdated"));
-
-    toast.success(`${product.name} added to cart!`);
   };
 
   // Wishlist
@@ -85,30 +78,14 @@ const ProductCard = ({ product, showWishlist = true }) => {
 
       {/* Product Image */}
       <div className={styles.imageContainer}>
-        {(() => {
-          let imgSrc = product.image;
-
-          if (typeof imgSrc === "string" && imgSrc.startsWith("/images/")) {
-            try {
-              imgSrc = require("../../assets/images/" + imgSrc.split("/").pop());
-            } catch (err) {
-              imgSrc = null;
-            }
+        <img
+          src={getProductImage(product.image, product.name, product.category)}
+          alt={product.name}
+          className={styles.image}
+          onError={(event) =>
+            handleProductImageError(event, product.name, product.category)
           }
-
-          const fallback = require("../../assets/images/Mediction.png");
-
-          return (
-            <img
-              src={imgSrc || fallback}
-              alt={product.name}
-              className={styles.image}
-              onError={(e) => {
-                e.target.src = fallback;
-              }}
-            />
-          );
-        })()}
+        />
       </div>
 
       {/* Product Details */}
@@ -117,16 +94,32 @@ const ProductCard = ({ product, showWishlist = true }) => {
           {product.category}
         </span>
 
+        {product.brand && (
+          <span className={styles.brand}>{product.brand}</span>
+        )}
+
         <h3 className={styles.name}>
           {product.name}
         </h3>
 
+        {(product.pack_size || product.packSize) && (
+          <p className={styles.packSize}>
+            Pack: {product.pack_size || product.packSize}
+          </p>
+        )}
+
         <p className={styles.price}>
-          ₹{product.price}
+          ₹{salePrice.toLocaleString("en-IN")}
+          {originalPrice > salePrice && (
+            <del className={styles.originalPrice}>
+              ₹{originalPrice.toLocaleString("en-IN")}
+            </del>
+          )}
         </p>
 
         <p className={styles.rating}>
           ⭐ {product.rating}
+          {product.reviews > 0 && ` (${product.reviews} reviews)`}
         </p>
 
         <div className={styles.buttons}>

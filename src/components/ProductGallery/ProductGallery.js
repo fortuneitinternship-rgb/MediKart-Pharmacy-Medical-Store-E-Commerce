@@ -1,20 +1,18 @@
 import React, { useState } from "react";
 import "./ProductGallery.css";
+import {
+  fallbackProductImage,
+  getProductImage,
+  handleProductImageError,
+} from "../../utils/productImage";
 
-// Import Images
-import product1 from "../../assets/products/product1.png";
-import product2 from "../../assets/products/product2.png";
-import product3 from "../../assets/products/product3.png";
-import product4 from "../../assets/products/product4.png";
-import product5 from "../../assets/products/product5.png";
-import product6 from "../../assets/products/product6.png";
-import product7 from "../../assets/products/product7.png";
-import product8 from "../../assets/products/product8.png";
-
-const defaultImages = [product1, product2, product3, product4, product5, product6, product7, product8];
-
-const ProductGallery = ({ images = [] }) => {
-  const galleryImages = images.length ? images : defaultImages;
+const ProductGallery = ({ images = [], productName, category }) => {
+  const galleryImages = images.length
+    ? images.map((image) => getProductImage(image, productName, category))
+    : [
+        getProductImage(null, productName, category) ||
+          fallbackProductImage,
+      ];
   const [selectedIndex, setSelectedIndex] = useState(0);
   const selectedImage = galleryImages[selectedIndex] || galleryImages[0];
 
@@ -23,8 +21,11 @@ const ProductGallery = ({ images = [] }) => {
       <div className="main-image-container">
         <img
           src={selectedImage}
-          alt="Product"
+          alt={productName || "Product"}
           className="main-image"
+          onError={(event) =>
+            handleProductImageError(event, productName, category)
+          }
         />
       </div>
 
@@ -37,6 +38,9 @@ const ProductGallery = ({ images = [] }) => {
               alt={`Thumbnail ${index}`}
               className={`thumbnail ${selectedIndex === index ? "active" : ""}`}
               onClick={() => setSelectedIndex(index)}
+              onError={(event) =>
+                handleProductImageError(event, productName, category)
+              }
             />
           ))}
         </div>

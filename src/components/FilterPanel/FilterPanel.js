@@ -22,6 +22,19 @@ const FilterPanel = ({
   setSelectedBrand,
 
   brands = [],
+  categories = [
+    { value: "all", label: "All Products" },
+    { value: "medicines", label: "Medicines" },
+    { value: "healthcare", label: "Healthcare" },
+    { value: "vitamins", label: "Vitamins & Supplements" },
+    { value: "personal-care", label: "Personal Care" },
+    { value: "baby-care", label: "Baby Care" },
+    { value: "medical-devices", label: "Medical Devices" },
+    { value: "eye-care", label: "Eye Care" },
+    { value: "hair-care", label: "Hair Care" },
+    { value: "women-care", label: "Women's Health" },
+    { value: "premium-healthcare", label: "Premium Healthcare" },
+  ],
 
   onReset,
 }) => {
@@ -36,53 +49,6 @@ const FilterPanel = ({
 
   const [openBrand, setOpenBrand] =
     useState(true);
-
-  const categories = [
-    {
-      value: "all",
-      label: "All Products",
-    },
-    {
-      value: "medicines",
-      label: "Medicines",
-    },
-    {
-      value: "healthcare",
-      label: "Healthcare",
-    },
-    {
-      value: "vitamins",
-      label: "Vitamins & Supplements",
-    },
-    {
-      value: "personal-care",
-      label: "Personal Care",
-    },
-    {
-      value: "baby-care",
-      label: "Baby Care",
-    },
-    {
-      value: "medical-devices",
-      label: "Medical Devices",
-    },
-    {
-      value: "eye-care",
-      label: "Eye Care",
-    },
-    {
-      value: "hair-care",
-      label: "Hair Care",
-    },
-    {
-      value: "women-care",
-      label: "Women's Health",
-    },
-    {
-      value: "premium-healthcare",
-      label: "Premium Healthcare",
-    },
-  ];
 
   const priceOptions = [
     {

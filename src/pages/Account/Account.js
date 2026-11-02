@@ -23,6 +23,9 @@ import {
 } from "react-icons/fa";
 
 import "./Account.css";
+import { getAccessToken, getCart } from "../../api/cartApi";
+import { getWishlist } from "../../api/wishlistApi";
+import { getOrders } from "../../api/ordersApi";
 
 const Account = () => {
   const navigate = useNavigate();
@@ -46,15 +49,17 @@ const Account = () => {
     window.addEventListener("storage", handleStorage);
     window.addEventListener("cartUpdated", handleStorage);
     window.addEventListener("wishlistUpdated", handleStorage);
+    window.addEventListener("ordersUpdated", handleStorage);
 
     return () => {
       window.removeEventListener("storage", handleStorage);
       window.removeEventListener("cartUpdated", handleStorage);
       window.removeEventListener("wishlistUpdated", handleStorage);
+      window.removeEventListener("ordersUpdated", handleStorage);
     };
   }, []);
 
-  const loadAccountData = () => {
+  const loadAccountData = async () => {
     try {
       const storedUser = localStorage.getItem("user");
 
@@ -67,17 +72,20 @@ const Account = () => {
         });
       }
 
-      const cart = JSON.parse(localStorage.getItem("cart") || "[]");
-      const wishlist = JSON.parse(
-        localStorage.getItem("wishlist") || "[]"
-      );
-      const orders = JSON.parse(
-        localStorage.getItem("orders") || "[]"
-      );
-
-      setCartCount(Array.isArray(cart) ? cart.length : 0);
-      setWishlistCount(Array.isArray(wishlist) ? wishlist.length : 0);
-      setOrdersCount(Array.isArray(orders) ? orders.length : 0);
+      if (getAccessToken()) {
+        const [cart, wishlist, orders] = await Promise.all([
+          getCart(),
+          getWishlist(),
+          getOrders(),
+        ]);
+        setCartCount(cart.reduce((total, item) => total + item.quantity, 0));
+        setWishlistCount(wishlist.items?.length || 0);
+        setOrdersCount(Array.isArray(orders) ? orders.length : 0);
+      } else {
+        setCartCount(0);
+        setWishlistCount(0);
+        setOrdersCount(0);
+      }
     } catch (error) {
       console.error("Error loading account data:", error);
     }

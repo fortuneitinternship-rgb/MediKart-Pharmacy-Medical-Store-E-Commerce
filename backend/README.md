@@ -5,29 +5,29 @@
 From the repository root in PowerShell:
 
 ```powershell
-cd .\medikart\backend
+cd .\medikart
+npm install
+npm run export:catalog
+cd .\backend
 if (!(Test-Path .env)) { Copy-Item .env.example .env }
-# Edit .env: set DATABASE_URL, SECRET_KEY, and SMTP settings.
+# Edit .env if your local MySQL credentials or optional settings differ.
 .\environment\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
+python -m app.scripts.seed_product_catalog
 uvicorn app.main:app --reload
 ```
 
-Run Uvicorn from `medikart\backend`: the same `DATABASE_URL` is loaded by the SQLAlchemy engine and Alembic, and relative SQLite URLs resolve from that directory. The checked-in example uses MySQL; the application default, if no `.env` exists, is `sqlite:///./medikart.db`. Startup creates missing tables with `Base.metadata.create_all()` and adds the supported compatibility columns for existing databases.
+`backend\.env` is required and loaded from the backend folder regardless of the current working directory. There is no implicit SQLite fallback: the backend fails at startup if `DATABASE_URL` is missing. Startup creates missing tables in the configured MySQL database with `Base.metadata.create_all()`. Create the `medikart` database first and grant `medikart_user` permission to create and modify tables.
 
-Examples (replace credentials and choose exactly one database):
+The local MySQL connection in `.env.example` is:
 
 ```dotenv
 DATABASE_URL=mysql+pymysql://medikart_user:your_password@localhost:3306/medikart
 ```
 
-```dotenv
-DATABASE_URL=sqlite:///./medikart.db
-```
+Copy `.env.example` to `.env` before starting the API. `.env` is ignored by Git; do not commit real database credentials. All backend API reads and writes share this `DATABASE_URL`, including users, products, cart, wishlist, addresses, orders, payments, and submissions.
 
-The actual `.env` is private and is not printed or committed. Check that it points to the database you inspect; all backend API requests use this one setting.
-
-Open interactive API docs at http://127.0.0.1:8000/docs. CORS reads comma-separated `FRONTEND_ORIGINS` and allows all methods/headers, including browser `OPTIONS` preflights. The defaults include React development ports 3000 and 5173.
+Open interactive API docs at http://127.0.0.1:8000/docs. CORS reads comma-separated `FRONTEND_ORIGINS` and allows all methods/headers, including browser `OPTIONS` preflights. The defaults include Create React App ports 3000 and 3001, plus Vite port 5173, on both `localhost` and `127.0.0.1`.
 
 ## Frontend
 
@@ -48,11 +48,11 @@ Frontend paths below are relative to `medikart\src`.
 
 | Method and endpoint | Frontend caller |
 |---|---|
-| `POST /api/auth/register` | `components/Register/Register.js` via `api/authApi.js` |
-| `POST /api/auth/login`, `GET /api/auth/me` | `components/Login/Login.js` via `api/authApi.js` |
-| `POST /api/auth/forgot-password`, `/api/auth/resend-otp`, `/api/auth/verify-otp`, `/api/auth/reset-password` | `components/ForgotPassword/ForgotPassword.js` via `api/authApi.js` |
+| `POST /api/auth/register` | `components/Register/Register.js` via `api/loginApi.js` |
+| `POST /api/auth/login`, `GET /api/auth/me` | `components/Login/Login.js` via `api/loginApi.js` |
+| `POST /api/auth/forgot-password`, `/api/auth/resend-otp`, `/api/auth/verify-otp`, `/api/auth/reset-password` | `components/ForgotPassword/ForgotPassword.js` via `api/loginApi.js` |
 | `POST /api/auth/send-otp` | No current frontend caller |
-| `GET/PUT /api/users/me` | `pages/Profile/Profile.js` via `api/authApi.js` |
+| `GET/PUT /api/users/me` | `pages/Profile/Profile.js` via `api/loginApi.js` |
 | `GET/POST /api/addresses`, `PUT/DELETE /api/addresses/{id}` | `pages/Addresses/Addresses.js` via `api/addressApi.js` |
 | `POST /api/orders`, `GET /api/orders`, `GET /api/orders/{order_id}`, `PATCH /api/orders/{order_id}/cancel`, `GET /api/orders/{order_id}/track` | Checkout saves the address and order before clearing the local cart; order list/history/tracking read from the API via `api/ordersApi.js` |
 | `GET /api/products`, `GET /api/products/{id}` | `pages/ProductListingPage.js`, `pages/ProductDetails/ProductDetails.js` |
@@ -68,7 +68,20 @@ Frontend paths below are relative to `medikart\src`.
 | `GET/POST/DELETE /api/health-records` | `pages/HealthRecords/HealthRecords.js` |
 | `GET/POST /api/prescriptions` | `pages/UploadPrescription/UploadPrescription.js`; file bytes and metadata are stored in the configured database |
 
-The shared `services/api.js` client uses `REACT_APP_API_URL` (default `http://127.0.0.1:8000`) and attaches the signed-in user's bearer token. The cart and wishlist remain browser-local because there are no cart/wishlist endpoints. Checkout records a pending payment with the order; `/api/payments/process` is not connected to a payment provider and is not proof of a real charge. Saved card metadata includes only the last four digits and expiry; do not deploy card entry without HTTPS, a compliant card-data environment, and provider-hosted/tokenized fields. All backend-created tables use the configured `DATABASE_URL`; copy `.env.example` and set `DATABASE_URL` to your MySQL connection before starting the API if MySQL is the target.
+The shared `services/api.js` client uses `REACT_APP_API_URL` (default `http://127.0.0.1:8000`) and attaches the signed-in user's bearer token. Cart and wishlist API endpoints persist authenticated users' records in the configured database. Checkout records a pending payment with the order; `/api/payments/process` is not connected to a payment provider and is not proof of a real charge. Saved card metadata includes only the last four digits and expiry; do not deploy card entry without HTTPS, a compliant card-data environment, and provider-hosted/tokenized fields.
+
+## Refresh the Shop catalog
+
+The source catalog contains 217 products in 10 categories. Repeat these commands after changing the frontend catalog, using the same database configured by `DATABASE_URL`:
+
+```powershell
+cd .\medikart
+npm run export:catalog
+cd .\backend
+.\environment\Scripts\python.exe -m app.scripts.seed_product_catalog
+```
+
+The export is written to `backend\data\product_catalog.json`. The sync creates missing categories and products, fills only missing catalog details on existing products, and replaces missing or promotional-banner product images with the matching catalog image path. Existing product pricing and other non-empty product details are preserved. The sync also adds the catalog detail columns to an existing `products` table and removes a legacy name-only unique index so the same product name can exist in distinct categories. Run it again after changing the frontend catalog; it is safe to repeat. The Shop then loads all active products and categories from `GET /api/products`; its “Load More Products” button reveals further results.
 
 After registering, make an administrator in the configured database before using Product Inventory:
 

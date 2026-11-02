@@ -10,12 +10,17 @@ import "@testing-library/jest-dom";
 import Shop from "./Shop";
 import { useParams } from "react-router-dom";
 import { toast } from "react-toastify";
+import { getProducts } from "../../api/productApi";
 
 // ---------------------------------------------------------
 // MOCK ROUTER
 // ---------------------------------------------------------
 jest.mock("react-router-dom", () => ({
     useParams: jest.fn(),
+}));
+
+jest.mock("../../api/productApi", () => ({
+    getProducts: jest.fn(),
 }));
 
 // ---------------------------------------------------------
@@ -153,6 +158,9 @@ jest.mock(
         return function MockFilterPanel(props) {
             return (
                 <div data-testid="filter-panel">
+                    <div data-testid="category-options">
+                        {props.categories.map((category) => category.label).join("|")}
+                    </div>
 
                     <button
                         type="button"
@@ -223,6 +231,7 @@ beforeEach(() => {
     jest.useFakeTimers();
 
     useParams.mockReturnValue({});
+    getProducts.mockResolvedValue(mockProducts);
 });
 
 afterEach(() => {
@@ -340,6 +349,29 @@ describe("Shop Component", () => {
             expect(
                 screen.getByText(/\d+ Products/)
             ).toBeInTheDocument();
+        });
+    });
+
+    test("includes API categories that are not in the default category list", async () => {
+        getProducts.mockResolvedValue([
+            ...mockProducts,
+            {
+                id: 5,
+                name: "New Clinic Product",
+                category: "New Clinic",
+                price: 250,
+                rating: 4.2,
+            },
+        ]);
+
+        renderShop();
+        jest.advanceTimersByTime(400);
+
+        await waitFor(() => {
+            expect(screen.getByTestId("category-options")).toHaveTextContent(
+                "New Clinic"
+            );
+            expect(screen.getAllByTestId("product-card")).toHaveLength(5);
         });
     });
 

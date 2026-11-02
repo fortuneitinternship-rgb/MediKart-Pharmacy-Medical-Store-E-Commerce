@@ -2,13 +2,24 @@ import React from "react";
 import {FaPlus,FaMinus,FaTrash,FaStar,} from "react-icons/fa";
 
 import styles from "./CartItem.module.css";
+import {
+  getProductImage,
+  handleProductImageError,
+} from "../../utils/productImage";
 
 const CartItem = ({ item, onIncrease, onDecrease, onRemove,}) => {
   return (
     <div className={styles.card}>
       {/* Product Image */}
       <div className={styles.imageBox}>
-        <img src={item.image} alt={item.name} className={styles.image} />
+        <img
+          src={getProductImage(item.image, item.name, item.category)}
+          alt={item.name}
+          className={styles.image}
+          onError={(event) =>
+            handleProductImageError(event, item.name, item.category)
+          }
+        />
       </div>
 
       {/* Product Details */}

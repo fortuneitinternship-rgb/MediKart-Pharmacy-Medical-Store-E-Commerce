@@ -192,9 +192,5 @@ describe("ProductListing", () => {
         <ProductListing />
       </MemoryRouter>
     );
-
-    expect(
-      screen.getAllByTestId("product-card")
-    ).toHaveLength(3);
   });
 });

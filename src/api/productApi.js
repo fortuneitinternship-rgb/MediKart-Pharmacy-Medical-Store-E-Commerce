@@ -1,5 +1,9 @@
 import api from "../services/api";
 
+export const getProducts = async () => {
+  const response = await api.get("/api/products");
+  return response.data;
+};
 
 export const getFeaturedProducts = async () => {
   const response = await api.get("/api/products/featured");

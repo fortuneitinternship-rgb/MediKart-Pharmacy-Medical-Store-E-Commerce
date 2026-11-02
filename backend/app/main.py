@@ -1,10 +1,8 @@
 
 # backend/app/main.py
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import text
-from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import settings
 from app.database.database import Base, engine
@@ -54,15 +52,6 @@ frontend_origins = [
     if origin.strip()
 ]
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=frontend_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
 # ============================================================
 # DATABASE INITIALIZATION
 # ============================================================
@@ -111,19 +100,17 @@ def root():
 
 @app.get("/health", tags=["Health"])
 def health():
-    """Check API and database connectivity; useful for diagnosing DB issues."""
-    try:
-        with engine.connect() as connection:
-            connection.execute(text("SELECT 1"))
-    except SQLAlchemyError as exc:
-        # Keep credentials/connection URL out of the response.
-        raise HTTPException(
-            status_code=503,
-            detail="API is running, but the database connection failed. Check backend/.env DATABASE_URL and database availability.",
-        ) from exc
     return {
         "status": "healthy",
-        "database": "connected",
-        "message": "MEDIKART API and database are working correctly",
-        "docs": "/docs",
+        "message": "MEDIKART API is working correctly",
     }
+
+
+# Keep CORS outside FastAPI so it also decorates unhandled 500 responses.
+app = CORSMiddleware(
+    app=app,
+    allow_origins=frontend_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)

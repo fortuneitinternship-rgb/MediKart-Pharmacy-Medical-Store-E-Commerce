@@ -1,278 +1,402 @@
-
 import React from "react";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import "@testing-library/jest-dom";
 import { MemoryRouter } from "react-router-dom";
 
 import Wishlist from "./Wishlist";
 
-import {
-  getWishlist,
-  removeWishlistItem,
-  moveWishlistItemToCart,
-} from "../../api/wishlistApi";
-
-jest.mock("../../api/wishlistApi", () => ({
-  getWishlist: jest.fn(),
-  removeWishlistItem: jest.fn(),
-  moveWishlistItemToCart: jest.fn(),
-}));
-
+// Mock WishlistItem
 jest.mock("../../components/WishlistItem/WishlistItem", () => {
-  return function MockWishlistItem({
-    item,
-    onMoveToCart,
-    onRemove,
-    disabled,
-  }) {
+  return function MockWishlistItem({ item, onMoveToCart, onRemove }) {
     return (
       <div data-testid={`wishlist-item-${item.id}`}>
-        <span>{item.name || item.title || `Product ${item.id}`}</span>
+        <span>{item.name}</span>
 
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => onRemove(item.id)}
-        >
-          Remove {item.id}
+        <button onClick={() => onMoveToCart(item.id)}>
+          Move to Cart
         </button>
 
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => onMoveToCart(item.id)}
-        >
-          Move to Cart {item.id}
+        <button onClick={() => onRemove(item.id)}>
+          Remove
         </button>
       </div>
     );
   };
 });
 
+// Mock EmptyState
 jest.mock("../../components/EmptyState/EmptyState", () => {
-  return function MockEmptyState({ title, description, buttonText }) {
+  return function MockEmptyState({
+    title,
+    description,
+    buttonText,
+    buttonLink,
+  }) {
     return (
       <div data-testid="empty-state">
         <h2>{title}</h2>
         <p>{description}</p>
-        <button type="button">{buttonText}</button>
+
+        <a href={buttonLink}>{buttonText}</a>
       </div>
     );
   };
 });
 
-const mockWishlist = [
-  { id: 1, name: "Paracetamol" },
-  { id: 2, name: "Vitamin C" },
-];
-
-const renderWishlist = () =>
-  render(
-    <MemoryRouter>
-      <Wishlist />
-    </MemoryRouter>
-  );
+// Mock image
+jest.mock("../../assets/empty-wishlist.png", () => "empty-wishlist.png");
 
 describe("Wishlist Component", () => {
   beforeEach(() => {
+    localStorage.clear();
+
+    window.dispatchEvent = jest.fn();
+  });
+
+  afterEach(() => {
     jest.clearAllMocks();
-
-    getWishlist.mockResolvedValue(mockWishlist);
-    removeWishlistItem.mockResolvedValue({});
-    moveWishlistItemToCart.mockResolvedValue({});
   });
 
-  test("shows loading message initially", () => {
-    getWishlist.mockReturnValue(new Promise(() => { }));
+  test("renders empty wishlist state when wishlist is empty", async () => {
+    localStorage.setItem("wishlist", JSON.stringify([]));
 
-    renderWishlist();
-
-    expect(
-      screen.getByText("Loading your wishlist...")
-    ).toBeInTheDocument();
-  });
-
-  test("loads and displays wishlist products", async () => {
-    renderWishlist();
-
-    expect(
-      await screen.findByText("❤️ My Wishlist")
-    ).toBeInTheDocument();
-
-    expect(screen.getByText("Paracetamol")).toBeInTheDocument();
-    expect(screen.getByText("Vitamin C")).toBeInTheDocument();
-
-    expect(getWishlist).toHaveBeenCalledTimes(1);
-  });
-
-  test("supports an API response containing an items array", async () => {
-    getWishlist.mockResolvedValue({ items: mockWishlist });
-
-    renderWishlist();
-
-    expect(await screen.findByText("Paracetamol")).toBeInTheDocument();
-    expect(screen.getByText("Vitamin C")).toBeInTheDocument();
-  });
-
-  test("supports an API response containing a wishlist array", async () => {
-    getWishlist.mockResolvedValue({ wishlist: mockWishlist });
-
-    renderWishlist();
-
-    expect(await screen.findByText("Paracetamol")).toBeInTheDocument();
-  });
-
-  test("shows empty state when wishlist has no products", async () => {
-    getWishlist.mockResolvedValue([]);
-
-    renderWishlist();
-
-    expect(await screen.findByTestId("empty-state")).toBeInTheDocument();
-    expect(
-      screen.getByText("Your Wishlist is Empty")
-    ).toBeInTheDocument();
-  });
-
-  test("removes a product after the API succeeds", async () => {
-    renderWishlist();
-
-    expect(await screen.findByText("Paracetamol")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Remove 1" }));
-
-    await waitFor(() => {
-      expect(removeWishlistItem).toHaveBeenCalledWith(1);
-      expect(
-        screen.queryByTestId("wishlist-item-1")
-      ).not.toBeInTheDocument();
-    });
-
-    expect(screen.getByText("Vitamin C")).toBeInTheDocument();
-  });
-
-  test("shows an error if removing a product fails", async () => {
-    removeWishlistItem.mockRejectedValue({
-      response: {
-        data: { detail: "Failed to remove product" },
-      },
-    });
-
-    renderWishlist();
-
-    await screen.findByText("Paracetamol");
-
-    fireEvent.click(screen.getByRole("button", { name: "Remove 1" }));
-
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Failed to remove product"
-    );
-
-    expect(
-      screen.getByTestId("wishlist-item-1")
-    ).toBeInTheDocument();
-  });
-
-  test("moves a product to cart and removes it from wishlist", async () => {
-    renderWishlist();
-
-    await screen.findByText("Paracetamol");
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "Move to Cart 1" })
+    render(
+      <MemoryRouter>
+        <Wishlist />
+      </MemoryRouter>
     );
 
     await waitFor(() => {
-      expect(moveWishlistItemToCart).toHaveBeenCalledWith(1);
-      expect(removeWishlistItem).toHaveBeenCalledWith(1);
       expect(
-        screen.queryByTestId("wishlist-item-1")
+        screen.getByText("Your Wishlist is Empty")
+      ).toBeInTheDocument();
+    });
+
+    expect(
+      screen.getByText("Save your favourite products here.")
+    ).toBeInTheDocument();
+
+    expect(
+      screen.getByText("Continue Shopping")
+    ).toBeInTheDocument();
+  });
+
+  test("renders empty wishlist when localStorage has no wishlist", async () => {
+    localStorage.removeItem("wishlist");
+
+    render(
+      <MemoryRouter>
+        <Wishlist />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Your Wishlist is Empty")
+      ).toBeInTheDocument();
+    });
+  });
+
+  test("renders wishlist items", async () => {
+    const wishlist = [
+      {
+        id: 1,
+        name: "Test Product",
+      },
+      {
+        id: 2,
+        name: "Sample Product",
+      },
+    ];
+
+    localStorage.setItem("wishlist", JSON.stringify(wishlist));
+
+    render(
+      <MemoryRouter>
+        <Wishlist />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("❤️ My Wishlist")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Test Product")).toBeInTheDocument();
+    expect(screen.getByText("Sample Product")).toBeInTheDocument();
+  });
+
+  test("renders wishlist title", async () => {
+    const wishlist = [
+      {
+        id: 1,
+        name: "Test Product",
+      },
+    ];
+
+    localStorage.setItem("wishlist", JSON.stringify(wishlist));
+
+    render(
+      <MemoryRouter>
+        <Wishlist />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("❤️ My Wishlist")
+      ).toBeInTheDocument();
+    });
+  });
+
+  test("removes wishlist item", async () => {
+    const wishlist = [
+      {
+        id: 1,
+        name: "Test Product",
+      },
+      {
+        id: 2,
+        name: "Another Product",
+      },
+    ];
+
+    localStorage.setItem("wishlist", JSON.stringify(wishlist));
+
+    render(
+      <MemoryRouter>
+        <Wishlist />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Test Product")).toBeInTheDocument();
+    });
+
+    fireEvent.click(
+      screen.getAllByRole("button", {
+        name: "Remove",
+      })[0]
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.queryByText("Test Product")
       ).not.toBeInTheDocument();
     });
 
-    expect(screen.getByText("Vitamin C")).toBeInTheDocument();
+    expect(screen.getByText("Another Product")).toBeInTheDocument();
+
+    const savedWishlist = JSON.parse(
+      localStorage.getItem("wishlist")
+    );
+
+    expect(savedWishlist).toHaveLength(1);
+    expect(savedWishlist[0].id).toBe(2);
   });
 
-  test("keeps product in wishlist if moving to cart fails", async () => {
-    moveWishlistItemToCart.mockRejectedValue({
-      response: {
-        data: { detail: "Unable to add product to cart" },
+  test("dispatches wishlistUpdated event when item is removed", async () => {
+    const wishlist = [
+      {
+        id: 1,
+        name: "Test Product",
       },
+    ];
+
+    localStorage.setItem("wishlist", JSON.stringify(wishlist));
+
+    render(
+      <MemoryRouter>
+        <Wishlist />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Test Product")).toBeInTheDocument();
     });
 
-    renderWishlist();
-
-    await screen.findByText("Paracetamol");
-
     fireEvent.click(
-      screen.getByRole("button", { name: "Move to Cart 1" })
-    );
-
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Unable to add product to cart"
-    );
-
-    expect(
-      screen.getByTestId("wishlist-item-1")
-    ).toBeInTheDocument();
-
-    expect(removeWishlistItem).not.toHaveBeenCalled();
-  });
-
-  test("shows an error if removing from wishlist fails after moving to cart", async () => {
-    removeWishlistItem.mockRejectedValue({
-      response: {
-        data: { detail: "Could not remove wishlist item" },
-      },
-    });
-
-    renderWishlist();
-
-    await screen.findByText("Paracetamol");
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "Move to Cart 1" })
-    );
-
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Could not remove wishlist item"
-    );
-
-    expect(moveWishlistItemToCart).toHaveBeenCalledWith(1);
-
-    // The component only removes the item locally after both API calls succeed.
-    expect(
-      screen.getByTestId("wishlist-item-1")
-    ).toBeInTheDocument();
-  });
-
-  test("retries loading wishlist after an error", async () => {
-    getWishlist
-      .mockRejectedValueOnce({
-        response: {
-          data: { detail: "Network error" },
-        },
+      screen.getByRole("button", {
+        name: "Remove",
       })
-      .mockResolvedValueOnce(mockWishlist);
-
-    renderWishlist();
-
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Network error"
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
-
-    expect(await screen.findByText("Paracetamol")).toBeInTheDocument();
-
-    expect(getWishlist).toHaveBeenCalledTimes(2);
+    expect(window.dispatchEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "wishlistUpdated",
+      })
+    );
   });
 
-  test("shows a fallback message when the API fails without a detail", async () => {
-    getWishlist.mockRejectedValue(new Error("Network error"));
+  test("moves wishlist item to cart", async () => {
+    const wishlist = [
+      {
+        id: 1,
+        name: "Test Product",
+      },
+    ];
 
-    renderWishlist();
+    localStorage.setItem("wishlist", JSON.stringify(wishlist));
+    localStorage.setItem("cart", JSON.stringify([]));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Unable to load wishlist. Please log in and try again."
+    render(
+      <MemoryRouter>
+        <Wishlist />
+      </MemoryRouter>
     );
+
+    await waitFor(() => {
+      expect(screen.getByText("Test Product")).toBeInTheDocument();
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Move to Cart",
+      })
+    );
+
+    const cart = JSON.parse(
+      localStorage.getItem("cart")
+    );
+
+    expect(cart).toHaveLength(1);
+    expect(cart[0].id).toBe(1);
+    expect(cart[0].quantity).toBe(1);
+  });
+
+  test("removes item from wishlist after moving to cart", async () => {
+    const wishlist = [
+      {
+        id: 1,
+        name: "Test Product",
+      },
+    ];
+
+    localStorage.setItem("wishlist", JSON.stringify(wishlist));
+    localStorage.setItem("cart", JSON.stringify([]));
+
+    render(
+      <MemoryRouter>
+        <Wishlist />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Test Product")).toBeInTheDocument();
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Move to Cart",
+      })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.queryByText("Test Product")
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  test("increases quantity when product already exists in cart", async () => {
+    const wishlist = [
+      {
+        id: 1,
+        name: "Test Product",
+      },
+    ];
+
+    const cart = [
+      {
+        id: 1,
+        name: "Test Product",
+        quantity: 2,
+      },
+    ];
+
+    localStorage.setItem("wishlist", JSON.stringify(wishlist));
+    localStorage.setItem("cart", JSON.stringify(cart));
+
+    render(
+      <MemoryRouter>
+        <Wishlist />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Test Product")).toBeInTheDocument();
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Move to Cart",
+      })
+    );
+
+    const updatedCart = JSON.parse(
+      localStorage.getItem("cart")
+    );
+
+    expect(updatedCart[0].quantity).toBe(3);
+  });
+
+  test("dispatches cartUpdated event when moving item to cart", async () => {
+    const wishlist = [
+      {
+        id: 1,
+        name: "Test Product",
+      },
+    ];
+
+    localStorage.setItem("wishlist", JSON.stringify(wishlist));
+    localStorage.setItem("cart", JSON.stringify([]));
+
+    render(
+      <MemoryRouter>
+        <Wishlist />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Test Product")).toBeInTheDocument();
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Move to Cart",
+      })
+    );
+
+    expect(window.dispatchEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "cartUpdated",
+      })
+    );
+  });
+
+  test("renders Continue Shopping link", async () => {
+    const wishlist = [
+      {
+        id: 1,
+        name: "Test Product",
+      },
+    ];
+
+    localStorage.setItem("wishlist", JSON.stringify(wishlist));
+
+    render(
+      <MemoryRouter>
+        <Wishlist />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Continue Shopping")
+      ).toBeInTheDocument();
+    });
+
+    const link = screen.getByText("Continue Shopping");
+
+    expect(link).toHaveAttribute("href", "/shop");
   });
 });

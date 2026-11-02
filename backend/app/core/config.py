@@ -1,10 +1,13 @@
+from pathlib import Path
+
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
 
-    DATABASE_URL: str = "sqlite:///./medikart.db"
+        # Database
+    DATABASE_URL: str
 
     SECRET_KEY: str = "change-this-secret-key-before-deploying"
 
@@ -33,7 +36,7 @@ class Settings(BaseSettings):
     OTP_RESEND_COOLDOWN_SECONDS: int = 60
     
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=Path(__file__).resolve().parents[2] / ".env",
         extra="ignore"
     )
 

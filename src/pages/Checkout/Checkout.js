@@ -1,24 +1,23 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
+import { FaCheck, FaMapMarkerAlt, FaCreditCard, FaUniversity, FaMoneyBillWave, FaTruck, FaBolt, FaClock, FaPlus, FaMinus, FaLocationArrow, FaEdit, FaMap, } from "react-icons/fa";
 import {
-    FaCheck,
-    FaMapMarkerAlt,
-    FaCreditCard,
-    FaUniversity,
-    FaMoneyBillWave,
-    FaTruck,
-    FaBolt,
-    FaClock,
-    FaPlus,
-    FaMinus,
-    FaLocationArrow,
-    FaEdit,
-    FaMap,
-} from "react-icons/fa";
+    getCheckoutCart,
+    saveCheckoutAddress,
+    createCheckoutOrder,
+} from "../../api/checkoutApi";
+import {
+    removeCartItem,
+    updateCartItem,
+} from "../../api/cartApi";
+import { getApiErrorMessage } from "../../services/api";
+import {
+    getProductImage,
+    handleProductImageError,
+} from "../../utils/productImage";
 
 import "./Checkout.css";
-import { createOrder } from "../../api/checkoutApi";
 
 const Checkout = () => {
     const navigate = useNavigate();
@@ -28,11 +27,14 @@ const Checkout = () => {
 
     const [step, setStep] = useState(1);
     const [cartItems, setCartItems] = useState([]);
+    const [cartLoading, setCartLoading] = useState(true);
+    const [cartLoadError, setCartLoadError] = useState("");
+    const [cartLoadStatus, setCartLoadStatus] = useState(null);
+    const [cartLoadAttempt, setCartLoadAttempt] = useState(0);
     const [placingOrder, setPlacingOrder] = useState(false);
-    const [orderError, setOrderError] = useState("");
     const visibleCartItems = routeProductId
         ? cartItems.filter(
-            (item) => String(item.id) === String(routeProductId)
+            (item) => String(item.product_id) === String(routeProductId)
         )
         : cartItems;
 
@@ -64,19 +66,50 @@ const Checkout = () => {
     // ======================= LOAD CART =======================
 
     useEffect(() => {
-        try {
-            const storedCart = JSON.parse(
-                localStorage.getItem("cart") || "[]"
-            );
+        let cancelled = false;
 
-            setCartItems(
-                Array.isArray(storedCart) ? storedCart : []
-            );
-        } catch (error) {
-            console.error("Failed to load cart:", error);
-            setCartItems([]);
-        }
-    }, [routeProductId]);
+        const loadCart = async () => {
+            setCartLoading(true);
+            setCartLoadError("");
+            setCartLoadStatus(null);
+
+            try {
+                const data = await getCheckoutCart();
+
+                const items = Array.isArray(data)
+                    ? data
+                    : data.items || data.cart_items || [];
+
+                if (!cancelled) {
+                    setCartItems(items);
+                }
+            } catch (error) {
+                console.error(
+                    "Failed to load checkout cart:",
+                    error.response?.data || error.message
+                );
+                if (!cancelled) {
+                    setCartLoadError(
+                        getApiErrorMessage(
+                            error,
+                            "Your cart could not be loaded. Please try again."
+                        )
+                    );
+                    setCartLoadStatus(error.response?.status ?? null);
+                }
+            } finally {
+                if (!cancelled) {
+                    setCartLoading(false);
+                }
+            }
+        };
+
+        loadCart();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [routeProductId, cartLoadAttempt]);
 
     // ======================= LOAD SAVED ADDRESS =======================
 
@@ -147,41 +180,13 @@ const Checkout = () => {
 
     // ======================= SPECIAL CATEGORY =======================
 
-    const isSpecialCategory = (category) => {
-        if (!category) {
-            return false;
-        }
-
-        const cat = String(category)
-            .toLowerCase()
-            .replace(/[-_]/g, " ");
-
-        return (
-            cat.includes("medical device") ||
-            cat.includes("medicaldevices") ||
-            cat.includes("device") ||
-            cat.includes("premium healthcare") ||
-            cat.includes("premiumhealthcare") ||
-            cat.includes("premium")
-        );
-    };
-
-    // ======================= SPECIAL ITEM =======================
-
-    const hasSpecialItem = visibleCartItems.some((item) =>
-        isSpecialCategory(item.category)
-    );
-
     // ======================= DELIVERY CHARGES =======================
 
     const baseDelivery =
         productTotal >= 499 ? 0 : 10;
 
-    const specialSurcharge =
-        hasSpecialItem ? 50 : 0;
-
     const normalDeliveryCharge =
-        baseDelivery + specialSurcharge;
+        baseDelivery;
 
     // ======================= DELIVERY ELIGIBILITY =======================
 
@@ -201,13 +206,11 @@ const Checkout = () => {
     }
 
     if (deliveryType === "express") {
-        deliveryCharge =
-            49 + specialSurcharge;
+        deliveryCharge = 49;
     }
 
     if (deliveryType === "today") {
-        deliveryCharge =
-            99 + specialSurcharge;
+        deliveryCharge = 99;
     }
 
     // ======================= PLATFORM FEE =======================
@@ -409,66 +412,41 @@ const Checkout = () => {
 
     // ======================= REMOVE ITEM =======================
 
-    const removeItem = (id) => {
-        const updatedCart =
-            cartItems.filter(
-                (item) => item.id !== id
-            );
-
-        setCartItems(updatedCart);
-
-        localStorage.setItem(
-            "cart",
-            JSON.stringify(updatedCart)
-        );
-
-        window.dispatchEvent(
-            new Event("cartUpdated")
-        );
+    const removeItem = async (id) => {
+        try {
+            await removeCartItem(id);
+            setCartItems((items) => items.filter((item) => item.id !== id));
+            window.dispatchEvent(new Event("cartUpdated"));
+        } catch (error) {
+            console.error("Unable to remove checkout item:", error);
+            alert(error.message || "Unable to remove this item.");
+        }
     };
 
     // ======================= UPDATE QUANTITY =======================
 
-    const updateQuantity = (
+    const updateQuantity = async (
         id,
         change
     ) => {
-        const updatedCart =
-            cartItems.map((item) => {
-                if (item.id === id) {
-                    const currentQuantity =
-                        Number(
-                            item.quantity || 1
-                        );
+        const item = cartItems.find((cartItem) => cartItem.id === id);
+        if (!item) return;
 
-                    const newQuantity =
-                        currentQuantity +
-                        change;
+        const quantity = Number(item.quantity || 1) + change;
+        if (quantity < 1) return;
 
-                    if (newQuantity < 1) {
-                        return item;
-                    }
-
-                    return {
-                        ...item,
-                        quantity:
-                            newQuantity,
-                    };
-                }
-
-                return item;
-            });
-
-        setCartItems(updatedCart);
-
-        localStorage.setItem(
-            "cart",
-            JSON.stringify(updatedCart)
-        );
-
-        window.dispatchEvent(
-            new Event("cartUpdated")
-        );
+        try {
+            await updateCartItem(id, quantity);
+            setCartItems((items) =>
+                items.map((cartItem) =>
+                    cartItem.id === id ? { ...cartItem, quantity } : cartItem
+                )
+            );
+            window.dispatchEvent(new Event("cartUpdated"));
+        } catch (error) {
+            console.error("Unable to update checkout quantity:", error);
+            alert(error.message || "Unable to update item quantity.");
+        }
     };
 
     // ======================= ADDRESS CHANGE =======================
@@ -562,25 +540,38 @@ const Checkout = () => {
 
     // ======================= STEP 2 → STEP 3 =======================
 
-    const continueToPayment = () => {
-        if (!validateAddress()) {
-            return;
+    const [addressSaving, setAddressSaving] = useState(false);
+
+    const continueToPayment = async () => {
+        if (!validateAddress()) return;
+
+        setAddressSaving(true);
+
+        try {
+            const savedAddress = {
+                ...address,
+                addressMode,
+                deliveryDistance,
+            };
+
+            await saveCheckoutAddress(savedAddress);
+
+            localStorage.setItem(
+                "deliveryAddress",
+                JSON.stringify(savedAddress)
+            );
+
+            setStep(3);
+        } catch (error) {
+            console.error(
+                "Address save failed:",
+                error.response?.data || error.message
+            );
+
+            alert("Unable to save address. Please try again.");
+        } finally {
+            setAddressSaving(false);
         }
-
-        const addressToSave = {
-            ...address,
-            addressMode,
-            deliveryDistance,
-        };
-
-        localStorage.setItem(
-            "deliveryAddress",
-            JSON.stringify(
-                addressToSave
-            )
-        );
-
-        setStep(3);
     };
 
     // =====================================================
@@ -588,37 +579,25 @@ const Checkout = () => {
     // =====================================================
 
     const placeOrder = async () => {
-        if (placingOrder) return;
-
-        if (!validateAddress()) {
-            setStep(2);
+        if (!paymentMethod || visibleCartItems.length === 0) {
+            alert("Please select a payment method and check your cart.");
             return;
         }
-
-        if (!visibleCartItems.length) {
-            alert("Your cart is empty.");
-            return;
-        }
-
-        setPlacingOrder(true);
-        setOrderError("");
 
         try {
             const orderData = {
                 items: visibleCartItems.map((item) => ({
-                    product_id: Number(
-                        item.product_id ?? item.productId ?? item.id
-                    ),
+                    product_id: Number(item.product_id),
                     quantity: Number(item.quantity || 1),
                 })),
 
                 shipping_address: {
-                    name: address.name.trim(),
-                    phone: address.phone.trim(),
-                    address: address.address.trim(),
-                    city: address.city.trim(),
-                    state: address.state.trim(),
-                    pincode: address.pincode.trim(),
+                    name: address.name,
+                    phone: address.phone,
+                    address: address.address,
+                    city: address.city,
+                    state: address.state,
+                    pincode: address.pincode,
                 },
 
                 payment_method: paymentMethod,
@@ -626,104 +605,86 @@ const Checkout = () => {
                 delivery_distance: deliveryDistance,
             };
 
-            // The backend must validate prices and calculate the final total.
-            const result = await createOrder(orderData);
+            const response = await createCheckoutOrder(orderData);
 
-            const confirmedOrderId =
-                result.order_id ??
-                result.orderId ??
-                result.id;
+            // Adapt these fields to your backend's response schema.
+            const createdOrder = response.order || response;
 
-            if (!confirmedOrderId) {
-                throw new Error(
-                    "The server did not return an order ID."
-                );
+            const generatedOrderId =
+                createdOrder.order_id ||
+                createdOrder.orderId ||
+                createdOrder.id;
+
+            if (!generatedOrderId) {
+                throw new Error("The server did not return an order ID.");
             }
 
-            setOrderId(String(confirmedOrderId));
+            setOrderId(String(generatedOrderId));
 
-            // Keep local order history in sync with the backend response.
-            const newOrder = {
-                ...result,
-                orderId: String(confirmedOrderId),
-                items: visibleCartItems,
-                address,
-                paymentMethod,
-                deliveryType,
-                deliveryDistance,
-                deliveryDistanceLabel: getDistanceLabel(),
-                deliveryTime: getDeliveryTime(),
-                deliveryCharge: result.delivery_charge ?? deliveryCharge,
-                productAmount: result.product_amount ?? productTotal,
-                discount: result.discount ?? discount,
-                platformFee: result.platform_fee ?? platformFee,
-                totalAmount: result.total_amount ?? totalAmount,
-                estimatedDelivery: result.estimated_delivery ?? getDeliveryDate(),
-                status: result.status ?? "Order Confirmed",
-            };
-
-            let existingOrders = [];
-
-            try {
-                const savedOrders = JSON.parse(
-                    localStorage.getItem("orders") || "[]"
-                );
-
-                existingOrders = Array.isArray(savedOrders)
-                    ? savedOrders
-                    : [];
-            } catch {
-                existingOrders = [];
-            }
-
-            existingOrders.unshift(newOrder);
-
-            localStorage.setItem(
-                "orders",
-                JSON.stringify(existingOrders)
-            );
-
-            // Clear the cart only after the backend confirms the order.
-            if (routeProductId) {
-                const storedCart = JSON.parse(
-                    localStorage.getItem("cart") || "[]"
-                );
-
-                const remainingCart = storedCart.filter(
-                    (item) =>
-                        String(item.id) !== String(routeProductId)
-                );
-
-                localStorage.setItem(
-                    "cart",
-                    JSON.stringify(remainingCart)
-                );
-            } else {
-                localStorage.removeItem("cart");
-            }
-
+            // The checkout endpoint persists the order and removes ordered
+            // products from the cart in one database transaction.
             localStorage.removeItem("buyNow");
 
             setCartItems([]);
-            window.dispatchEvent(new Event("cartUpdated"));
+
             window.dispatchEvent(new Event("ordersUpdated"));
+            window.dispatchEvent(new Event("cartUpdated"));
 
             setStep(5);
         } catch (error) {
-            console.error("Order creation failed:", error);
-            setOrderError(
-                error.message || "Unable to place your order. Please try again."
+            console.error(
+                "Order creation failed:",
+                error.response?.data || error.message
             );
 
-            // Return to the payment step so the user can retry.
+            alert(
+                error.response?.data?.detail ||
+                "Unable to place order. Please try again."
+            );
+
             setStep(3);
-        } finally {
-            setPlacingOrder(false);
         }
     };
 
-
     // ======================= EMPTY CART =======================
+
+    if (cartLoading && step !== 5) {
+        return (
+            <div className="checkout-loading" role="status">
+                Loading your checkout cart...
+            </div>
+        );
+    }
+
+    if (cartLoadError && step !== 5) {
+        return (
+            <div className="checkout-error" role="alert">
+                <p>{cartLoadError}</p>
+                <button
+                    type="button"
+                    onClick={() => setCartLoadAttempt((attempt) => attempt + 1)}
+                >
+                    Retry
+                </button>
+                {cartLoadStatus === 401 && (
+                    <button
+                        type="button"
+                        onClick={() =>
+                            navigate("/login", {
+                                state: {
+                                    from: routeProductId
+                                        ? `/checkout/${routeProductId}`
+                                        : "/checkout",
+                                },
+                            })
+                        }
+                    >
+                        Log in
+                    </button>
+                )}
+            </div>
+        );
+    }
 
     if (
         visibleCartItems.length === 0 &&
@@ -996,11 +957,6 @@ const Checkout = () => {
                                     unitPrice *
                                     quantity;
 
-                                const isSpecial =
-                                    isSpecialCategory(
-                                        item.category
-                                    );
-
                                 const productName =
                                     item.name ||
                                     item.title ||
@@ -1072,33 +1028,26 @@ const Checkout = () => {
                                                 }}
                                             >
 
-                                                {item.image ? (
-                                                    <img
-                                                        src={
-                                                            item.image
-                                                        }
-                                                        alt={
-                                                            productName
-                                                        }
-                                                        style={{
-                                                            width:
-                                                                "100%",
-                                                            height:
-                                                                "100%",
-                                                            objectFit:
-                                                                "contain",
-                                                        }}
-                                                    />
-                                                ) : (
-                                                    <span
-                                                        style={{
-                                                            fontSize:
-                                                                "24px",
-                                                        }}
-                                                    >
-                                                        💊
-                                                    </span>
-                                                )}
+                                                <img
+                                                    src={getProductImage(
+                                                        item.image,
+                                                        productName,
+                                                        item.category
+                                                    )}
+                                                    alt={productName}
+                                                    onError={(event) =>
+                                                        handleProductImageError(
+                                                            event,
+                                                            productName,
+                                                            item.category
+                                                        )
+                                                    }
+                                                    style={{
+                                                        width: "100%",
+                                                        height: "100%",
+                                                        objectFit: "contain",
+                                                    }}
+                                                />
 
                                             </div>
 
@@ -1139,27 +1088,6 @@ const Checkout = () => {
                                                             productName
                                                         }
                                                     </h3>
-
-                                                    {isSpecial && (
-                                                        <span
-                                                            style={{
-                                                                fontSize:
-                                                                    "11px",
-                                                                background:
-                                                                    "#fff3cd",
-                                                                color:
-                                                                    "#856404",
-                                                                fontWeight:
-                                                                    "700",
-                                                                padding:
-                                                                    "2px 8px",
-                                                                borderRadius:
-                                                                    "10px",
-                                                            }}
-                                                        >
-                                                            Special Care
-                                                        </span>
-                                                    )}
 
                                                 </div>
 
@@ -1524,33 +1452,6 @@ const Checkout = () => {
                                     : `₹${normalDeliveryCharge}`}
                             </strong>
                         </div>
-
-                        {hasSpecialItem && (
-                            <div
-                                style={{
-                                    fontSize:
-                                        "12px",
-                                    color:
-                                        "#856404",
-                                    background:
-                                        "#fff3cd",
-                                    padding:
-                                        "6px 10px",
-                                    borderRadius:
-                                        "6px",
-                                    marginBottom:
-                                        "10px",
-                                }}
-                            >
-                                ℹ️ Includes ₹50
-                                special handling
-                                for Medical
-                                Devices /
-                                Premium
-                                Healthcare
-                                items.
-                            </div>
-                        )}
 
                         <div
                             style={{
@@ -2528,12 +2429,10 @@ const Checkout = () => {
 
                         <button
                             className="continue-btn"
-                            onClick={
-                                continueToPayment
-                            }
+                            disabled={addressSaving}
+                            onClick={continueToPayment}
                         >
-                            Continue to
-                            Payment
+                            {addressSaving ? "Saving Address..." : "Continue to Payment"}
                         </button>
 
                     </div>
@@ -2892,17 +2791,22 @@ const Checkout = () => {
                         <button
                             className="place-order-btn"
                             data-testid="place-order"
-                            onClick={placeOrder}
                             disabled={placingOrder}
+                            onClick={async () => {
+                                if (placingOrder) return;
+
+                                setPlacingOrder(true);
+                                setStep(4);
+
+                                try {
+                                    await placeOrder();
+                                } finally {
+                                    setPlacingOrder(false);
+                                }
+                            }}
                         >
                             {placingOrder ? "Placing Order..." : "Place Order"}
                         </button>
-
-                        {orderError && (
-                            <p role="alert" className="checkout-error">
-                                {orderError}
-                            </p>
-                        )}
 
                     </div>
 

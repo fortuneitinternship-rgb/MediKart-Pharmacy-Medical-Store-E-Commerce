@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { FaSearch, FaTimes } from "react-icons/fa";
 import ProductCard from "../ProductCard/ProductCard";
-import productsData from "../../data/products";
+import { getProducts } from "../../api/productApi";
 import SortDropdown from "../SortDropdown/SortDropdown";
 import styles from "./ProductListing.module.css";
 
@@ -10,12 +10,16 @@ const ProductListing = ({ sortBy = "", setSortBy = () => { } }) => {
   const [products, setProducts] = useState([]);
   const [visible, setVisible] = useState(4);
   const [searchTerm, setSearchTerm] = useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    setTimeout(() => {
-      setProducts(productsData);
-      setLoading(false);
-    }, 1200);
+    getProducts()
+      .then(setProducts)
+      .catch((loadError) => {
+        console.error("Unable to load products:", loadError);
+        setError("Products could not be loaded from the database.");
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   // Filter products by name or category
@@ -65,7 +69,7 @@ const ProductListing = ({ sortBy = "", setSortBy = () => { } }) => {
   if (!products.length) {
     return (
       <div className={styles.empty}>
-        No Products Available
+        {error || "No Products Available"}
       </div>
     );
   }
@@ -115,9 +119,6 @@ const ProductListing = ({ sortBy = "", setSortBy = () => { } }) => {
                 <ProductCard
                   key={product.id}
                   product={product}
-                  onAddToCart={(p) =>
-                    console.log("Add to cart", p.id)
-                  }
                 />
               ))}
           </div>

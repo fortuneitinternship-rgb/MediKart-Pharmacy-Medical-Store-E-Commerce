@@ -1,126 +1,34 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "react-toastify";
 import "./TrendingProducts.css";
 
-import cottonRoll from "../assets/healthcare/cotton-roll.png";
-import amoxycillin from "../assets/medicines/amoxycillin.png";
-import fishOil from "../assets/vitamins/fish-oil.png";
-import premium14 from "../assets/premium/premium14.png";
-
-const trendingProducts = [
-  {
-    id: 253,
-    name: "Cotton Roll",
-    brand: "Johnson's",
-    category: "Healthcare",
-    originalPrice: 90,
-    price: 70,
-    rating: 4.8,
-    reviews: 760,
-    discount: 22,
-    image: cottonRoll,
-    packSize: "100g",
-    expiry: "36 Months",
-    delivery: "2-3 Business Days",
-    returnPolicy: "7 Days Return Eligible",
-    stock: true,
-    description: "Soft and absorbent cotton roll suitable for wound dressing and personal care.",
-  },
-  {
-    id: 354,
-    name: "Amoxycillin 500mg",
-    brand: "Mankind",
-    category: "Medicines",
-    originalPrice: 120,
-    price: 95,
-    rating: 4.5,
-    reviews: 860,
-    discount: 21,
-    image: amoxycillin,
-    packSize: "10 Capsules",
-    expiry: "24 Months",
-    delivery: "2-3 Business Days",
-    returnPolicy: "7 Days Return Eligible",
-    stock: true,
-    description:
-      "Amoxycillin 500mg is an antibiotic used to treat bacterial infections.",
-  },
-  {
-    id: 16,
-    name: "Omega-3 Fish Oil",
-    brand: "HK Vitals",
-    category: "Vitamins",
-    price: 699,
-    originalPrice: 899,
-    discount: 22,
-    rating: 4.8,
-    reviews: 2850,
-    image: fishOil,
-    packSize: "60 Capsules",
-    expiry: "24 Months",
-    stock: 32,
-    description:
-      "Omega-3 fish oil dietary supplement.",
-  },
-  {
-      id: 2014,
-      name: "Johnson's Baby Premium Care Kit",
-      brand: "Johnson & Johnson",
-      category: "Premium Healthcare",
-      price: 250,
-      originalPrice: 325,
-      discount: 23,
-      rating: 4.9,
-      reviews: 1540,
-      image: premium14,
-      packSize: "Baby Care Kit",
-      expiry: "24 Months",
-      stock: 38,
-      description:
-        "A baby care kit containing gentle everyday care essentials suitable for baby's daily hygiene routine.",
-    },
-];
+import { addProductToCart } from "../api/cartApi";
+import { getTrendingProducts } from "../api/productApi";
+import {
+  getProductImage,
+  handleProductImageError,
+} from "../utils/productImage";
 
 
 function TrendingProducts() {
   const [addedItems, setAddedItems] = useState({});
+  const [trendingProducts, setTrendingProducts] = useState([]);
+  const [error, setError] = useState("");
 
-  const handleAddToCart = (product) => {
-    const cart = JSON.parse(localStorage.getItem("cart")) || [];
+  useEffect(() => {
+    getTrendingProducts()
+      .then(setTrendingProducts)
+      .catch((loadError) => {
+        console.error("Unable to load trending products:", loadError);
+        setError("Trending products could not be loaded.");
+      });
+  }, []);
 
-    const existingProduct = cart.find(
-      (item) => item.id === product.id
-    );
-
-    let updatedCart;
-
-    if (existingProduct) {
-      updatedCart = cart.map((item) =>
-        item.id === product.id
-          ? {
-            ...item,
-            quantity: (item.quantity || 1) + 1,
-          }
-          : item
-      );
-    } else {
-      updatedCart = [
-        ...cart,
-        {
-          ...product,
-          quantity: 1,
-        },
-      ];
-    }
-
-    localStorage.setItem("cart", JSON.stringify(updatedCart));
-
-    // Update Navbar Cart Count
-    window.dispatchEvent(new Event("cartUpdated"));
-
-    // Toast Message
-    toast.success(`${product.name} added to cart!`, {
+  const handleAddToCart = async (product) => {
+    try {
+      await addProductToCart(product);
+      toast.success(`${product.name} added to cart!`, {
       position: "top-right",
       autoClose: 2000,
       hideProgressBar: false,
@@ -129,20 +37,22 @@ function TrendingProducts() {
       draggable: true,
       theme: "colored",
       icon: "🛒",
-    });
+      });
 
-    // Change Button Text
-    setAddedItems((prev) => ({
-      ...prev,
-      [product.id]: true,
-    }));
+      setAddedItems((prev) => ({
+        ...prev,
+        [product.id]: true,
+      }));
 
-    setTimeout(() => {
+      setTimeout(() => {
       setAddedItems((prev) => ({
         ...prev,
         [product.id]: false,
       }));
-    }, 2000);
+      }, 2000);
+    } catch (error) {
+      toast.error(error.message || "Unable to add this product to your cart.");
+    }
   };
 
   return (
@@ -155,13 +65,26 @@ function TrendingProducts() {
           </p>
         </div>
 
+        {error && <p role="alert">{error}</p>}
+
         <div className="trending-grid">
           {trendingProducts.map((product) => (
             <div className="product-card" key={product.id}>
               <img
-                src={product.image}
+                src={getProductImage(
+                  product.image,
+                  product.name,
+                  product.category
+                )}
                 alt={product.name}
                 className="product-image"
+                onError={(event) =>
+                  handleProductImageError(
+                    event,
+                    product.name,
+                    product.category
+                  )
+                }
               />
 
               <div className="product-info">

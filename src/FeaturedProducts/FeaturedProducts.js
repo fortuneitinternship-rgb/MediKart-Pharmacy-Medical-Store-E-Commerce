@@ -1,125 +1,34 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import "./FeaturedProducts.css";
+import { addProductToCart } from "../api/cartApi";
 
-import immunityBooster from "../assets/vitamins/immunity-booster.png";
-import vitaminD3 from "../assets/vitamins/vitamin-d3.png";
-import hair7 from "../assets/hairCare/hair7.png";
-import SafetyGoggles from "../assets/EyeCare/eye17.png";
+import { getFeaturedProducts } from "../api/productApi";
+import {
+  getProductImage,
+  handleProductImageError,
+} from "../utils/productImage";
 
-const products = [
-  {
-    id: 25,
-    name: "Immunity Booster Tablets",
-    brand: "Himalaya",
-    category: "Vitamins",
-    price: 275,
-    originalPrice: 325,
-    discount: 15,
-    rating: 4.8,
-    reviews: 1540,
-    image: immunityBooster,
-    packSize: "60 Tablets",
-    expiry: "24 Months",
-    stock: 40,
-    description:
-      "Nutritional supplement designed for daily wellness support.",
-  },
-  {
-    id: 8,
-    name: "Vitamin D3 60000 IU",
-    brand: "Uprise",
-    category: "Vitamins",
-    price: 120,
-    originalPrice: 145,
-    discount: 17,
-    rating: 4.8,
-    reviews: 2100,
-    image: vitaminD3,
-    packSize: "8 Capsules",
-    expiry: "24 Months",
-    stock: 40,
-    description:
-      "Vitamin D3 supplement supplied in capsule form.",
-  },
-  {
-    id: 206,
-    name: "Keratin Shampoo",
-    brand: "Tresemme",
-    category: "Hair Care",
-    originalPrice: 799,
-    price: 699,
-    rating: 4.9,
-    reviews: 1430,
-    discount: 13,
-    image: hair7,
-    packSize: "580ml",
-    expiry: "24 Months",
-    delivery: "2-3 Business Days",
-    returnPolicy: "7 Days Return Eligible",
-    stock: true,
-    description:
-      "Keratin shampoo formulated to cleanse hair while helping improve smoothness."
-  },
-  {
-    id: 166,
-    name: "Eye Protection Goggles",
-    brand: "Safety",
-    category: "Eye Care",
-    originalPrice: 688,
-    price: 550,
-    rating: 4.7,
-    reviews: 940,
-    discount: 20,
-    image: SafetyGoggles,
-    packSize: "1 Piece",
-    expiry: "5 Years",
-    delivery: "3-5 Business Days",
-    returnPolicy: "7 Days Return Eligible",
-    stock: true,
-    description: "Protective goggles for medical and industrial use."
-  },
-];
 function FeaturedProducts() {
   const [addedItems, setAddedItems] = useState({});
+  const [products, setProducts] = useState([]);
+  const [error, setError] = useState("");
 
-  const handleAddToCart = (product) => {
-    const cart = JSON.parse(localStorage.getItem("cart")) || [];
+  useEffect(() => {
+    getFeaturedProducts()
+      .then(setProducts)
+      .catch((loadError) => {
+        console.error("Unable to load featured products:", loadError);
+        setError("Featured products could not be loaded.");
+      });
+  }, []);
 
-    const existingProduct = cart.find(
-      (item) => item.id === product.id
-    );
-
-    let updatedCart;
-
-    if (existingProduct) {
-      updatedCart = cart.map((item) =>
-        item.id === product.id
-          ? {
-            ...item,
-            quantity: (item.quantity || 1) + 1,
-          }
-          : item
-      );
-    } else {
-      updatedCart = [
-        ...cart,
-        {
-          ...product,
-          quantity: 1,
-        },
-      ];
-    }
-
-    localStorage.setItem("cart", JSON.stringify(updatedCart));
-
-    // Update Navbar Cart Count
-    window.dispatchEvent(new Event("cartUpdated"));
-
-    // Toast Message
-    toast.success(`${product.name} added to cart!`, {
+  const handleAddToCart = async (product) => {
+    try {
+      await addProductToCart(product);
+      toast.success(`${product.name} added to cart!`, {
       position: "top-right",
       autoClose: 2000,
       hideProgressBar: false,
@@ -127,20 +36,22 @@ function FeaturedProducts() {
       pauseOnHover: true,
       draggable: true,
       theme: "colored",
-    });
+      });
 
-    // Change Button Text
-    setAddedItems((prev) => ({
-      ...prev,
-      [product.id]: true,
-    }));
+      setAddedItems((prev) => ({
+        ...prev,
+        [product.id]: true,
+      }));
 
-    setTimeout(() => {
+      setTimeout(() => {
       setAddedItems((prev) => ({
         ...prev,
         [product.id]: false,
       }));
-    }, 2000);
+      }, 2000);
+    } catch (addError) {
+      toast.error(addError.message || "Unable to add this product to your cart.");
+    }
   };
 
   return (
@@ -154,6 +65,8 @@ function FeaturedProducts() {
             </p>
           </div>
 
+          {error && <p role="alert">{error}</p>}
+
           <div className="products-grid">
             {products.map((product) => (
               <div
@@ -161,9 +74,20 @@ function FeaturedProducts() {
                 key={product.id}
               >
                 <img
-                  src={product.image}
+                  src={getProductImage(
+                    product.image,
+                    product.name,
+                    product.category
+                  )}
                   alt={product.name}
                   className="product-image"
+                  onError={(event) =>
+                    handleProductImageError(
+                      event,
+                      product.name,
+                      product.category
+                    )
+                  }
                 />
 
                 <div className="product-info">
@@ -173,9 +97,7 @@ function FeaturedProducts() {
                     ₹{product.price}
                   </p>
 
-                  <p className="rating">
-                    ⭐ {product.rating}
-                  </p>
+                  <p className="rating">⭐ {product.rating}</p>
 
                   <div className="button-group">
                     <Link

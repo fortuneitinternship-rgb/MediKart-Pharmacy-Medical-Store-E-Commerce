@@ -6,8 +6,9 @@ import axios from "axios";
 // React Frontend ↔ FastAPI Backend
 // =====================================================
 
-const API_URL =
-  process.env.REACT_APP_API_URL || "http://127.0.0.1:8000";
+const API_URL = (
+  process.env.REACT_APP_API_URL || "http://127.0.0.1:8000"
+).replace(/\/+$/, "");
 
 // =====================================================
 // COMMON ERROR HANDLER
@@ -42,7 +43,11 @@ const getErrorMessage = async (response) => {
 
     return "Something went wrong";
   } catch {
-    return "Unable to connect to the server";
+    if (response.status >= 500) {
+      return `The API returned an internal error (${response.status}). Check the backend logs.`;
+    }
+
+    return "The API returned an unreadable response.";
   }
 };
 
@@ -94,21 +99,28 @@ export const loginUser = async (
   email,
   password
 ) => {
-  const response = await fetch(
-    `${API_URL}/api/auth/login`,
-    {
-      method: "POST",
+  let response;
+  try {
+    response = await fetch(
+      `${API_URL}/api/auth/login`,
+      {
+        method: "POST",
 
-      headers: {
-        "Content-Type": "application/json",
-      },
+        headers: {
+          "Content-Type": "application/json",
+        },
 
-      body: JSON.stringify({
-        email,
-        password,
-      }),
-    }
-  );
+        body: JSON.stringify({
+          email,
+          password,
+        }),
+      }
+    );
+  } catch {
+    throw new Error(
+      `Cannot reach the API at ${API_URL}. Check that the backend is running and that this frontend origin is allowed by CORS.`
+    );
+  }
 
   if (!response.ok) {
     throw new Error(

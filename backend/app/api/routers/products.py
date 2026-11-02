@@ -38,6 +38,7 @@ def product_response(product):
     return {
         "id": product.id,
         "name": product.name,
+        "brand": product.brand,
         "description": product.description,
 
         "price": product.price,
@@ -54,6 +55,11 @@ def product_response(product):
         "image": product.image,
 
         "rating": product.rating,
+        "reviews": product.reviews or 0,
+        "pack_size": product.pack_size,
+        "expiry": product.expiry,
+        "delivery": product.delivery,
+        "return_policy": product.return_policy,
 
         "is_active": product.is_active,
 

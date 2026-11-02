@@ -3,15 +3,11 @@ import { render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import ProductGallery from "./ProductGallery";
 
-// Mock images
-jest.mock("../../assets/products/product1.png", () => "product1.png");
-jest.mock("../../assets/products/product2.png", () => "product2.png");
-jest.mock("../../assets/products/product3.png", () => "product3.png");
-jest.mock("../../assets/products/product4.png", () => "product4.png");
-jest.mock("../../assets/products/product5.png", () => "product5.png");
-jest.mock("../../assets/products/product6.png", () => "product6.png");
-jest.mock("../../assets/products/product7.png", () => "product7.png");
-jest.mock("../../assets/products/product8.png", () => "product8.png");
+jest.mock("../../utils/productImage", () => ({
+  fallbackProductImage: "fallback.png",
+  getProductImage: (image) => image || "fallback.png",
+  handleProductImageError: jest.fn(),
+}));
 
 describe("ProductGallery Component", () => {
   test("renders gallery container", () => {
@@ -43,12 +39,14 @@ describe("ProductGallery Component", () => {
     expect(image).toHaveAttribute("src", "custom1.png");
   });
 
-  test("uses default image when images prop is empty", () => {
+  test("uses a single fallback image when images prop is empty", () => {
     render(<ProductGallery images={[]} />);
 
-    const image = screen.getByAltText("Product");
-
-    expect(image).toBeInTheDocument();
+    expect(screen.getByAltText("Product")).toHaveAttribute(
+      "src",
+      "fallback.png"
+    );
+    expect(screen.queryByAltText("Thumbnail 0")).not.toBeInTheDocument();
   });
 
   test("image has correct class", () => {

@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import App from "./App";
 
@@ -43,8 +43,11 @@ jest.mock("./pages/Contact/Contact", () => () => (
   <div>Contact Page</div>
 ));
 
-jest.mock("./components/Login/Login", () => () => (
-  <div>Login Page</div>
+jest.mock("./components/Login/Login", () => ({ onLoginSuccess }) => (
+  <>
+    <div>Login Page</div>
+    <button onClick={onLoginSuccess}>Complete login</button>
+  </>
 ));
 
 jest.mock("./components/Register/Register", () => () => (
@@ -260,6 +263,7 @@ const renderApp = (route = "/") => {
 describe("MediKart App Routing", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    localStorage.setItem("access_token", "test-token");
   });
 
   /* =======================================================
@@ -272,6 +276,23 @@ describe("MediKart App Routing", () => {
     expect(
       screen.getByText("Home Page")
     ).toBeInTheDocument();
+  });
+
+  test("redirects unauthenticated visitors to Login", () => {
+    localStorage.removeItem("access_token");
+    renderApp("/account");
+
+    expect(screen.getByText("Login Page")).toBeInTheDocument();
+  });
+
+  test("returns visitors to their requested page after login", () => {
+    localStorage.removeItem("access_token");
+    renderApp("/account");
+    localStorage.setItem("access_token", "test-token");
+
+    fireEvent.click(screen.getByRole("button", { name: "Complete login" }));
+
+    expect(screen.getByText("Account Page")).toBeInTheDocument();
   });
 
   /* =======================================================

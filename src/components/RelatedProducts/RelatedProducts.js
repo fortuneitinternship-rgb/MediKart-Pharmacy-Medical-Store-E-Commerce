@@ -2,37 +2,32 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import styles from "./RelatedProducts.module.css";
+import { addProductToCart } from "../../api/cartApi";
+import {
+  getProductImage,
+  handleProductImageError,
+} from "../../utils/productImage";
 
 
 const RelatedProducts = ({ products }) => {
   const navigate = useNavigate();
   const [added, setAdded] = useState({});
-  const handleAddToCart = (e, product) => {
+  const handleAddToCart = async (e, product) => {
     e.stopPropagation();
 
-    const cart = JSON.parse(localStorage.getItem("cart")) || [];
-    const existingProduct = cart.find(item => item.id === product.id);
-    let updatedCart;
-
-    if (existingProduct) {
-      updatedCart =
-      cart.map(item =>
-        item.id === product.id ? { ...item, quantity: (item.quantity || 1) + 1 } : item);
-    } else {
-      updatedCart = [...cart, { ...product, quantity: 1 }];
+    try {
+      await addProductToCart(product);
+      toast.success(`${product.name} added to cart!`);
+      setAdded(prev => ({ ...prev, [product.id]: true }));
+      setTimeout(() => {
+        setAdded(prev => ({
+          ...prev,
+          [product.id]: false
+        }));
+      }, 2000);
+    } catch (error) {
+      toast.error(error.message || "Unable to add this product to your cart.");
     }
-    localStorage.setItem("cart", JSON.stringify(updatedCart));
-    // Update Navbar Cart Count
-
-    window.dispatchEvent(new Event("cartUpdated"));
-    toast.success(`${product.name} added to cart!`);
-    setAdded(prev => ({ ...prev, [product.id]: true }));
-    setTimeout(() => {
-      setAdded(prev => ({
-        ...prev,
-        [product.id]: false
-      }));
-    }, 2000);
   };
   return (
     <section className={styles.relatedProducts}>
@@ -42,20 +37,22 @@ const RelatedProducts = ({ products }) => {
           products.map((product) => (
             <div key={product.id} className={styles.relatedCard} >
               <div className={styles.imageBox} onClick={() => navigate(`/product/${product.id}`)} >
-                {(() => {
-                  let img = product.image;
-                  if (typeof img === "string" && img.startsWith("/images/")) {
-                    try {
-                      img = require("../../assets/images/" + img.split("/").pop());
-                    } catch (err) {
-                      img = require("../../assets/images/Mediction.png");
-                    }
+                <img
+                  src={getProductImage(
+                    product.image,
+                    product.name,
+                    product.category
+                  )}
+                  alt={product.name}
+                  className={styles.productImage}
+                  onError={(event) =>
+                    handleProductImageError(
+                      event,
+                      product.name,
+                      product.category
+                    )
                   }
-
-                  return (
-                    <img src={img} alt={product.name} className={styles.productImage} onError={(e) => { e.target.src = require("../../assets/images/Mediction.png"); }} />
-                  );
-                })()}
+                />
               </div>
 
               <div className={styles.productInfo}>

@@ -5,6 +5,10 @@ import FilterPanel from "../../components/FilterPanel/FilterPanel";
 import SortDropdown from "../../components/SortDropdown/SortDropdown";
 
 import productsData from "../../data/products";
+import {
+  getProductImage,
+  handleProductImageError,
+} from "../../utils/productImage";
 
 // If these files exist in your project, import them
 import flashSaleProducts from "../../FlashSale/FlashSale.js";
@@ -456,8 +460,19 @@ const ProductListing = () => {
                 >
 
                   <img
-                    src={product.image}
+                    src={getProductImage(
+                      product.image,
+                      product.name,
+                      product.category
+                    )}
                     alt={product.name}
+                    onError={(event) =>
+                      handleProductImageError(
+                        event,
+                        product.name,
+                        product.category
+                      )
+                    }
                   />
 
                 </Link>

@@ -31,6 +31,11 @@ class Product(Base):
         index=True
     )
 
+    brand = Column(
+        String(255),
+        nullable=True
+    )
+
     description = Column(
         Text,
         nullable=True
@@ -66,6 +71,32 @@ class Product(Base):
     rating = Column(
         Float,
         default=0
+    )
+
+    reviews = Column(
+        Integer,
+        default=0,
+        nullable=False
+    )
+
+    pack_size = Column(
+        String(100),
+        nullable=True
+    )
+
+    expiry = Column(
+        String(100),
+        nullable=True
+    )
+
+    delivery = Column(
+        String(100),
+        nullable=True
+    )
+
+    return_policy = Column(
+        String(255),
+        nullable=True
     )
 
     is_active = Column(

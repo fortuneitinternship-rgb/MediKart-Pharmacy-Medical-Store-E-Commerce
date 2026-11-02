@@ -5,35 +5,8 @@ import { toast } from "react-toastify";
 
 import ProductCard from "../../components/ProductCard/ProductCard";
 import FilterPanel from "../../components/FilterPanel/FilterPanel";
-
-import medicines from "../../data/medicines";
-import healthcare from "../../data/healthcare";
-import vitamins from "../../data/vitamins";
-import personalCare from "../../data/personalCare";
-import babyCare from "../../data/babyCare";
-import medicalDevices from "../../data/medicalDevices";
-import womenCare from "../../data/womensHealth";
-import hairCare from "../../data/HairCare";
-import eyeCare from "../../data/eye-care";
-import premiumHealthcare from "../../data/premium-healthcare";
+import { getProducts } from "../../api/productApi";
 import "./Shop.css";
-
-/* ============================================================
-   CATEGORY DATA
-============================================================ */
-
-const CATEGORY_DATA = {
-  medicines,
-  healthcare,
-  vitamins,
-  "personal-care": personalCare,
-  "baby-care": babyCare,
-  "medical-devices": medicalDevices,
-  "women-care": womenCare,
-  "hair-care": hairCare,
-  "eye-care": eyeCare,
-  "premium-healthcare": premiumHealthcare,
-};
 
 /* ============================================================
    CATEGORY NAMES
@@ -53,11 +26,22 @@ const CATEGORY_NAMES = {
   "premium-healthcare": "Premium Healthcare",
 };
 
-/* ============================================================
-   ALL PRODUCTS
-============================================================ */
+const normalizeCategory = (category) =>
+  category.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
-const ALL_PRODUCTS = Object.values(CATEGORY_DATA).flat();
+const categorySlug = (category) => {
+  const knownCategory = Object.entries(CATEGORY_NAMES).find(
+    ([, label]) => label.toLowerCase() === category.toLowerCase()
+  );
+  return (
+    knownCategory?.[0] ||
+    category
+      .toLowerCase()
+      .replace(/&/g, "and")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+  );
+};
 
 /* ============================================================
    SHOP COMPONENT
@@ -65,9 +49,6 @@ const ALL_PRODUCTS = Object.values(CATEGORY_DATA).flat();
 
 const Shop = () => {
   const { category } = useParams();
-
-  const currentCategory =
-    category && CATEGORY_DATA[category] ? category : "all";
 
   /* ==========================================================
      STATES
@@ -79,17 +60,49 @@ const Shop = () => {
 
   const [sortBy, setSortBy] = useState("default");
 
+  const categories = useMemo(() => {
+    const categoryMap = new Map(
+      Object.entries(CATEGORY_NAMES)
+        .filter(([value]) => value !== "all")
+        .map(([value, label]) => [normalizeCategory(label), { value, label }])
+    );
+
+    products.forEach((product) => {
+      if (product.category?.trim()) {
+        const label = product.category.trim();
+        const normalizedLabel = normalizeCategory(label);
+        if (!categoryMap.has(normalizedLabel)) {
+          categoryMap.set(normalizedLabel, {
+            value: categorySlug(label),
+            label,
+          });
+        }
+      }
+    });
+
+    return [
+      { value: "all", label: CATEGORY_NAMES.all },
+      ...categoryMap.values(),
+    ];
+  }, [products]);
+
+  const currentCategory = categories.some(
+    (categoryOption) => categoryOption.value === category
+  )
+    ? category
+    : "all";
+
   const [selectedCategory, setSelectedCategory] = useState(currentCategory);
-
   const [priceRange, setPriceRange] = useState("all");
-
   const [selectedRating, setSelectedRating] = useState("all");
-
   const [selectedBrand, setSelectedBrand] = useState("all");
-
   const [visibleProducts, setVisibleProducts] = useState(12);
-
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+
+  const selectedCategoryName = categories.find(
+    (categoryOption) => categoryOption.value === selectedCategory
+  )?.label;
 
   /* ==========================================================
      LOAD PRODUCTS
@@ -97,20 +110,16 @@ const Shop = () => {
 
   useEffect(() => {
     setLoading(true);
-
-    const timer = setTimeout(() => {
-      const data =
-        currentCategory === "all"
-          ? ALL_PRODUCTS
-          : CATEGORY_DATA[currentCategory] || [];
-
-      setProducts(data);
-      setVisibleProducts(12);
-      setLoading(false);
-    }, 400);
-
-    return () => clearTimeout(timer);
-  }, [currentCategory]);
+    setLoadError("");
+    getProducts()
+      .then(setProducts)
+      .catch((error) => {
+        console.error("Unable to load products:", error);
+        setLoadError("Products could not be loaded from the database.");
+      })
+      .finally(() => setLoading(false));
+    setVisibleProducts(12);
+  }, []);
 
   /* ==========================================================
      RESET FILTERS WHEN CATEGORY CHANGES
@@ -181,19 +190,10 @@ const Shop = () => {
        CATEGORY
     ======================================================== */
 
-    if (
-      selectedCategory !== "all" &&
-      CATEGORY_DATA[selectedCategory]
-    ) {
-      const selectedProducts =
-        CATEGORY_DATA[selectedCategory];
-
-      const ids = new Set(
-        selectedProducts.map((item) => item.id)
-      );
-
+    if (selectedCategory !== "all" && selectedCategoryName) {
       result = result.filter((item) =>
-        ids.has(item.id)
+        normalizeCategory(item.category || "") ===
+        normalizeCategory(selectedCategoryName)
       );
     }
 
@@ -203,7 +203,9 @@ const Shop = () => {
 
     if (priceRange !== "all") {
       result = result.filter((product) => {
-        const price = Number(product.price || 0);
+        const price = Number(
+          product.discount_price ?? product.price ?? 0
+        );
 
         switch (priceRange) {
           case "0-199":
@@ -300,6 +302,7 @@ const Shop = () => {
     products,
     searchTerm,
     selectedCategory,
+    selectedCategoryName,
     priceRange,
     selectedRating,
     selectedBrand,
@@ -456,8 +459,7 @@ const Shop = () => {
 
         <div className="shop-title">
           <h1>
-            {CATEGORY_NAMES[selectedCategory] ||
-              "All Products"}
+            {selectedCategoryName || CATEGORY_NAMES.all}
           </h1>
 
           <span>
@@ -563,6 +565,7 @@ const Shop = () => {
             }
 
             brands={brands}
+            categories={categories}
 
             onReset={resetFilters}
 
@@ -595,11 +598,16 @@ const Shop = () => {
             </div>
           )}
 
+          {!loading && loadError && (
+            <p role="alert" className="error">{loadError}</p>
+          )}
+
           {/* =================================================
               EMPTY PRODUCTS
           ================================================= */}
 
           {!loading &&
+            !loadError &&
             filteredProducts.length === 0 && (
               <div className="empty-products">
 
@@ -631,6 +639,7 @@ const Shop = () => {
           ================================================= */}
 
           {!loading &&
+            !loadError &&
             filteredProducts.length > 0 && (
               <>
 

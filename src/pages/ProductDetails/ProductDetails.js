@@ -8,12 +8,12 @@ import {
   FaStar,
 } from "react-icons/fa";
 
-import products from "../../data/products";
-
 import ProductGallery from "../../components/ProductGallery/ProductGallery";
 import QuantitySelector from "../../components/QuantitySelector/QuantitySelector";
 import ProductSpecifications from "../../components/ProductSpecifications/ProductSpecifications";
 import RelatedProducts from "../../components/RelatedProducts/RelatedProducts";
+import { getProductDetails, getProducts } from "../../api/productApi";
+import { addProductToCart } from "../../api/cartApi";
 
 import "./ProductDetails.css";
 
@@ -25,14 +25,12 @@ const ProductDetails = () => {
   // FIND PRODUCT
   // ==========================================
 
-  const product = products.find(
-    (item) => Number(item.id) === Number(id)
-  );
-
   // ==========================================
   // STATES
   // ==========================================
 
+  const [product, setProduct] = useState(null);
+  const [allProducts, setAllProducts] = useState([]);
   const [quantity, setQuantity] = useState(1);
 
   const [wishlist, setWishlist] = useState(false);
@@ -40,6 +38,7 @@ const ProductDetails = () => {
   const [isAdded, setIsAdded] = useState(false);
 
   const [loading, setLoading] = useState(true);
+  const [requestError, setRequestError] = useState("");
 
   // ==========================================
   // PRODUCT CHANGE
@@ -48,17 +47,35 @@ const ProductDetails = () => {
   useEffect(() => {
     setQuantity(1);
     setLoading(true);
+    setRequestError("");
 
     window.scrollTo({
       top: 0,
       behavior: "smooth",
     });
 
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 700);
+    let active = true;
+    Promise.all([getProductDetails(id), getProducts()])
+      .then(([productDetails, productsList]) => {
+        if (active) {
+          setProduct(productDetails);
+          setAllProducts(productsList);
+        }
+      })
+      .catch((error) => {
+        console.error("Unable to load product details:", error);
+        if (active) {
+          setRequestError("Product details could not be loaded.");
+          setProduct(null);
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
 
-    return () => clearTimeout(timer);
+    return () => {
+      active = false;
+    };
   }, [id]);
 
   // ==========================================
@@ -134,17 +151,14 @@ const ProductDetails = () => {
   // PRICE
   // ==========================================
 
-  const originalPrice = Number(
-    product.originalPrice ??
-    product.price
-  );
+  const originalPrice = Number(product.price);
 
   const sellingPrice = Number(
-    product.price
+    product.discount_price ?? product.price
   );
 
   const discount = Number(
-    product.discount || 0
+    product.discount_percentage || 0
   );
 
   // ==========================================
@@ -170,126 +184,15 @@ const ProductDetails = () => {
   // ADD TO CART
   // ==========================================
 
-  const handleAddToCart = () => {
-    // Remove Buy Now mode
-    localStorage.removeItem("buyNow");
-
-    let cart = [];
-
+  const handleAddToCart = async () => {
+    setRequestError("");
     try {
-      cart =
-        JSON.parse(
-          localStorage.getItem("cart")
-        ) || [];
+      await addProductToCart(product, quantity);
+      setIsAdded(true);
+      setTimeout(() => setIsAdded(false), 2000);
     } catch (error) {
-      console.error(
-        "Failed to load cart:",
-        error
-      );
-
-      cart = [];
+      setRequestError(error.message || "Unable to add this product to your cart.");
     }
-
-    const existingProduct = cart.find(
-      (item) =>
-        Number(item.id) ===
-        Number(product.id)
-    );
-
-    let updatedCart;
-
-    // ==========================================
-    // PRODUCT ALREADY EXISTS
-    // ==========================================
-
-    if (existingProduct) {
-      updatedCart = cart.map((item) => {
-        if (
-          Number(item.id) ===
-          Number(product.id)
-        ) {
-          return {
-            ...item,
-
-            price: sellingPrice,
-
-            originalPrice:
-              originalPrice,
-
-            quantity:
-              Number(
-                item.quantity || 1
-              ) + quantity,
-          };
-        }
-
-        return item;
-      });
-    }
-
-    // ==========================================
-    // NEW PRODUCT
-    // ==========================================
-
-    else {
-      updatedCart = [
-        ...cart,
-
-        {
-          ...product,
-
-          id: product.id,
-
-          name: product.name,
-
-          brand:
-            product.brand ||
-            "MEDIKART",
-
-          category:
-            product.category ||
-            "",
-
-          image:
-            product.image ||
-            "/images/medicine-placeholder.png",
-
-          price: sellingPrice,
-
-          originalPrice:
-            originalPrice,
-
-          quantity: quantity,
-        },
-      ];
-    }
-
-    // ==========================================
-    // SAVE CART
-    // ==========================================
-
-    localStorage.setItem(
-      "cart",
-      JSON.stringify(updatedCart)
-    );
-
-    // ==========================================
-    // UPDATE NAVBAR CART
-    // ==========================================
-
-    window.dispatchEvent(
-      new Event("cartUpdated")
-    );
-
-    // ==========================================
-    // ADDED MESSAGE
-    // ==========================================
-
-    setIsAdded(true);
-
-    setTimeout(() => {
-      setIsAdded(false);
-    }, 2000);
   };
 
   // ==========================================
@@ -364,89 +267,18 @@ const ProductDetails = () => {
   // BUY NOW
   // ==========================================
 
-  const handleBuyNow = () => {
+  const handleBuyNow = async () => {
     // ==========================================
     // CREATE SELECTED PRODUCT
     // ==========================================
 
-    const buyNowProduct = {
-      ...product,
-
-      id: product.id,
-
-      name: product.name,
-
-      brand:
-        product.brand ||
-        "MEDIKART",
-
-      category:
-        product.category ||
-        "",
-
-      image:
-        product.image ||
-        "/images/medicine-placeholder.png",
-
-      price: sellingPrice,
-
-      originalPrice:
-        originalPrice,
-
-      quantity: quantity,
-    };
-
-    // ==========================================
-    // KEEP EXISTING CART AND ADD BUYNOW PRODUCT
-    // ==========================================
-
-    const existingCart = JSON.parse(
-      localStorage.getItem("cart") || "[]"
-    );
-
-    const nextCart = existingCart.filter(
-      (item) => Number(item.id) !== Number(buyNowProduct.id)
-    );
-
-    nextCart.push({
-      ...buyNowProduct,
-      quantity: Number(quantity) || 1,
-    });
-
-    localStorage.setItem(
-      "cart",
-      JSON.stringify(nextCart)
-    );
-
-    // ==========================================
-    // REMOVE BUY NOW FLAG
-    // ==========================================
-
-    localStorage.removeItem("buyNow");
-
-    // ==========================================
-    // UPDATE NAVBAR
-    // ==========================================
-
-    window.dispatchEvent(
-      new Event("cartUpdated")
-    );
-
-    // ==========================================
-    // IMPORTANT
-    // GO TO PRODUCT-SPECIFIC CHECKOUT
-    //
-    // Example:
-    // Product ID = 8
-    //
-    // /product/8
-    //       ↓
-    // /checkout/8
-    // ==========================================
-
-    navigate(
-      `/checkout/${product.id}`
-    );
+    setRequestError("");
+    try {
+      await addProductToCart(product, quantity);
+      navigate(`/checkout/${product.id}`);
+    } catch (error) {
+      setRequestError(error.message || "Unable to add this product to your cart.");
+    }
   };
 
   // ==========================================
@@ -454,7 +286,7 @@ const ProductDetails = () => {
   // ==========================================
 
   const relatedProducts =
-    products
+    allProducts
       .filter(
         (item) =>
           Number(item.id) !==
@@ -489,6 +321,8 @@ const ProductDetails = () => {
 
       </div>
 
+      {requestError && <p role="alert">{requestError}</p>}
+
       {/* ==========================================
           PRODUCT MAIN
       ========================================== */}
@@ -503,6 +337,8 @@ const ProductDetails = () => {
 
           <ProductGallery
             images={productImages}
+            productName={product.name}
+            category={product.category}
           />
 
         </div>

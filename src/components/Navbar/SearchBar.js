@@ -3,6 +3,10 @@ import { FaSearch, FaTimes } from "react-icons/fa";
 import { Link } from "react-router-dom";
 import products from "../../data/products";
 import "./SearchBar.css";
+import {
+  getProductImage,
+  handleProductImageError,
+} from "../../utils/productImage";
 
 function SearchBar() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -78,8 +82,19 @@ function SearchBar() {
                 onClick={() => setShowResults(false)}
               >
                 <img
-                  src={product.image}
+                  src={getProductImage(
+                    product.image,
+                    product.name,
+                    product.category
+                  )}
                   alt={product.name}
+                  onError={(event) =>
+                    handleProductImageError(
+                      event,
+                      product.name,
+                      product.category
+                    )
+                  }
                 />
 
                 <div>

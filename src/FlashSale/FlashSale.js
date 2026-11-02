@@ -4,7 +4,12 @@ import { toast } from "react-toastify";
 
 import styles from "./FlashSale.module.css";
 
-import flashSaleProducts from "../data/flashSaleProducts";
+import { addProductToCart } from "../api/cartApi";
+import { getFlashSaleProducts } from "../api/productApi";
+import {
+  getProductImage,
+  handleProductImageError,
+} from "../utils/productImage";
 
 const FlashSale = () => {
   const [timeLeft, setTimeLeft] = useState({
@@ -14,6 +19,8 @@ const FlashSale = () => {
   });
 
   const [addedItems, setAddedItems] = useState({});
+  const [flashSaleProducts, setFlashSaleProducts] = useState([]);
+  const [error, setError] = useState("");
 
   // =========================================
   // FLASH SALE TIMER
@@ -55,67 +62,23 @@ const FlashSale = () => {
     return () => clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    getFlashSaleProducts()
+      .then(setFlashSaleProducts)
+      .catch((loadError) => {
+        console.error("Unable to load flash-sale products:", loadError);
+        setError("Flash-sale products could not be loaded.");
+      });
+  }, []);
+
   // =========================================
   // ADD TO CART
   // =========================================
 
-  const handleAddToCart = (product) => {
-    let cart =
-      JSON.parse(localStorage.getItem("cart")) || [];
-
-    const existingProduct = cart.find(
-      (item) => Number(item.id) === Number(product.id)
-    );
-
-    if (existingProduct) {
-      cart = cart.map((item) =>
-        Number(item.id) === Number(product.id)
-          ? {
-            ...item,
-            quantity: (item.quantity || 1) + 1
-          }
-          : item
-      );
-    } else {
-      cart.push({
-        id: product.id,
-
-        name: product.name,
-
-        title: product.title,
-
-        brand: product.brand,
-
-        category: product.category,
-
-        image: product.image,
-
-        price: product.price,
-
-        originalPrice: product.originalPrice,
-
-        discountedPrice: product.discountedPrice,
-
-        rating: product.rating,
-
-        quantity: 1
-      });
-    }
-
-    localStorage.setItem(
-      "cart",
-      JSON.stringify(cart)
-    );
-
-    // Update Navbar Cart Count
-    window.dispatchEvent(
-      new Event("cartUpdated")
-    );
-
-    // Toast
-    toast.success(
-      `${product.name} added to cart!`,
-      {
+  const handleAddToCart = async (product) => {
+    try {
+      await addProductToCart(product);
+      toast.success(`${product.name} added to cart!`, {
         position: "top-right",
         autoClose: 2000,
         hideProgressBar: false,
@@ -123,22 +86,23 @@ const FlashSale = () => {
         pauseOnHover: true,
         draggable: true,
         theme: "colored"
-      }
-    );
+      });
 
-    // Change button
-    setAddedItems((prev) => ({
-      ...prev,
-      [product.id]: true
-    }));
+      setAddedItems((prev) => ({
+        ...prev,
+        [product.id]: true
+      }));
 
     // Reset button after 2 seconds
-    setTimeout(() => {
+      setTimeout(() => {
       setAddedItems((prev) => ({
         ...prev,
         [product.id]: false
       }));
-    }, 2000);
+      }, 2000);
+    } catch (error) {
+      toast.error(error.message || "Unable to add this product to your cart.");
+    }
   };
 
   // =========================================
@@ -155,6 +119,8 @@ const FlashSale = () => {
           <h2>🔥 Flash Sale</h2>
           <p>Limited Time Deals</p>
         </div>
+
+        {error && <p role="alert">{error}</p>}
 
         {/* TIMER */}
         <div className={styles.timer}>
@@ -192,9 +158,20 @@ const FlashSale = () => {
             <div className={styles.imageWrapper}>
 
               <img
-                src={product.image}
+                src={getProductImage(
+                  product.image,
+                  product.name,
+                  product.category
+                )}
                 alt={product.name}
                 className={styles.productImage}
+                onError={(event) =>
+                  handleProductImageError(
+                    event,
+                    product.name,
+                    product.category
+                  )
+                }
               />
 
             </div>
@@ -217,11 +194,11 @@ const FlashSale = () => {
               <div className={styles.priceSection}>
 
                 <span className={styles.originalPrice}>
-                  ₹{product.originalPrice}
+                  ₹{product.price}
                 </span>
 
                 <span className={styles.discountedPrice}>
-                  ₹{product.price}
+                  ₹{product.discount_price ?? product.price}
                 </span>
 
               </div>
