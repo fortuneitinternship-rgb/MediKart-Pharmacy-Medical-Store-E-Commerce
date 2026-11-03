@@ -391,31 +391,18 @@ describe("OrderDetails Component", () => {
     // BUY NOW
     // -----------------------------
 
-    test("Buy Now stores checkout items", async () => {
+    test("Buy Now navigates to checkout with the order products", async () => {
         const order = {
             id: "test-order-id",
-            items: [],
-        };
-
-        localStorage.setItem("orders", JSON.stringify([order]));
-
-        render(<OrderDetails />);
-
-        const button = await screen.findByRole("button", {
-            name: /buy now/i,
-        });
-
-        fireEvent.click(button);
-
-        expect(
-            localStorage.getItem("checkoutItems")
-        ).toBe("[]");
-    });
-
-    test("Buy Now navigates correctly", async () => {
-        const order = {
-            id: "test-order-id",
-            items: [],
+            items: [
+                {
+                    product_id: 17,
+                    product_name: "Test Medicine",
+                    price: 99,
+                    quantity: 2,
+                    image: "/test-medicine.png",
+                },
+            ],
         };
 
         localStorage.setItem("orders", JSON.stringify([order]));
@@ -429,8 +416,38 @@ describe("OrderDetails Component", () => {
         fireEvent.click(button);
 
         expect(mockNavigate).toHaveBeenCalledWith(
-            "/orders/test-order-id"
+            "/checkout",
+            {
+                state: {
+                    buyNowItems: [
+                        {
+                            product_id: 17,
+                            name: "Test Medicine",
+                            image: "/test-medicine.png",
+                            price: 99,
+                            quantity: 2,
+                        },
+                    ],
+                },
+            }
         );
+    });
+
+    test("does not start checkout when the order has no items", async () => {
+        const alertMock = jest.spyOn(window, "alert").mockImplementation(() => {});
+        localStorage.setItem(
+            "orders",
+            JSON.stringify([{ id: "test-order-id", items: [] }])
+        );
+
+        render(<OrderDetails />);
+        fireEvent.click(await screen.findByRole("button", { name: /buy now/i }));
+
+        expect(alertMock).toHaveBeenCalledWith(
+            "There are no products in this order to buy again."
+        );
+        expect(mockNavigate).not.toHaveBeenCalled();
+        alertMock.mockRestore();
     });
 
     // -----------------------------

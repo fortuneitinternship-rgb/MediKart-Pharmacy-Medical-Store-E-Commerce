@@ -415,6 +415,10 @@ const Shop = () => {
     }
   };
 
+  const showAllProducts = () => {
+    setVisibleProducts(filteredProducts.length);
+  };
+
   /* ==========================================================
      RESET FILTERS
   ========================================================== */
@@ -669,6 +673,13 @@ const Shop = () => {
                         onClick={loadMore}
                       >
                         Load More Products
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={showAllProducts}
+                      >
+                        Show All Products
                       </button>
 
                     </div>

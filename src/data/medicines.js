@@ -3,7 +3,7 @@
 import dolo650 from "../assets/medicines/Debo650.jpg";
 import crocin from "../assets/medicines/crocin.jpg";
 import paracetamol from "../assets/medicines/paracetamol.jpg";
-import productPlaceholder from "../assets/images/product-placeholder.svg";
+import genericMedicine from "../assets/products/product1.png";
 import amoxycillin from "../assets/medicines/amoxycillin.png";
 import pantocid from "../assets/medicines/pantocid.png";
 import omez from "../assets/medicines/omez.png";
@@ -92,7 +92,7 @@ const medicines = [
     rating: 4.7,
     reviews: 980,
     discount: 18,
-    image: productPlaceholder,
+    image: genericMedicine,
     packSize: "3 Tablets",
     expiry: "24 Months",
     delivery: "2-3 Business Days",

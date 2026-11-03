@@ -278,9 +278,23 @@ describe("MediKart App Routing", () => {
     ).toBeInTheDocument();
   });
 
-  test("redirects unauthenticated visitors to Login", () => {
+  test("lets unauthenticated visitors browse the home page", () => {
+    localStorage.removeItem("access_token");
+    renderApp("/");
+
+    expect(screen.getByText("Home Page")).toBeInTheDocument();
+  });
+
+  test("redirects unauthenticated visitors to Login for account pages", () => {
     localStorage.removeItem("access_token");
     renderApp("/account");
+
+    expect(screen.getByText("Login Page")).toBeInTheDocument();
+  });
+
+  test("redirects unauthenticated visitors to Login for checkout", () => {
+    localStorage.removeItem("access_token");
+    renderApp("/checkout");
 
     expect(screen.getByText("Login Page")).toBeInTheDocument();
   });

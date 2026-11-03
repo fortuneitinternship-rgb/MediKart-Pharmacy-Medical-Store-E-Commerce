@@ -116,6 +116,20 @@ describe("CartSummary", () => {
     );
   });
 
+  test("delegates checkout to the cart when a handler is supplied", () => {
+    const onCheckout = jest.fn();
+    renderComponent({ onCheckout });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /proceed to checkout/i,
+      })
+    );
+
+    expect(onCheckout).toHaveBeenCalledTimes(1);
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
   test("shows login alert when user is not logged in", () => {
     const alertMock = jest
       .spyOn(window, "alert")

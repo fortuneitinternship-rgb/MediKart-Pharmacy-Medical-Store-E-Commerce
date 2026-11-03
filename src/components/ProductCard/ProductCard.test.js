@@ -1,5 +1,11 @@
 import React from "react";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  cleanup,
+  waitFor,
+} from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
 import { toast } from "react-toastify";
 import ProductCard from "./ProductCard";
@@ -94,7 +100,7 @@ describe("ProductCard Component", () => {
     ).toBeInTheDocument();
   });
 
-  test("adds product to cart", () => {
+  test("adds product to cart", async () => {
     renderProductCard();
 
     const cartButton = screen.getByRole("button", {
@@ -112,12 +118,14 @@ describe("ProductCard Component", () => {
     expect(cart[0].name).toBe("Paracetamol");
     expect(cart[0].quantity).toBe(1);
 
-    expect(toast.success).toHaveBeenCalledWith(
-      "Paracetamol added to cart!"
-    );
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith(
+        "Paracetamol added to cart!"
+      );
+    });
   });
 
-  test("increases quantity when product already exists in cart", () => {
+  test("increases quantity when product already exists in cart", async () => {
     window.alert = jest.fn();
 
     localStorage.setItem(
@@ -143,10 +151,14 @@ describe("ProductCard Component", () => {
     );
 
     expect(cart).toHaveLength(1);
-    expect(cart[0].quantity).toBe(3);
+    await waitFor(() => {
+      expect(
+        JSON.parse(localStorage.getItem("cart"))[0].quantity
+      ).toBe(3);
+    });
   });
 
-  test("adds product to wishlist", () => {
+  test("adds product to wishlist", async () => {
     renderProductCard();
 
     const wishlistButton = screen.getByRole(
@@ -166,13 +178,13 @@ describe("ProductCard Component", () => {
     expect(wishlist[0].id).toBe(9001);
 
     expect(
-      screen.getByRole("button", {
+      await screen.findByRole("button", {
         name: "Remove from wishlist",
       })
     ).toBeInTheDocument();
   });
 
-  test("removes product from wishlist", () => {
+  test("removes product from wishlist", async () => {
     localStorage.setItem(
       "wishlist",
       JSON.stringify([product])
@@ -180,7 +192,7 @@ describe("ProductCard Component", () => {
 
     renderProductCard();
 
-    const wishlistButton = screen.getByRole(
+    const wishlistButton = await screen.findByRole(
       "button",
       {
         name: "Remove from wishlist",
@@ -196,7 +208,7 @@ describe("ProductCard Component", () => {
     expect(wishlist).toHaveLength(0);
 
     expect(
-      screen.getByRole("button", {
+      await screen.findByRole("button", {
         name: "Add to wishlist",
       })
     ).toBeInTheDocument();

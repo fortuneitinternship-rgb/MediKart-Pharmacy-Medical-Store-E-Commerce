@@ -18,6 +18,7 @@ const CartSummary = ({
   subtotal,
   discount,
   delivery,
+  onCheckout,
 }) => {
   const navigate = useNavigate();
 
@@ -68,6 +69,11 @@ const CartSummary = ({
 
   // Checkout Button
   const handleCheckout = () => {
+    if (typeof onCheckout === "function") {
+      onCheckout();
+      return;
+    }
+
     const isLoggedIn = localStorage.getItem("isLoggedIn");
 
     if (isLoggedIn === "true") {

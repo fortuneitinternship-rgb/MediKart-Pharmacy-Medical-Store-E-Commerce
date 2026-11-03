@@ -274,10 +274,29 @@ const ProductDetails = () => {
 
     setRequestError("");
     try {
-      await addProductToCart(product, quantity);
-      navigate(`/checkout/${product.id}`);
+      const price = Number(
+        product.discount_price ??
+        product.discounted_price ??
+        product.price
+      );
+
+      navigate("/checkout", {
+        state: {
+          buyNowItems: [
+            {
+              product_id: Number(product.id),
+              name: product.name,
+              category: product.category,
+              price,
+              discountedPrice: price,
+              image: product.image || product.image_url || "",
+              quantity: Number(quantity),
+            },
+          ],
+        },
+      });
     } catch (error) {
-      setRequestError(error.message || "Unable to add this product to your cart.");
+      setRequestError(error.message || "Unable to start checkout for this product.");
     }
   };
 

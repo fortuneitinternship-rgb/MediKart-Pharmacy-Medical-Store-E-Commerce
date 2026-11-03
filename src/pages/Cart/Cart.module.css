@@ -58,6 +58,23 @@
   top: 100px;
 }
 
+.guestLoginPrompt {
+  display: flex;
+  justify-content: center;
+  margin: 0 20px 24px;
+}
+
+.guestLoginPrompt button {
+  border: 0;
+  border-radius: 8px;
+  padding: 12px 20px;
+  background: #2874f0;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 /* =========================== CART ITEM CARD =========================== */
 
 .cartCard {

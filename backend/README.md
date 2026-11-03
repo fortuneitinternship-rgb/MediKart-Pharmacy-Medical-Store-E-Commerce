@@ -17,7 +17,7 @@ python -m app.scripts.seed_product_catalog
 uvicorn app.main:app --reload
 ```
 
-`backend\.env` is required and loaded from the backend folder regardless of the current working directory. There is no implicit SQLite fallback: the backend fails at startup if `DATABASE_URL` is missing. Startup creates missing tables in the configured MySQL database with `Base.metadata.create_all()`. Create the `medikart` database first and grant `medikart_user` permission to create and modify tables.
+`backend\.env` is required and loaded from the backend folder regardless of the current working directory. There is no implicit SQLite fallback: the backend fails at startup if `DATABASE_URL` is missing. Startup upgrades the legacy address columns (`name`/`address_line`) without dropping saved address data, adds the optional second address line, and creates missing tables. `Base.metadata.create_all()` alone does not migrate existing tables. Create the `medikart` database first and grant `medikart_user` permission to alter and create tables.
 
 The local MySQL connection in `.env.example` is:
 
@@ -42,6 +42,8 @@ npm start
 
 `REACT_APP_API_URL` defaults to `http://127.0.0.1:8000`. Change it in `medikart\.env` if the API runs elsewhere, then restart Create React App. Protected requests use the stored access token as `Authorization: Bearer <token>`.
 
+The storefront, product listings, and product details are available before login. Sign in is required for account pages and checkout; guests can browse products and are prompted to sign in to access a saved cart or place an order. Checkout loads the cart from the API, saves the delivery address, creates the order through the API, and displays the returned order ID. The address step supports manual entry or browser geolocation with an OpenStreetMap preview; location access is requested only when the shopper chooses “Choose on Map.”
+
 ## API connection map
 
 Frontend paths below are relative to `medikart\src`.
@@ -54,13 +56,15 @@ Frontend paths below are relative to `medikart\src`.
 | `POST /api/auth/send-otp` | No current frontend caller |
 | `GET/PUT /api/users/me` | `pages/Profile/Profile.js` via `api/loginApi.js` |
 | `GET/POST /api/addresses`, `PUT/DELETE /api/addresses/{id}` | `pages/Addresses/Addresses.js` via `api/addressApi.js` |
-| `POST /api/orders`, `GET /api/orders`, `GET /api/orders/{order_id}`, `PATCH /api/orders/{order_id}/cancel`, `GET /api/orders/{order_id}/track` | Checkout saves the address and order before clearing the local cart; order list/history/tracking read from the API via `api/ordersApi.js` |
-| `GET /api/products`, `GET /api/products/{id}` | `pages/ProductListingPage.js`, `pages/ProductDetails/ProductDetails.js` |
+| `GET /api/checkout/cart`, `POST /api/checkout/address`, `POST /api/checkout/orders` | `pages/Checkout/Checkout.js` via `api/checkoutApi.js`; cart checkout clears ordered cart rows, while Buy Now checks out the selected product without changing the saved cart |
+| `GET/POST /api/orders/`, `GET /api/orders/{order_id}`, `PATCH /api/orders/{order_id}/cancel`, `GET /api/orders/{order_id}/track` | `api/ordersApi.js`; the Account page and tracking page load the signed-in user's orders |
+| `GET /api/products` (optional `q`, `category`, `min_price`, `max_price`, `sort_by`, `sort_order`, `limit`, `offset`), `GET /api/products/{id}` | `pages/ProductListingPage.js`, `pages/ProductDetails/ProductDetails.js` |
+| `GET /api/products/categories`, admin `POST/PUT/DELETE /api/products/categories[/{id}]` | Product category listing and administration |
 | `POST/PUT/DELETE /api/products[/{id}]` (admin bearer token required) | `pages/AdminProducts/AdminProducts.js` via `services/api.js` |
 | `GET /api/products/featured`, `/trending`, `/flash-sale`, `/new-arrivals` | Available in `api/productApi.js`; the home sections still use static presentation data |
 | `POST /api/newsletter/subscribe` | `components/Newsletter/Newsletter.js` via `services/api.js`; displays backend success/error responses |
-| `POST /api/cards`, `GET /api/cards`, `DELETE /api/cards/{card_id}` | `pages/Payments/Payments.js` via `api/cardApi.js`; only card last four digits and metadata are displayed/stored |
-| `POST /api/payments/process`, `GET /api/payments/order/{order_id}` | No current frontend caller; checkout records the selected payment method on its order request |
+| Card endpoints | `pages/Payments/Payments.js` expects card endpoints, but no `/api/cards` router is currently registered |
+| `POST /api/payments/process`, `GET /api/payments/order/{order_id}` | No current frontend caller; local-only simulator records `Simulated` and does not charge a payment method or mark the order paid |
 | `GET /api/admin/dashboard` | No current frontend caller |
 | `POST /api/contact/messages` | `pages/Contact/Contact.js` |
 | `GET/POST /api/reviews` | `pages/Reviews/Reviews.js` |
@@ -68,7 +72,7 @@ Frontend paths below are relative to `medikart\src`.
 | `GET/POST/DELETE /api/health-records` | `pages/HealthRecords/HealthRecords.js` |
 | `GET/POST /api/prescriptions` | `pages/UploadPrescription/UploadPrescription.js`; file bytes and metadata are stored in the configured database |
 
-The shared `services/api.js` client uses `REACT_APP_API_URL` (default `http://127.0.0.1:8000`) and attaches the signed-in user's bearer token. Cart and wishlist API endpoints persist authenticated users' records in the configured database. Checkout records a pending payment with the order; `/api/payments/process` is not connected to a payment provider and is not proof of a real charge. Saved card metadata includes only the last four digits and expiry; do not deploy card entry without HTTPS, a compliant card-data environment, and provider-hosted/tokenized fields.
+The shared `services/api.js` client uses `REACT_APP_API_URL` (default `http://127.0.0.1:8000`) and attaches the signed-in user's bearer token. Cart and wishlist API endpoints persist authenticated users' records in the configured database. Checkout records the selected payment method with the order; `/api/payments/process` is a local simulator only and never represents a real charge.
 
 ## Refresh the Shop catalog
 
@@ -81,7 +85,7 @@ cd .\backend
 .\environment\Scripts\python.exe -m app.scripts.seed_product_catalog
 ```
 
-The export is written to `backend\data\product_catalog.json`. The sync creates missing categories and products, fills only missing catalog details on existing products, and replaces missing or promotional-banner product images with the matching catalog image path. Existing product pricing and other non-empty product details are preserved. The sync also adds the catalog detail columns to an existing `products` table and removes a legacy name-only unique index so the same product name can exist in distinct categories. Run it again after changing the frontend catalog; it is safe to repeat. The Shop then loads all active products and categories from `GET /api/products`; its “Load More Products” button reveals further results.
+The export is written to `backend\data\product_catalog.json`. The sync creates missing categories and products, fills only missing catalog details on existing products, and replaces missing or promotional-banner product images with the matching catalog image path. Existing product pricing and other non-empty product details are preserved. The sync also adds the catalog detail columns to an existing `products` table and removes a legacy name-only unique index so the same product name can exist in distinct categories. Run it again after changing the frontend catalog; it is safe to repeat. The Shop then loads all active products and categories from `GET /api/products`; “Load More Products” reveals the next batch and “Show All Products” reveals the full filtered catalog.
 
 After registering, make an administrator in the configured database before using Product Inventory:
 
@@ -138,6 +142,23 @@ python -m pytest -q tests\test_users.py
 ```
 
 `py -3.12` requires the Python 3.12 Windows runtime to be installed and registered with the Python Launcher. The bcrypt/passlib compatibility warning is addressed by pinning `bcrypt==4.0.1`.
+
+## Docker Compose (local development)
+
+From `medikart\backend`, copy `.env.example` to `.env`, replace `SECRET_KEY`,
+`MYSQL_PASSWORD`, and `MYSQL_ROOT_PASSWORD`, then start the API and MySQL:
+
+```powershell
+Copy-Item .env.example .env
+docker compose up --build
+```
+
+The API is available at http://127.0.0.1:8000 and the OpenAPI UI at
+http://127.0.0.1:8000/docs. MySQL data persists in the
+`medikart_mysql_data` Docker volume. This Compose file is for local deployment;
+production still requires hardened secrets, HTTPS, backups, monitoring, and a
+chosen hosting provider. Payment processing remains a local simulator and
+does not charge cards or bank accounts.
 
 ## Tests
 

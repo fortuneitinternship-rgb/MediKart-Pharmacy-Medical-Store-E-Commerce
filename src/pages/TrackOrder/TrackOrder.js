@@ -17,6 +17,11 @@ import {
 } from "react-icons/fa";
 import { useNavigate, useParams, useLocation, Link } from "react-router-dom";
 import { toast } from "react-toastify";
+import {
+    getOrder,
+    getOrderTracking,
+    getOrders,
+} from "../../api/ordersApi";
 
 import "./TrackOrder.css";
 
@@ -30,6 +35,8 @@ const TrackOrder = () => {
     const [searched, setSearched] = useState(false);
     const [copied, setCopied] = useState(false);
     const [recentOrders, setRecentOrders] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
 
     // Format address whether object or string
     const formatAddress = (addr) => {
@@ -70,98 +77,88 @@ const TrackOrder = () => {
         });
     };
 
-    // Generate fallback tracking data for any demo ID (like MK7721605963)
-    const generateFallbackOrder = useCallback((id) => {
-        const cleanId = String(id).trim();
-        const date = new Date();
-        date.setDate(date.getDate() - 1);
+    // Load recent orders belonging to the signed-in user.
+    useEffect(() => {
+        let active = true;
 
-        const estDate = new Date();
-        estDate.setDate(estDate.getDate() + 2);
+        getOrders()
+            .then((orders) => {
+                if (active) {
+                    setRecentOrders(Array.isArray(orders) ? orders : []);
+                }
+            })
+            .catch((requestError) => {
+                console.error("Unable to load recent orders:", requestError);
+            });
 
-        return {
-            orderId: cleanId,
-            trackingNumber: `MKTRK${cleanId.replace(/\D/g, "").slice(-8) || "88291024"}`,
-            orderDate: date.toLocaleDateString("en-IN", {
-                day: "numeric",
-                month: "short",
-                year: "numeric",
-            }),
-            estimatedDelivery: estDate.toLocaleDateString("en-IN", {
-                day: "numeric",
-                month: "short",
-                year: "numeric",
-            }),
-            status: "In Transit",
-            paymentMethod: "Cash on Delivery",
-            deliveryType: "Normal Delivery",
-            deliveryCharge: 0,
-            discount: 40,
-            productAmount: 450,
-            totalAmount: 410,
-            address: {
-                name: "Satender Kashyap",
-                phone: "9876543210",
-                address: "Plot 12, Health Enclave",
-                city: "New Delhi",
-                state: "Delhi",
-                pincode: "110001",
-            },
-            items: [
-                {
-                    id: 1,
-                    name: "Dolo 650 Tablet (15 Tablets)",
-                    brand: "Micro Labs",
-                    price: 35,
-                    quantity: 2,
-                },
-                {
-                    id: 2,
-                    name: "Omega-3 Fish Oil 1000mg",
-                    brand: "HK Vitals",
-                    price: 380,
-                    quantity: 1,
-                },
-            ],
+        return () => {
+            active = false;
         };
     }, []);
 
-    // Perform Search for given ID
     const performSearch = useCallback(
-        (targetId) => {
+        async (targetId) => {
             const enteredId = String(targetId || "").trim();
             if (!enteredId) {
                 alert("Please enter your Order ID");
                 return;
             }
 
-            const cleanId = enteredId.replace(/^#/, "").toLowerCase();
-            const storedOrders = JSON.parse(localStorage.getItem("orders") || "[]");
-
-            // Look in localStorage first
-            const found = storedOrders.find((item) => {
-                const itemOrderId = String(item.orderId || item.id || "").replace(/^#/, "").toLowerCase();
-                return itemOrderId === cleanId;
-            });
-
-            if (found) {
-                setOrder(found);
-            } else {
-                // If not in localStorage, generate live tracking info for this ID
-                const fallback = generateFallbackOrder(enteredId);
-                setOrder(fallback);
-            }
-
+            setLoading(true);
+            setError("");
+            setOrder(null);
             setSearched(true);
+
+            try {
+                const cleanId = enteredId.replace(/^#/, "");
+                const [orderData, trackingData] = await Promise.all([
+                    getOrder(cleanId),
+                    getOrderTracking(cleanId),
+                ]);
+
+                setOrder({
+                    ...orderData,
+                    orderId: orderData.order_id || orderData.orderId || cleanId,
+                    orderDate: orderData.created_at || orderData.orderDate || orderData.date,
+                    paymentMethod: orderData.payment_method || orderData.paymentMethod,
+                    deliveryType: orderData.delivery_type || orderData.deliveryType,
+                    deliveryCharge: orderData.delivery_charge ?? orderData.deliveryCharge,
+                    discount: orderData.discount,
+                    productAmount: orderData.product_amount ?? orderData.productAmount,
+                    totalAmount: orderData.total_amount ?? orderData.totalAmount,
+                    address: orderData.address && typeof orderData.address === "object"
+                        ? orderData.address
+                        : {
+                            name: orderData.customer_name,
+                            phone: orderData.phone,
+                            address: orderData.address,
+                            city: orderData.city,
+                            state: orderData.state,
+                            pincode: orderData.pincode,
+                        },
+                    items: (orderData.items || []).map((item) => ({
+                        ...item,
+                        name: item.product_name || item.name || item.title,
+                    })),
+                    status: trackingData.status || orderData.status,
+                    trackingNumber: trackingData.tracking_id || trackingData.trackingNumber,
+                    estimatedDelivery: trackingData.delivery_time || orderData.delivery_time,
+                });
+            } catch (requestError) {
+                setError(
+                    requestError.response?.data?.detail ||
+                    requestError.message ||
+                    "Unable to load tracking details."
+                );
+            } finally {
+                setLoading(false);
+            }
         },
-        [generateFallbackOrder]
+        []
     );
 
-    // Initial load: parse query params, route params, or load recent order
+    // Search only when an order ID was explicitly requested.
     useEffect(() => {
-        const storedOrders = JSON.parse(localStorage.getItem("orders") || "[]");
-        setRecentOrders(Array.isArray(storedOrders) ? storedOrders : []);
-
         const queryParams = new URLSearchParams(location.search);
         const queryId = queryParams.get("id") || queryParams.get("orderId");
         const routeId = params.orderId;
@@ -170,14 +167,6 @@ const TrackOrder = () => {
         if (initialId) {
             setOrderId(initialId);
             performSearch(initialId);
-        } else if (storedOrders.length > 0) {
-            const latest = storedOrders[0];
-            const latestId = latest.orderId || latest.id;
-            if (latestId) {
-                setOrderId(latestId);
-                setOrder(latest);
-                setSearched(true);
-            }
         }
     }, [location, params, performSearch]);
 
@@ -242,7 +231,7 @@ const TrackOrder = () => {
                 {/* Header */}
                 <div className="track-header">
                     <h1>Track Your Order</h1>
-                    <p>Enter your MediKart Order ID (e.g., <strong>MK7721605963</strong>) to check live status and shipment updates.</p>
+                    <p>Enter your MediKart Order ID to check its latest saved status.</p>
                 </div>
 
                 {/* Search Card */}
@@ -258,7 +247,7 @@ const TrackOrder = () => {
                     <div className="order-search">
                         <input
                             type="text"
-                            placeholder="Enter Order ID (e.g. MK7721605963)"
+                            placeholder="Enter Order ID"
                             value={orderId}
                             onChange={(e) => setOrderId(e.target.value)}
                             onKeyDown={(e) => {
@@ -268,40 +257,24 @@ const TrackOrder = () => {
                             }}
                         />
 
-                        <button onClick={() => performSearch(orderId)}>
-                            <FaSearch /> Track Order
+                        <button onClick={() => performSearch(orderId)} disabled={loading}>
+                            <FaSearch /> {loading ? "Loading..." : "Track Order"}
                         </button>
                     </div>
+
+                    {error && <p role="alert">{error}</p>}
 
                     {/* Quick Suggestions Chips */}
                     <div style={{ marginTop: "14px", display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
                         <span style={{ fontSize: "12px", color: "#666", fontWeight: "600" }}>Quick Track:</span>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setOrderId("MK7721605963");
-                                performSearch("MK7721605963");
-                            }}
-                            style={{
-                                background: "#eef5ff",
-                                border: "1px solid #c8dcff",
-                                color: "#2874f0",
-                                padding: "4px 10px",
-                                borderRadius: "14px",
-                                fontSize: "12px",
-                                cursor: "pointer",
-                                fontWeight: "600",
-                            }}
-                        >
-                            MK7721605963
-                        </button>
                         {recentOrders.slice(0, 2).map((ro) => (
                             <button
-                                key={ro.orderId}
+                                key={ro.order_id || ro.orderId || ro.id}
                                 type="button"
                                 onClick={() => {
-                                    setOrderId(ro.orderId);
-                                    performSearch(ro.orderId);
+                                    const recentOrderId = ro.order_id || ro.orderId || ro.id;
+                                    setOrderId(recentOrderId);
+                                    performSearch(recentOrderId);
                                 }}
                                 style={{
                                     background: "#f0f0f0",
@@ -313,14 +286,14 @@ const TrackOrder = () => {
                                     cursor: "pointer",
                                 }}
                             >
-                                {ro.orderId}
+                                {ro.order_id || ro.orderId || ro.id}
                             </button>
                         ))}
                     </div>
                 </div>
 
                 {/* Empty State if searched and nothing returned */}
-                {searched && !order && (
+                {searched && !order && !loading && !error && (
                     <div className="order-not-found">
                         <FaBoxOpen />
                         <h2>Order Not Found</h2>

@@ -1,11 +1,13 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.api.deps import get_current_user
 from app.database.database import get_db
 from app.models.order import Order
 from app.models.order_item import OrderItem
+from app.models.user import User
 from app.schemas.order import OrderCreate, OrderResponse
 
 
@@ -26,6 +28,7 @@ router = APIRouter(
 )
 def create_order(
     order_data: OrderCreate,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
 
@@ -41,7 +44,7 @@ def create_order(
         new_order = Order(
             order_id=generated_order_id,
 
-            user_id=order_data.user_id,
+            user_id=current_user.id,
 
             customer_name=order_data.customer_name,
             phone=order_data.phone,
@@ -116,11 +119,13 @@ def create_order(
 
 @router.get("/")
 def get_orders(
-    db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
 
     orders = (
         db.query(Order)
+        .filter(Order.user_id == current_user.id)
         .order_by(Order.id.desc())
         .all()
     )
@@ -223,13 +228,15 @@ def get_orders(
 @router.get("/{order_id}")
 def get_order(
     order_id: str,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
 
     order = (
         db.query(Order)
         .filter(
-            Order.order_id == order_id
+            Order.order_id == order_id,
+            Order.user_id == current_user.id,
         )
         .first()
     )
@@ -331,4 +338,69 @@ def get_order(
 
             for item in items
         ]
+    }
+
+
+@router.patch("/{order_id}/cancel")
+def cancel_order(
+    order_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    order = (
+        db.query(Order)
+        .filter(
+            Order.order_id == order_id,
+            Order.user_id == current_user.id,
+        )
+        .first()
+    )
+    if order is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Order not found.",
+        )
+
+    current_status = (order.status or "").strip().lower()
+    if current_status == "cancelled":
+        return {"order_id": order.order_id, "status": order.status}
+
+    if current_status not in {"pending", "confirmed", "order confirmed"}:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This order can no longer be cancelled.",
+        )
+
+    order.status = "Cancelled"
+    db.commit()
+    db.refresh(order)
+    return {"order_id": order.order_id, "status": order.status}
+
+
+@router.get("/{order_id}/track")
+def track_order(
+    order_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    order = (
+        db.query(Order)
+        .filter(
+            Order.order_id == order_id,
+            Order.user_id == current_user.id,
+        )
+        .first()
+    )
+    if order is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Order not found.",
+        )
+
+    return {
+        "order_id": order.order_id,
+        "status": order.status,
+        "created_at": order.created_at,
+        "delivery_type": order.delivery_type,
+        "delivery_time": order.delivery_time,
     }

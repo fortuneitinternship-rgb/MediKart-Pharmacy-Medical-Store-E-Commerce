@@ -304,12 +304,31 @@ const OrderDetails = () => {
           <button
             className="buy-now-btn"
             onClick={() => {
-              localStorage.setItem(
-                "checkoutItems",
-                JSON.stringify(items)
-              );
+              if (items.length === 0) {
+                window.alert("There are no products in this order to buy again.");
+                return;
+              }
 
-              navigate(`/orders/${order.id}`);
+              const buyNowItems = items
+                .map((item) => ({
+                  product_id: Number(
+                    item.product_id ?? item.productId
+                  ),
+                  name: item.product_name || item.name,
+                  image: item.image || item.image_url || "",
+                  price: Number(item.price || 0),
+                  quantity: Number(item.quantity || 1),
+                }))
+                .filter((item) => Number.isInteger(item.product_id) && item.product_id > 0);
+
+              if (buyNowItems.length !== items.length) {
+                window.alert("Product details are missing for one or more items.");
+                return;
+              }
+
+              navigate("/checkout", {
+                state: { buyNowItems },
+              });
             }}
           >
             <FaShoppingBag />

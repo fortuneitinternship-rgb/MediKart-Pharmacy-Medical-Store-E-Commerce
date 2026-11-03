@@ -852,6 +852,29 @@ describe("Shop Component", () => {
         ).not.toBeInTheDocument();
     });
 
+    test("shows every filtered product when Show All Products is selected", async () => {
+        getProducts.mockResolvedValue(
+            Array.from({ length: 14 }, (_, index) => ({
+                ...mockProducts[0],
+                id: index + 1,
+                name: `Catalog Product ${index + 1}`,
+            }))
+        );
+
+        renderShop();
+        jest.advanceTimersByTime(400);
+
+        await waitFor(() => {
+            expect(screen.getAllByTestId("product-card")).toHaveLength(12);
+        });
+
+        fireEvent.click(
+            screen.getByRole("button", { name: "Show All Products" })
+        );
+
+        expect(screen.getAllByTestId("product-card")).toHaveLength(14);
+    });
+
     // -----------------------------------------------------
     // EMPTY SEARCH RESULT
     // -----------------------------------------------------

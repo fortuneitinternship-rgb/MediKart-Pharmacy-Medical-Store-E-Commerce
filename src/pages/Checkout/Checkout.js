@@ -1,27 +1,19 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { FaCheck, FaMapMarkerAlt, FaCreditCard, FaUniversity, FaMoneyBillWave, FaTruck, FaBolt, FaClock, FaPlus, FaMinus, FaLocationArrow, FaEdit, FaMap, } from "react-icons/fa";
-import {
-    getCheckoutCart,
-    saveCheckoutAddress,
-    createCheckoutOrder,
-} from "../../api/checkoutApi";
-import {
-    removeCartItem,
-    updateCartItem,
-} from "../../api/cartApi";
+import { getCheckoutCart, saveCheckoutAddress, createCheckoutOrder, } from "../../api/checkoutApi";
+import { removeCartItem, updateCartItem, } from "../../api/cartApi";
 import { getApiErrorMessage } from "../../services/api";
-import {
-    getProductImage,
-    handleProductImageError,
-} from "../../utils/productImage";
+import { getProductImage, handleProductImageError, } from "../../utils/productImage";
 
 import "./Checkout.css";
 
 const Checkout = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const { id: routeProductId } = useParams();
+    const buyNowItems = location.state?.buyNowItems;
 
     // ======================= STATES =======================
 
@@ -32,7 +24,34 @@ const Checkout = () => {
     const [cartLoadStatus, setCartLoadStatus] = useState(null);
     const [cartLoadAttempt, setCartLoadAttempt] = useState(0);
     const [placingOrder, setPlacingOrder] = useState(false);
-    const visibleCartItems = routeProductId
+    const visibleCartItems = Array.isArray(buyNowItems) && buyNowItems.length > 0
+        ? buyNowItems.map((item) => {
+            const productId = Number(
+                item.product_id ?? item.productId ?? item.id
+            );
+            const price = Number(
+                item.discountedPrice ??
+                item.discounted_price ??
+                item.discount_price ??
+                item.price ??
+                0
+            );
+
+            return {
+                ...item,
+                id: item.id ?? productId,
+                product_id: productId,
+                name: item.name || item.title || "Healthcare Product",
+                price,
+                discountedPrice: price,
+                quantity: Math.max(1, Number(item.quantity) || 1),
+            };
+        }).filter(
+            (item) =>
+                !routeProductId ||
+                String(item.product_id) === String(routeProductId)
+        )
+        : routeProductId
         ? cartItems.filter(
             (item) => String(item.product_id) === String(routeProductId)
         )
@@ -62,6 +81,7 @@ const Checkout = () => {
     // NEW:
     // Location loading
     const [locationLoading, setLocationLoading] = useState(false);
+    const [selectedLocation, setSelectedLocation] = useState(null);
 
     // ======================= LOAD CART =======================
 
@@ -72,6 +92,12 @@ const Checkout = () => {
             setCartLoading(true);
             setCartLoadError("");
             setCartLoadStatus(null);
+
+            if (Array.isArray(buyNowItems) && buyNowItems.length > 0) {
+                setCartItems(buyNowItems);
+                setCartLoading(false);
+                return;
+            }
 
             try {
                 const data = await getCheckoutCart();
@@ -109,7 +135,7 @@ const Checkout = () => {
         return () => {
             cancelled = true;
         };
-    }, [routeProductId, cartLoadAttempt]);
+    }, [routeProductId, cartLoadAttempt, buyNowItems]);
 
     // ======================= LOAD SAVED ADDRESS =======================
 
@@ -367,20 +393,7 @@ const Checkout = () => {
                 const longitude =
                     position.coords.longitude;
 
-                /*
-                 * Browser geolocation gives coordinates.
-                 *
-                 * A real application can send these coordinates
-                 * to Google Maps / Mapbox / OpenStreetMap reverse
-                 * geocoding API to get the complete address.
-                 */
-
-                setAddress((previous) => ({
-                    ...previous,
-                    address: `Location selected on map (${latitude.toFixed(
-                        6
-                    )}, ${longitude.toFixed(6)})`,
-                }));
+                setSelectedLocation({ latitude, longitude });
 
                 setAddressMode("map");
 
@@ -568,7 +581,23 @@ const Checkout = () => {
                 error.response?.data || error.message
             );
 
-            alert("Unable to save address. Please try again.");
+            const detail = error.response?.data?.detail;
+            const reason = Array.isArray(detail)
+                ? detail
+                    .map((item) => {
+                        const field = Array.isArray(item.loc)
+                            ? item.loc[item.loc.length - 1]
+                            : "";
+                        return `${field ? `${field}: ` : ""}${item.msg}`;
+                    })
+                    .join("\n")
+                : typeof detail === "string"
+                  ? detail
+                  : error.response
+                    ? "The server rejected the address."
+                    : "Could not reach the API. Check that the backend is running.";
+
+            alert(`Unable to save address. ${reason}`);
         } finally {
             setAddressSaving(false);
         }
@@ -603,6 +632,7 @@ const Checkout = () => {
                 payment_method: paymentMethod,
                 delivery_type: deliveryType,
                 delivery_distance: deliveryDistance,
+                remove_from_cart: !(Array.isArray(buyNowItems) && buyNowItems.length > 0),
             };
 
             const response = await createCheckoutOrder(orderData);
@@ -621,8 +651,7 @@ const Checkout = () => {
 
             setOrderId(String(generatedOrderId));
 
-            // The checkout endpoint persists the order and removes ordered
-            // products from the cart in one database transaction.
+            // Cart checkout clears purchased cart rows; Buy Now preserves them.
             localStorage.removeItem("buyNow");
 
             setCartItems([]);
@@ -1707,13 +1736,27 @@ const Checkout = () => {
                             >
                                 <FaLocationArrow />
 
-                                Location selected.
-                                Please complete
-                                your name, phone,
-                                city, state and
-                                pincode below.
+                                Location selected. Please enter your full delivery
+                                address, name, phone, city, state and pincode below.
                             </div>
                         )}
+
+                    {addressMode === "map" && selectedLocation && (
+                        <div className="checkout-map">
+                            <iframe
+                                title="Selected delivery location"
+                                loading="lazy"
+                                src={`https://www.openstreetmap.org/export/embed.html?bbox=${selectedLocation.longitude - 0.01}%2C${selectedLocation.latitude - 0.01}%2C${selectedLocation.longitude + 0.01}%2C${selectedLocation.latitude + 0.01}&layer=mapnik&marker=${selectedLocation.latitude}%2C${selectedLocation.longitude}`}
+                            />
+                            <a
+                                href={`https://www.openstreetmap.org/?mlat=${selectedLocation.latitude}&mlon=${selectedLocation.longitude}#map=16/${selectedLocation.latitude}/${selectedLocation.longitude}`}
+                                target="_blank"
+                                rel="noreferrer"
+                            >
+                                View this location on OpenStreetMap
+                            </a>
+                        </div>
+                    )}
 
                     {/* ADDRESS FORM */}
 

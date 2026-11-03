@@ -32,8 +32,17 @@ function UserActions() {
 
   const updateCount = async () => {
     if (!getAccessToken()) {
-      setCartCount(0);
-      setWishlistCount(0);
+      const localCart = JSON.parse(localStorage.getItem("cart") || "[]");
+      const localWishlist = JSON.parse(localStorage.getItem("wishlist") || "[]");
+      setCartCount(
+        Array.isArray(localCart)
+          ? localCart.reduce(
+              (total, item) => total + (Number(item.quantity) || 1),
+              0
+            )
+          : 0
+      );
+      setWishlistCount(Array.isArray(localWishlist) ? localWishlist.length : 0);
     } else {
       try {
         const [cart, wishlist] = await Promise.all([
@@ -41,7 +50,7 @@ function UserActions() {
           getWishlist(),
         ]);
         setCartCount(cart.reduce((total, item) => total + item.quantity, 0));
-        setWishlistCount(wishlist.items?.length || 0);
+        setWishlistCount(Array.isArray(wishlist) ? wishlist.length : 0);
       } catch (error) {
         console.error("Unable to load shopping counts:", error);
         setCartCount(0);

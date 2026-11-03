@@ -27,6 +27,12 @@ def process_payment(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
+    if data.method != order.payment_method:
+        raise HTTPException(
+            status_code=409,
+            detail="Payment method must match the method selected for this order.",
+        )
+
     payment = db.query(Payment).filter(
         Payment.order_id == order.id
     ).first()
@@ -38,12 +44,10 @@ def process_payment(
             method=data.method,
         )
         db.add(payment)
-
     payment.transaction_id = "TXN-" + uuid.uuid4().hex[:12].upper()
     payment.method = data.method
     payment.amount = order.total_amount
-    payment.status = "Success"
-    order.payment_status = "Paid"
+    payment.status = "Simulated"
 
     db.commit()
     db.refresh(payment)

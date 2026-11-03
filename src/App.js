@@ -86,13 +86,34 @@ function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  const protectedRoutes = [
+    "/checkout",
+    "/order-confirmation",
+    "/order-history",
+    "/orders",
+    "/track-order",
+    "/account",
+    "/profile",
+    "/payments",
+    "/addresses",
+    "/upload-prescription",
+    "/health-records",
+    "/offers",
+    "/notifications",
+    "/settings",
+  ];
   const isPublicRoute =
     location.pathname === "/login" ||
     location.pathname === "/register" ||
     location.pathname === "/forgot-password";
+  const requiresAuthentication = protectedRoutes.some(
+    (route) =>
+      location.pathname === route ||
+      location.pathname.startsWith(`${route}/`)
+  );
   const hideNavbar = isPublicRoute;
 
-  if (!isAuthenticated() && !isPublicRoute) {
+  if (!isAuthenticated() && requiresAuthentication) {
     return (
       <Navigate
         to="/login"

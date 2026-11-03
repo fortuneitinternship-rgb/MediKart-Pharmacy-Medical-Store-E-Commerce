@@ -56,14 +56,6 @@ const Cart = () => {
     const token = getAccessToken();
     setIsLoggedIn(Boolean(token));
 
-    // Guest cart
-    if (!token) {
-      setCartItems([]);
-      setLoading(false);
-      return;
-    }
-
-    // Logged-in user cart
     try {
       const serverItems = await getCart();
 
@@ -145,17 +137,6 @@ const Cart = () => {
     setCartItems(updatedItems);
     setError("");
 
-    // Check server cart row ID
-    if (!item._serverItem) {
-      setCartItems(previousItems);
-
-      setError(
-        "This product is not linked to your server cart. Please refresh your cart."
-      );
-
-      return;
-    }
-
     setBusy(true);
 
     try {
@@ -208,17 +189,6 @@ const Cart = () => {
     const previousItems = [...cartItems];
 
     setError("");
-
-    // Server cart validation
-    if (!item._serverItem) {
-      setModal({
-        type: "error",
-        message:
-          "This item is not linked to your server cart. Please refresh.",
-      });
-
-      return;
-    }
 
     setBusy(true);
 

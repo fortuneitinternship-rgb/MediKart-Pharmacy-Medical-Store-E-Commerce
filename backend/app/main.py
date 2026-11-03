@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.database.database import Base, engine
+from app.database.migrations import upgrade_legacy_address_schema
 
 # Register models before creating database tables.
 import app.database.base  # noqa: F401
@@ -58,6 +59,8 @@ frontend_origins = [
 
 @app.on_event("startup")
 def initialize_database():
+    # Keep existing address data while upgrading legacy column names.
+    upgrade_legacy_address_schema(engine)
     # Create missing tables registered with SQLAlchemy.
     Base.metadata.create_all(bind=engine)
 

@@ -4,6 +4,16 @@ const API_BASE_URL = (
 ).replace(/\/$/, "");
 
 const CART_URL = `${API_BASE_URL}/api/cart`;
+const LOCAL_CART_KEY = "cart";
+
+function getLocalCart() {
+  const items = JSON.parse(localStorage.getItem(LOCAL_CART_KEY) || "[]");
+  return Array.isArray(items) ? items.map(normalizeCartItem) : [];
+}
+
+function saveLocalCart(items) {
+  localStorage.setItem(LOCAL_CART_KEY, JSON.stringify(items));
+}
 
 // -------------------- AUTH TOKEN --------------------
 
@@ -115,6 +125,10 @@ export function normalizeCartItem(item) {
 // -------------------- GET CART --------------------
 
 export async function getCart() {
+  if (!getAccessToken()) {
+    return getLocalCart();
+  }
+
   const response = await fetch(CART_URL, {
     method: "GET",
     headers: getHeaders(),
@@ -162,7 +176,27 @@ export async function addProductToCart(product, quantity = 1) {
   }
 
   if (!getAccessToken()) {
-    throw new Error("Please log in before adding products to your cart.");
+    const cart = getLocalCart();
+    const existing = cart.find(
+      (item) => Number(item.product_id) === Number(product.id)
+    );
+
+    if (existing) {
+      existing.quantity += Number(quantity);
+    } else {
+      cart.push(
+        normalizeCartItem({
+          ...product,
+          id: product.id,
+          product_id: product.id,
+          quantity,
+        })
+      );
+    }
+
+    saveLocalCart(cart);
+    window.dispatchEvent(new Event("cartUpdated"));
+    return cart;
   }
 
   const result = await addCartItem(product.id, quantity);
@@ -175,6 +209,17 @@ export async function addProductToCart(product, quantity = 1) {
 export async function updateCartItem(cartItemId, quantity) {
   if (!cartItemId || Number(quantity) < 1) {
     throw new Error("Valid cart item ID and quantity are required.");
+  }
+
+  if (!getAccessToken()) {
+    const cart = getLocalCart().map((item) =>
+      String(item.id) === String(cartItemId)
+        ? { ...item, quantity: Number(quantity) }
+        : item
+    );
+    saveLocalCart(cart);
+    window.dispatchEvent(new Event("cartUpdated"));
+    return cart;
   }
 
   const response = await fetch(
@@ -196,6 +241,15 @@ export async function updateCartItem(cartItemId, quantity) {
 export async function removeCartItem(cartItemId) {
   if (!cartItemId) {
     throw new Error("Cart item ID is required.");
+  }
+
+  if (!getAccessToken()) {
+    const cart = getLocalCart().filter(
+      (item) => String(item.id) !== String(cartItemId)
+    );
+    saveLocalCart(cart);
+    window.dispatchEvent(new Event("cartUpdated"));
+    return cart;
   }
 
   const response = await fetch(

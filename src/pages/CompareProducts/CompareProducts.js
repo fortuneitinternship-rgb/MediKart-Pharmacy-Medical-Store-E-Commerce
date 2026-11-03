@@ -1,40 +1,66 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { getProducts } from "../../api/productApi";
 import "./CompareProducts.css";
 
-const products = [
-    {
-        id: 1,
-        name: "Paracetamol Tablets",
-        brand: "Micro Labs",
-        price: 96,
-        rating: 4.8,
-        stock: "In Stock",
-        category: "Tablets",
-    },
-    {
-        id: 2,
-        name: "Vitamin D Capsules",
-        brand: "HealthVit",
-        price: 559,
-        rating: 4.7,
-        stock: "In Stock",
-        category: "Supplements",
-    },
-    {
-        id: 3,
-        name: "Blood Pressure Monitor",
-        brand: "Omron",
-        price: 1874,
-        rating: 4.9,
-        stock: "In Stock",
-        category: "Medical Device",
-    },
-];
-
 function CompareProducts() {
+    const navigate = useNavigate();
+    const [products, setProducts] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
+
+    useEffect(() => {
+        let active = true;
+
+        getProducts()
+            .then((catalog) => {
+                if (active) {
+                    setProducts(catalog.slice(0, 3));
+                }
+            })
+            .catch((requestError) => {
+                console.error("Unable to load products for comparison:", requestError);
+                if (active) {
+                    setError("Products could not be loaded from the database.");
+                }
+            })
+            .finally(() => {
+                if (active) {
+                    setLoading(false);
+                }
+            });
+
+        return () => {
+            active = false;
+        };
+    }, []);
+
+    const buyNow = (product) => {
+        const price = Number(
+            product.discount_price ??
+            product.discounted_price ??
+            product.price
+        );
+
+        navigate("/checkout", {
+            state: {
+                buyNowItems: [
+                    {
+                        product_id: Number(product.id),
+                        name: product.name,
+                        category: product.category,
+                        image: product.image || product.image_url || "",
+                        price,
+                        discountedPrice: price,
+                        quantity: 1,
+                    },
+                ],
+            },
+        });
+    };
+
     return (
         <div className="compare-container">
-
             <div className="compare-header">
                 <h1>Compare Products</h1>
                 <p>
@@ -43,92 +69,81 @@ function CompareProducts() {
                 </p>
             </div>
 
-            <div className="compare-table">
+            {loading && <p role="status">Loading products...</p>}
+            {!loading && error && <p role="alert">{error}</p>}
+            {!loading && !error && products.length === 0 && (
+                <p>No products are available to compare.</p>
+            )}
 
-                <table>
-
-                    <thead>
-                        <tr>
-                            <th>Feature</th>
-
-                            {products.map((product) => (
-                                <th key={product.id}>
-                                    {product.name}
-                                </th>
-                            ))}
-                        </tr>
-                    </thead>
-
-                    <tbody>
-
-                        <tr>
-                            <td>Brand</td>
-
-                            {products.map((product) => (
-                                <td key={product.id}>
-                                    {product.brand}
-                                </td>
-                            ))}
-                        </tr>
-
-                        <tr>
-                            <td>Category</td>
-
-                            {products.map((product) => (
-                                <td key={product.id}>
-                                    {product.category}
-                                </td>
-                            ))}
-                        </tr>
-
-                        <tr>
-                            <td>Price</td>
-
-                            {products.map((product) => (
-                                <td key={product.id}>
-                                    ₹{product.price}
-                                </td>
-                            ))}
-                        </tr>
-
-                        <tr>
-                            <td>Rating</td>
-
-                            {products.map((product) => (
-                                <td key={product.id}>
-                                    ⭐ {product.rating}
-                                </td>
-                            ))}
-                        </tr>
-
-                        <tr>
-                            <td>Availability</td>
-
-                            {products.map((product) => (
-                                <td key={product.id}>
-                                    {product.stock}
-                                </td>
-                            ))}
-                        </tr>
-
-                        <tr>
-                            <td>Action</td>
-
-                            {products.map((product) => (
-                                <td key={product.id}>
-                                    <button>
-                                        Buy Now
-                                    </button>
-                                </td>
-                            ))}
-                        </tr>
-
-                    </tbody>
-
-                </table>
-
-            </div>
-
+            {!loading && !error && products.length > 0 && (
+                <div className="compare-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Feature</th>
+                                {products.map((product) => (
+                                    <th key={product.id}>{product.name}</th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Brand</td>
+                                {products.map((product) => (
+                                    <td key={product.id}>{product.brand || "N/A"}</td>
+                                ))}
+                            </tr>
+                            <tr>
+                                <td>Category</td>
+                                {products.map((product) => (
+                                    <td key={product.id}>{product.category || "N/A"}</td>
+                                ))}
+                            </tr>
+                            <tr>
+                                <td>Price</td>
+                                {products.map((product) => (
+                                    <td key={product.id}>
+                                        ₹{Number(
+                                            product.discount_price ??
+                                            product.discounted_price ??
+                                            product.price ??
+                                            0
+                                        ).toLocaleString("en-IN")}
+                                    </td>
+                                ))}
+                            </tr>
+                            <tr>
+                                <td>Rating</td>
+                                {products.map((product) => (
+                                    <td key={product.id}>⭐ {product.rating ?? "N/A"}</td>
+                                ))}
+                            </tr>
+                            <tr>
+                                <td>Availability</td>
+                                {products.map((product) => (
+                                    <td key={product.id}>
+                                        {Number(product.stock) > 0 ? "In Stock" : "Out of Stock"}
+                                    </td>
+                                ))}
+                            </tr>
+                            <tr>
+                                <td>Action</td>
+                                {products.map((product) => (
+                                    <td key={product.id}>
+                                        <button
+                                            type="button"
+                                            disabled={Number(product.stock) <= 0}
+                                            onClick={() => buyNow(product)}
+                                        >
+                                            Buy Now
+                                        </button>
+                                    </td>
+                                ))}
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            )}
         </div>
     );
 }

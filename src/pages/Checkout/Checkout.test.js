@@ -68,12 +68,19 @@ describe("Checkout Component", () => {
     jest.useRealTimers();
   });
 
-  const renderCheckout = (cart = []) => {
+  const renderCheckout = (cart = [], state = null) => {
     localStorage.setItem("cart", JSON.stringify(cart));
     getCheckoutCart.mockResolvedValue({ items: cart });
 
     return render(
-      <MemoryRouter>
+      <MemoryRouter
+        initialEntries={[
+          {
+            pathname: "/checkout",
+            state,
+          },
+        ]}
+      >
         <Checkout />
       </MemoryRouter>
     );
@@ -595,6 +602,11 @@ describe("Checkout Component", () => {
         "Your current location has been selected."
       );
     });
+
+    const map = await screen.findByTitle("Selected delivery location");
+    expect(map.getAttribute("src")).toContain(
+      "marker=10.123456%2C20.654321"
+    );
   });
 
   test("handles geolocation error", async () => {
@@ -654,6 +666,42 @@ describe("Checkout Component", () => {
     );
     expect(removeCartItem).not.toHaveBeenCalled();
     expect(localStorage.getItem("buyNow")).toBeNull();
+  });
+
+  test("checks out the selected Buy Now item without loading or clearing the cart", async () => {
+    const buyNowItems = [
+      {
+        product_id: 7,
+        name: "Buy Now Product",
+        image: "/buy-now.png",
+        price: 250,
+        quantity: 2,
+      },
+    ];
+
+    renderCheckout([], { buyNowItems });
+
+    expect(
+      await screen.findByText("Buy Now Product")
+    ).toBeInTheDocument();
+    expect(getCheckoutCart).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("proceed-address"));
+    fillAddress();
+    fireEvent.click(
+      screen.getByRole("button", { name: /continue to payment/i })
+    );
+    await screen.findByRole("heading", { name: /payment method/i });
+    fireEvent.click(screen.getByTestId("place-order"));
+
+    await screen.findByTestId("order-id");
+
+    expect(createCheckoutOrder).toHaveBeenCalledWith(
+      expect.objectContaining({
+        items: [{ product_id: 7, quantity: 2 }],
+        remove_from_cart: false,
+      })
+    );
   });
 
   test("view order button navigates to order details", async () => {

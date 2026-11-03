@@ -1,7 +1,7 @@
-import productPlaceholder from "../assets/images/product-placeholder.svg";
+import genericProductImage from "../assets/products/product1.png";
 import products from "../data/products";
 
-const fallbackProductImage = productPlaceholder;
+const fallbackProductImage = genericProductImage;
 
 const imageAssetContext =
   process.env.NODE_ENV === "test"

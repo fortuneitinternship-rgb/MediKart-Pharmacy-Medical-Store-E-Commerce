@@ -150,14 +150,16 @@ describe("Cart Component", () => {
     expect(screen.getByText("Your Cart is Empty")).toBeInTheDocument();
   });
 
-  test("does not request the database cart when the user is logged out", async () => {
+  test("loads the guest cart when the user is logged out", async () => {
     localStorage.clear();
+    localStorage.setItem("cart", JSON.stringify(mockCart));
     getAccessToken.mockReturnValue("");
+    getCart.mockResolvedValue(mockCart);
 
     renderCart();
 
-    expect(await screen.findByText("Your Cart is Empty")).toBeInTheDocument();
-    expect(getCart).not.toHaveBeenCalled();
+    expect(await screen.findByText("Paracetamol")).toBeInTheDocument();
+    expect(getCart).toHaveBeenCalled();
   });
 
   test("persists an increased quantity using the cart row ID", async () => {

@@ -48,6 +48,7 @@ class CheckoutOrderRequest(BaseModel):
     payment_method: Literal["COD", "CARD", "NETBANKING"]
     delivery_type: Literal["normal", "express", "today"] = "normal"
     delivery_distance: Literal["short", "medium", "long"] = "short"
+    remove_from_cart: bool = True
 
 
 # -------------------- HELPERS --------------------
@@ -320,15 +321,16 @@ def create_checkout_order(
             )
             db.add(order_item)
 
-        # Clear only products included in this order; keep other cart items.
-        (
-            db.query(CartItem)
-            .filter(
-                CartItem.user_id == current_user.id,
-                CartItem.product_id.in_(quantities.keys()),
+        if payload.remove_from_cart:
+            # Cart checkout clears purchased products; Buy Now leaves the cart unchanged.
+            (
+                db.query(CartItem)
+                .filter(
+                    CartItem.user_id == current_user.id,
+                    CartItem.product_id.in_(quantities.keys()),
+                )
+                .delete(synchronize_session=False)
             )
-            .delete(synchronize_session=False)
-        )
 
         db.commit()
         db.refresh(order)

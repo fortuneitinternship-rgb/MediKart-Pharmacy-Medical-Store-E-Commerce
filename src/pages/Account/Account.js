@@ -79,7 +79,9 @@ const Account = () => {
           getOrders(),
         ]);
         setCartCount(cart.reduce((total, item) => total + item.quantity, 0));
-        setWishlistCount(wishlist.items?.length || 0);
+        setWishlistCount(
+          Array.isArray(wishlist) ? wishlist.length : wishlist.items?.length || 0
+        );
         setOrdersCount(Array.isArray(orders) ? orders.length : 0);
       } else {
         setCartCount(0);

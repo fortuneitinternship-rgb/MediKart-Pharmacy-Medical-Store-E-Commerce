@@ -55,7 +55,7 @@
     "price": 140,
     "discount_price": 115,
     "stock": 100,
-    "image": "/catalog/images/product-placeholder.svg",
+    "image": "/catalog/products/product1.png",
     "rating": 4.7,
     "reviews": 980,
     "pack_size": "3 Tablets",

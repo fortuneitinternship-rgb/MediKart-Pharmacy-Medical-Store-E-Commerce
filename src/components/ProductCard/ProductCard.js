@@ -8,6 +8,11 @@ import {
   getProductImage,
   handleProductImageError,
 } from "../../utils/productImage";
+import {
+  addToWishlist,
+  getWishlist,
+  removeWishlistItem,
+} from "../../api/wishlistApi";
 
 const ProductCard = ({ product, showWishlist = true }) => {
   const [isWishlisted, setIsWishlisted] = useState(false);
@@ -15,12 +20,22 @@ const ProductCard = ({ product, showWishlist = true }) => {
   const originalPrice = Number(product.originalPrice ?? product.price ?? 0);
 
   useEffect(() => {
-    const wishlist =
-      JSON.parse(localStorage.getItem("wishlist")) || [];
+    let active = true;
+    getWishlist()
+      .then((wishlist) => {
+        if (active) {
+          setIsWishlisted(
+            wishlist.some((item) => Number(item.id) === Number(product.id))
+          );
+        }
+      })
+      .catch((error) => {
+        console.error("Unable to load wishlist state:", error);
+      });
 
-    setIsWishlisted(
-      wishlist.some((item) => item.id === product.id)
-    );
+    return () => {
+      active = false;
+    };
   }, [product.id]);
 
   // Add to Cart
@@ -34,32 +49,20 @@ const ProductCard = ({ product, showWishlist = true }) => {
   };
 
   // Wishlist
-  const handleWishlist = () => {
-    let wishlist =
-      JSON.parse(localStorage.getItem("wishlist")) || [];
+  const handleWishlist = async () => {
+    try {
+      if (isWishlisted) {
+        await removeWishlistItem(product.id);
+        setIsWishlisted(false);
+      } else {
+        await addToWishlist(product);
+        setIsWishlisted(true);
+      }
 
-    const exists = wishlist.find(
-      (item) => item.id === product.id
-    );
-
-    if (exists) {
-      wishlist = wishlist.filter(
-        (item) => item.id !== product.id
-      );
-      setIsWishlisted(false);
-    } else {
-      wishlist.push(product);
-      setIsWishlisted(true);
+      window.dispatchEvent(new Event("wishlistUpdated"));
+    } catch (error) {
+      toast.error(error.message || "Unable to update your wishlist.");
     }
-
-    localStorage.setItem(
-      "wishlist",
-      JSON.stringify(wishlist)
-    );
-
-    window.dispatchEvent(
-      new Event("wishlistUpdated")
-    );
   };
 
   return (
