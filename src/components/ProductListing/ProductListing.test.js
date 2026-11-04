@@ -1,173 +1,249 @@
-import { render, screen, fireEvent, act } from "@testing-library/react";
-import "@testing-library/jest-dom";
-import ProductListing from "./ProductListing";
 
-jest.mock("../ProductCard/ProductCard", () => ({ product }) => (
-  <div>{product.name}</div>
-));
+import { useEffect, useMemo, useState } from "react";
+import { FaSearch, FaTimes } from "react-icons/fa";
 
-jest.mock("../../data/products", () => [
-  {
-    id: 1,
-    name: "Dolo 650",
-    category: "Medicine",
-    price: 30,
-    rating: 4.7,
-    image: "/images/dolo.jpg",
-  },
-  {
-    id: 2,
-    name: "Crocin",
-    category: "Medicine",
-    price: 45,
-    rating: 4.5,
-    image: "/images/crocin.jpg",
-  },
-  {
-    id: 3,
-    name: "Revital",
-    category: "Vitamin",
-    price: 350,
-    rating: 4.8,
-    image: "/images/revital.jpg",
-  },
-  {
-    id: 4,
-    name: "Vitamin C",
-    category: "Vitamin",
-    price: 250,
-    rating: 4.6,
-    image: "/images/vitaminc.jpg",
-  },
-  {
-    id: 5,
-    name: "BP Monitor",
-    category: "Equipment",
-    price: 1999,
-    rating: 4.9,
-    image: "/images/bpmonitor.jpg",
-  },
-  {
-    id: 6,
-    name: "Glucometer",
-    category: "Equipment",
-    price: 1299,
-    rating: 4.4,
-    image: "/images/glucometer.jpg",
-  },
-]);
+import ProductCard from "../ProductCard/ProductCard";
+import SortDropdown from "../SortDropdown/SortDropdown";
+import { getProducts } from "../../api/productApi";
 
-beforeEach(() => {
-  jest.useFakeTimers();
-});
+import styles from "./ProductListing.module.css";
 
-afterEach(() => {
-  jest.runOnlyPendingTimers();
-  jest.useRealTimers();
-});
+const INITIAL_VISIBLE = 4;
+const LOAD_MORE_COUNT = 4;
 
-describe("ProductListing", () => {
-  test("shows loading initially", () => {
-    render(<ProductListing />);
+const safeText = (value) =>
+    typeof value === "string" ? value.toLowerCase().trim() : "";
 
-    expect(
-      screen.getByText(/Loading Products/i)
-    ).toBeInTheDocument();
-  });
+const safeNumber = (value) => {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : 0;
+};
 
-  test("renders products after loading", async () => {
-    render(<ProductListing />);
+const sortProducts = (products, sortBy) => {
+    const list = [...products];
 
-    act(() => {
-      jest.advanceTimersByTime(1200);
-    });
+    switch (sortBy) {
+        case "priceLowHigh":
+            return list.sort(
+                (a, b) => safeNumber(a.price) - safeNumber(b.price)
+            );
 
-    expect(await screen.findByText("Dolo 650")).toBeInTheDocument();
-    expect(screen.getByText("Crocin")).toBeInTheDocument();
-  });
+        case "priceHighLow":
+            return list.sort(
+                (a, b) => safeNumber(b.price) - safeNumber(a.price)
+            );
 
-  test("search filters products", async () => {
-    render(<ProductListing />);
+        case "nameAZ":
+            return list.sort((a, b) =>
+                safeText(a.name).localeCompare(safeText(b.name))
+            );
 
-    act(() => {
-      jest.advanceTimersByTime(1200);
-    });
+        case "nameZA":
+            return list.sort((a, b) =>
+                safeText(b.name).localeCompare(safeText(a.name))
+            );
 
-    const input = screen.getByPlaceholderText(
-      /Search products or categories/i
+        case "rating":
+            return list.sort(
+                (a, b) => safeNumber(b.rating) - safeNumber(a.rating)
+            );
+
+        case "newest":
+            return list.sort(
+                (a, b) => safeNumber(b.id) - safeNumber(a.id)
+            );
+
+        default:
+            return list;
+    }
+};
+
+const ProductListing = ({
+    sortBy = "",
+    setSortBy = () => {},
+}) => {
+    const [loading, setLoading] = useState(true);
+    const [products, setProducts] = useState([]);
+    const [visible, setVisible] = useState(INITIAL_VISIBLE);
+    const [searchTerm, setSearchTerm] = useState("");
+    const [error, setError] = useState("");
+
+    useEffect(() => {
+        let isMounted = true;
+
+        const loadProducts = async () => {
+            try {
+                setLoading(true);
+                setError("");
+
+                const response = await getProducts();
+
+                if (isMounted) {
+                    setProducts(
+                        Array.isArray(response) ? response : []
+                    );
+                }
+            } catch (loadError) {
+                console.error(
+                    "Unable to load products:",
+                    loadError
+                );
+
+                if (isMounted) {
+                    setProducts([]);
+                    setError(
+                        "Products could not be loaded from the database."
+                    );
+                }
+            } finally {
+                if (isMounted) {
+                    setLoading(false);
+                }
+            }
+        };
+
+        loadProducts();
+
+        return () => {
+            isMounted = false;
+        };
+    }, []);
+
+    const filteredProducts = useMemo(() => {
+        const keyword = safeText(searchTerm);
+
+        return products.filter((product) => {
+            const name = safeText(product.name);
+            const category = safeText(product.category);
+
+            return (
+                !keyword ||
+                name.includes(keyword) ||
+                category.includes(keyword)
+            );
+        });
+    }, [products, searchTerm]);
+
+    const sortedProducts = useMemo(
+        () => sortProducts(filteredProducts, sortBy),
+        [filteredProducts, sortBy]
     );
 
-    fireEvent.change(input, {
-      target: { value: "Crocin" },
-    });
+    const clearSearch = () => {
+        setSearchTerm("");
+        setVisible(INITIAL_VISIBLE);
+    };
 
-    expect(screen.getByText("Crocin")).toBeInTheDocument();
+    const handleSearch = (value) => {
+        setSearchTerm(value);
+        setVisible(INITIAL_VISIBLE);
+    };
 
-    expect(
-      screen.queryByText("Dolo 650")
-    ).not.toBeInTheDocument();
-  });
+    if (loading) {
+        return (
+            <div className={styles.loading} role="status">
+                Loading Products...
+            </div>
+        );
+    }
 
-  test("clear search restores products", async () => {
-    render(<ProductListing />);
+    if (error) {
+        return (
+            <div className={styles.empty} role="alert">
+                {error}
+            </div>
+        );
+    }
 
-    act(() => {
-      jest.advanceTimersByTime(1200);
-    });
+    if (!products.length) {
+        return (
+            <div className={styles.empty}>
+                No Products Available
+            </div>
+        );
+    }
 
-    const input = screen.getByPlaceholderText(
-      /Search products or categories/i
+    return (
+        <section className={styles.container}>
+            <div className={styles.topBar}>
+                <div className={styles.leftControls}>
+                    <SortDropdown
+                        sortBy={sortBy}
+                        setSortBy={setSortBy}
+                    />
+                </div>
+
+                <h2>Our Products</h2>
+
+                <div className={styles.rightControls}>
+                    <div className={styles.searchBox}>
+                        <FaSearch
+                            className={styles.searchIcon}
+                            aria-hidden="true"
+                        />
+
+                        <input
+                            type="text"
+                            aria-label="Search products"
+                            placeholder="Search products or categories..."
+                            value={searchTerm}
+                            onChange={(event) =>
+                                handleSearch(event.target.value)
+                            }
+                        />
+
+                        {searchTerm && (
+                            <button
+                                type="button"
+                                className={styles.clearIcon}
+                                aria-label="Clear search"
+                                onClick={clearSearch}
+                            >
+                                <FaTimes aria-hidden="true" />
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {filteredProducts.length > 0 ? (
+                <>
+                    <div className={styles.grid}>
+                        {sortedProducts
+                            .slice(0, visible)
+                            .map((product, index) => (
+                                <ProductCard
+                                    key={product.id ?? index}
+                                    product={product}
+                                />
+                            ))}
+                    </div>
+
+                    {visible < sortedProducts.length && (
+                        <div className={styles.center}>
+                            <button
+                                type="button"
+                                className={styles.load}
+                                onClick={() =>
+                                    setVisible(
+                                        (previous) =>
+                                            previous + LOAD_MORE_COUNT
+                                    )
+                                }
+                            >
+                                Load More
+                            </button>
+                        </div>
+                    )}
+                </>
+            ) : (
+                <div className={styles.empty}>
+                    <h3>No Products Found</h3>
+                    <p>Try another search keyword.</p>
+                </div>
+            )}
+        </section>
     );
+};
 
-    fireEvent.change(input, {
-      target: { value: "Crocin" },
-    });
-
-    // eslint-disable-next-line testing-library/no-node-access
-    const clearButton = document.querySelector("svg");
-
-    fireEvent.click(clearButton);
-
-    expect(input.value).toBe("Crocin");
-
-    expect(screen.getByText("Crocin")).toBeInTheDocument();
-  });
-
-  test("loads more products when Load More is clicked", async () => {
-    render(<ProductListing />);
-
-    act(() => {
-      jest.advanceTimersByTime(1200);
-    });
-
-    const button = await screen.findByRole("button", {
-      name: /load more/i,
-    });
-
-    fireEvent.click(button);
-
-    expect(
-      await screen.findByText("BP Monitor")
-    ).toBeInTheDocument();
-  });
-
-  test("shows no products found for invalid search", async () => {
-    render(<ProductListing />);
-
-    act(() => {
-      jest.advanceTimersByTime(1200);
-    });
-
-    const input = screen.getByPlaceholderText(
-      /Search products or categories/i
-    );
-
-    fireEvent.change(input, {
-      target: { value: "abcdefxyz" },
-    });
-
-    expect(
-      screen.getByText(/No Products Found/i)
-    ).toBeInTheDocument();
-  });
-});
+export default ProductListing;

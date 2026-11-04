@@ -3,6 +3,7 @@
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
 from app.database.database import Base, engine
@@ -17,10 +18,17 @@ from app.api.routers import (
     addresses,
     auth,
     cart,
+    compare,
+    coupons,
+    contact,
     newsletter,
     orders,
     payments,
     products,
+    reports,
+    returns,
+    reviews,
+    uploads,
     submissions,
     users,
     wishlist,
@@ -63,6 +71,7 @@ def initialize_database():
     upgrade_legacy_address_schema(engine)
     # Create missing tables registered with SQLAlchemy.
     Base.metadata.create_all(bind=engine)
+    settings.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # ============================================================
@@ -74,6 +83,13 @@ app.include_router(otp_router)
 app.include_router(addresses.router)
 app.include_router(newsletter.router)
 app.include_router(cart.router)
+app.include_router(compare.router)
+app.include_router(coupons.router)
+app.include_router(contact.router)
+app.include_router(reviews.router)
+app.include_router(returns.router)
+app.include_router(reports.router)
+app.include_router(uploads.router)
 app.include_router(wishlist.router)
 app.include_router(orders.router)
 app.include_router(payments.router)
@@ -82,6 +98,11 @@ app.include_router(products.router)
 app.include_router(users.router)
 app.include_router(submissions.router)
 app.include_router(checkout.router)
+app.mount(
+    "/uploads",
+    StaticFiles(directory=settings.UPLOAD_DIR, check_dir=False),
+    name="uploads",
+)
 
 
 # ============================================================

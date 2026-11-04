@@ -4,7 +4,6 @@ import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import "./FeaturedProducts.css";
 import { addProductToCart } from "../api/cartApi";
-
 import { getFeaturedProducts } from "../api/productApi";
 import {
   getProductImage,
@@ -29,13 +28,13 @@ function FeaturedProducts() {
     try {
       await addProductToCart(product);
       toast.success(`${product.name} added to cart!`, {
-      position: "top-right",
-      autoClose: 2000,
-      hideProgressBar: false,
-      closeOnClick: true,
-      pauseOnHover: true,
-      draggable: true,
-      theme: "colored",
+        position: "top-right",
+        autoClose: 2000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        theme: "colored",
       });
 
       setAddedItems((prev) => ({
@@ -44,10 +43,10 @@ function FeaturedProducts() {
       }));
 
       setTimeout(() => {
-      setAddedItems((prev) => ({
-        ...prev,
-        [product.id]: false,
-      }));
+        setAddedItems((prev) => ({
+          ...prev,
+          [product.id]: false,
+        }));
       }, 2000);
     } catch (addError) {
       toast.error(addError.message || "Unable to add this product to your cart.");
@@ -92,11 +91,9 @@ function FeaturedProducts() {
 
                 <div className="product-info">
                   <h3>{product.name}</h3>
-
                   <p className="price">
                     ₹{product.price}
                   </p>
-
                   <p className="rating">⭐ {product.rating}</p>
 
                   <div className="button-group">
@@ -106,19 +103,13 @@ function FeaturedProducts() {
                     >
                       View Details
                     </Link>
-
                     <button
-                      className={`cart-btn ${addedItems[product.id]
-                        ? "added"
-                        : ""
-                        }`}
-                      onClick={() =>
-                        handleAddToCart(product)
-                      }
+                      className={`cart-btn ${
+                        addedItems[product.id] ? "added" : ""
+                      }`}
+                      onClick={() => handleAddToCart(product)}
                     >
-                      {addedItems[product.id]
-                        ? "✓ Added"
-                        : "Add to Cart"}
+                      {addedItems[product.id] ? "✓ Added" : "Add to Cart"}
                     </button>
                   </div>
                 </div>

@@ -68,6 +68,11 @@ function isPromotionalBanner(imagePath) {
   return /^mediction(?:[1-3])?\.png$/i.test(imageName);
 }
 
+function isGenericProductImage(imagePath) {
+  const imageName = imagePath.split("/").pop().split("?")[0];
+  return /^product\d+\.(?:png|jpe?g|webp)$/i.test(imageName);
+}
+
 export function getProductImage(image, productName, category) {
   const catalogImage = getCatalogProductImage(productName, category);
 
@@ -85,6 +90,14 @@ export function getProductImage(image, productName, category) {
 
   if (isPromotionalBanner(imagePath)) {
     return catalogImage || fallbackProductImage;
+  }
+
+  if (
+    isGenericProductImage(imagePath) &&
+    catalogImage &&
+    !/^(https?:|data:|blob:)/i.test(imagePath)
+  ) {
+    return catalogImage;
   }
 
   if (/^(https?:|data:|blob:)/i.test(imagePath)) {

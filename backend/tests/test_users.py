@@ -1,5 +1,6 @@
 import os
 import tempfile
+from datetime import date, datetime
 
 import pytest
 from sqlalchemy import create_engine, inspect, text
@@ -15,15 +16,18 @@ from fastapi.testclient import TestClient
 
 from app.api.routers import login as login_router
 from app.core.security import create_access_token
+from app.core.config import settings
 from app.database.database import Base, SessionLocal, engine
 from app.main import app
 from app.models.address import Address
 from app.models.cart_item import CartItem
 from app.models.category import Category
+from app.models.coupon import Coupon
 from app.models.opt import EmailOTP
 from app.models.order import Order
 from app.models.order_item import OrderItem
 from app.models.product import Product
+from app.models.return_request import ReturnRequest
 from app.models.submission import (
     ContactMessage,
     HealthRecord,
@@ -32,8 +36,13 @@ from app.models.submission import (
     ProductReview,
 )
 from app.models.newsletter import Newsletter
+from app.models.wishlist import Wishlist
 from app.models.user import User
-from app.scripts.seed_product_catalog import ensure_catalog_schema, seed_catalog
+from app.scripts.seed_product_catalog import (
+    ensure_catalog_schema,
+    is_placeholder_image,
+    seed_catalog,
+)
 
 
 @pytest.fixture
@@ -302,6 +311,432 @@ def test_cart_add_list_update_remove_and_clear_persist(client, users):
     cleared = client.delete("/api/cart", headers=headers)
     assert cleared.status_code == 200
     assert client.get("/api/cart", headers=headers).json() == {"items": []}
+
+
+def test_cart_import_is_idempotent(client, users):
+    with SessionLocal() as db:
+        category = Category(name="Cart Import Test")
+        db.add(category)
+        db.flush()
+        product = Product(
+            name="Imported Cart Product",
+            category=category,
+            price=25,
+            stock=20,
+        )
+        db.add(product)
+        db.commit()
+        product_id = product.id
+
+    payload = {
+        "migration_id": "cart-migration-123",
+        "items": [{"product_id": product_id, "quantity": 2}],
+    }
+    headers = auth(users["first_token"])
+
+    first_import = client.post(
+        "/api/cart/import",
+        headers=headers,
+        json=payload,
+    )
+    second_import = client.post(
+        "/api/cart/import",
+        headers=headers,
+        json=payload,
+    )
+
+    assert first_import.status_code == 200
+    assert second_import.status_code == 200
+    assert second_import.json()["message"] == "Cart import was already processed."
+    assert client.get("/api/cart", headers=headers).json()["items"][0][
+        "quantity"
+    ] == 2
+
+
+def test_wishlist_import_is_idempotent(client, users):
+    with SessionLocal() as db:
+        category = Category(name="Wishlist Import Test")
+        db.add(category)
+        db.flush()
+        product = Product(
+            name="Imported Wishlist Product",
+            category=category,
+            price=25,
+            stock=20,
+        )
+        db.add(product)
+        db.commit()
+        product_id = product.id
+
+    payload = {
+        "migration_id": "wishlist-migration-123",
+        "items": [{"product_id": product_id}],
+    }
+    headers = auth(users["first_token"])
+    first_import = client.post(
+        "/api/wishlist/import",
+        headers=headers,
+        json=payload,
+    )
+    second_import = client.post(
+        "/api/wishlist/import",
+        headers=headers,
+        json=payload,
+    )
+
+    assert first_import.status_code == 200
+    assert second_import.status_code == 200
+    with SessionLocal() as db:
+        assert db.query(Wishlist).filter_by(
+            user_id=users["first_id"],
+            product_id=product_id,
+        ).count() == 1
+
+
+def test_comparison_crud_is_user_scoped_and_limited(client, users):
+    with SessionLocal() as db:
+        category = Category(name="Comparison Test")
+        db.add(category)
+        db.flush()
+        products = [
+            Product(
+                name=f"Comparison Product {index}",
+                category=category,
+                price=25 + index,
+                stock=20,
+            )
+            for index in range(5)
+        ]
+        db.add_all(products)
+        db.commit()
+        product_ids = [product.id for product in products]
+
+    headers = auth(users["first_token"])
+    added = client.post(
+        "/api/compare",
+        headers=headers,
+        json={"product_id": product_ids[0]},
+    )
+    duplicate = client.post(
+        "/api/compare",
+        headers=headers,
+        json={"product_id": product_ids[0]},
+    )
+    assert added.status_code == 201
+    assert duplicate.status_code == 201
+    assert [item["id"] for item in client.get(
+        "/api/compare", headers=headers
+    ).json()] == [product_ids[0]]
+
+    for product_id in product_ids[1:4]:
+        assert client.post(
+            "/api/compare",
+            headers=headers,
+            json={"product_id": product_id},
+        ).status_code == 201
+
+    over_limit = client.post(
+        "/api/compare",
+        headers=headers,
+        json={"product_id": product_ids[4]},
+    )
+    assert over_limit.status_code == 409
+    assert client.delete(
+        f"/api/compare/{product_ids[0]}",
+        headers=headers,
+    ).status_code == 200
+    assert client.delete("/api/compare", headers=headers).status_code == 200
+    assert client.get("/api/compare", headers=headers).json() == []
+
+
+def test_coupon_validation_and_checkout_discount(client, users):
+    with SessionLocal() as db:
+        admin = db.get(User, users["second_id"])
+        admin.is_admin = True
+        category = Category(name="Coupon Test")
+        db.add(category)
+        db.flush()
+        product = Product(
+            name="Coupon Checkout Product",
+            category=category,
+            price=200,
+            discount_price=180,
+            stock=20,
+        )
+        coupon = Coupon(
+            code="SAVE20",
+            discount_type="fixed",
+            discount_value=20,
+            minimum_order_amount=100,
+            usage_limit=1,
+        )
+        db.add_all([product, coupon])
+        db.commit()
+        product_id = product.id
+        coupon_id = coupon.id
+
+    validation = client.post(
+        "/api/coupons/validate",
+        json={"code": "save20", "order_amount": 180},
+    )
+    assert validation.status_code == 200
+    assert validation.json()["discount_amount"] == 20
+    assert validation.json()["total_after_discount"] == 160
+
+    order = client.post(
+        "/api/checkout/orders",
+        headers=auth(users["first_token"]),
+        json={
+            "items": [{"product_id": product_id, "quantity": 1}],
+            "shipping_address": {
+                "name": "First User",
+                "phone": "4155550100",
+                "address": "123 Test Street",
+                "city": "Oakland",
+                "state": "CA",
+                "pincode": "94601",
+            },
+            "payment_method": "COD",
+            "delivery_type": "normal",
+            "coupon_code": "SAVE20",
+            "remove_from_cart": False,
+        },
+    )
+    assert order.status_code == 201
+    assert order.json()["order"]["coupon_discount"] == 20
+    assert order.json()["order"]["discount"] == 38
+    with SessionLocal() as db:
+        assert db.get(Coupon, coupon_id).usage_count == 1
+
+    exhausted = client.post(
+        "/api/coupons/validate",
+        json={"code": "SAVE20", "order_amount": 180},
+    )
+    assert exhausted.status_code == 422
+
+
+def test_admin_can_create_update_list_and_deactivate_coupons(client, users):
+    with SessionLocal() as db:
+        db.get(User, users["second_id"]).is_admin = True
+        db.commit()
+    headers = auth(create_access_token({"sub": str(users["second_id"])}))
+
+    created = client.post(
+        "/api/coupons",
+        headers=headers,
+        json={
+            "code": "spring10",
+            "discount_type": "percent",
+            "discount_value": 10,
+            "minimum_order_amount": 50,
+        },
+    )
+    assert created.status_code == 201
+    coupon_id = created.json()["id"]
+    assert created.json()["code"] == "SPRING10"
+
+    updated = client.put(
+        f"/api/coupons/{coupon_id}",
+        headers=headers,
+        json={"discount_value": 15},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["discount_value"] == 15
+    assert len(client.get("/api/coupons/admin", headers=headers).json()) == 1
+
+    deactivated = client.delete(
+        f"/api/coupons/{coupon_id}",
+        headers=headers,
+    )
+    assert deactivated.status_code == 204
+    assert client.get("/api/coupons").json() == []
+
+
+def test_return_request_lifecycle_is_owned_and_admin_managed(client, users):
+    with SessionLocal() as db:
+        db.get(User, users["second_id"]).is_admin = True
+        order = Order(
+            order_id="MK-RETURN-001",
+            user_id=users["first_id"],
+            customer_name="First User",
+            phone="4155550100",
+            address="123 Test Street",
+            city="Oakland",
+            state="CA",
+            pincode="94601",
+            payment_method="COD",
+            delivery_type="normal",
+            delivery_distance="short",
+            total_amount=50,
+            status="Delivered",
+        )
+        db.add(order)
+        db.commit()
+        order_id = order.order_id
+
+    created = client.post(
+        "/api/returns",
+        headers=auth(users["first_token"]),
+        json={"order_id": order_id, "reason": "The package was damaged."},
+    )
+    assert created.status_code == 201
+    request_id = created.json()["id"]
+    assert created.json()["status"] == "Requested"
+    assert client.get(
+        "/api/returns",
+        headers=auth(create_access_token({"sub": str(users["second_id"])})),
+    ).json() == []
+
+    admin_headers = auth(create_access_token({"sub": str(users["second_id"])}))
+    approved = client.patch(
+        f"/api/returns/admin/{request_id}",
+        headers=admin_headers,
+        json={"status": "Approved", "admin_note": "Return approved."},
+    )
+    assert approved.status_code == 200
+    refunded = client.patch(
+        f"/api/returns/admin/{request_id}",
+        headers=admin_headers,
+        json={"status": "Refunded", "admin_note": "Refund processed."},
+    )
+    assert refunded.status_code == 200
+    assert refunded.json()["status"] == "Refunded"
+
+    with SessionLocal() as db:
+        assert db.query(ReturnRequest).filter_by(
+            id=request_id,
+            user_id=users["first_id"],
+        ).one().status == "Refunded"
+
+
+def test_admin_dashboard_and_sales_report_are_available(client, users):
+    with SessionLocal() as db:
+        admin = db.get(User, users["second_id"])
+        admin.is_admin = True
+        order = Order(
+            order_id="MK-REPORT-001",
+            user_id=users["first_id"],
+            customer_name="First User",
+            phone="4155550100",
+            address="123 Test Street",
+            city="Oakland",
+            state="CA",
+            pincode="94601",
+            payment_method="COD",
+            delivery_type="normal",
+            delivery_distance="short",
+            total_amount=115,
+            status="Delivered",
+            created_at=datetime.combine(date.today(), datetime.min.time()),
+        )
+        db.add(order)
+        db.commit()
+
+    headers = auth(create_access_token({"sub": str(users["second_id"])}))
+    dashboard = client.get("/api/admin/dashboard", headers=headers)
+    assert dashboard.status_code == 200
+    assert dashboard.json()["metrics"]["orders_count"] == 1
+    assert dashboard.json()["metrics"]["gross_sales"] == 115
+
+    report = client.get(
+        "/api/admin/reports/sales",
+        headers=headers,
+        params={
+            "start_date": date.today().isoformat(),
+            "end_date": date.today().isoformat(),
+        },
+    )
+    assert report.status_code == 200
+    assert report.json()["orders_count"] == 1
+    assert report.json()["daily"][0]["sales"] == 115
+
+
+def test_admin_order_management_lists_and_transitions_orders(client, users):
+    with SessionLocal() as db:
+        db.get(User, users["second_id"]).is_admin = True
+        order = Order(
+            order_id="MK-ADMIN-001",
+            user_id=users["first_id"],
+            customer_name="First User",
+            phone="4155550100",
+            address="123 Test Street",
+            city="Oakland",
+            state="CA",
+            pincode="94601",
+            payment_method="COD",
+            delivery_type="normal",
+            delivery_distance="short",
+            total_amount=50,
+            status="Order Confirmed",
+        )
+        db.add(order)
+        db.commit()
+
+    headers = auth(create_access_token({"sub": str(users["second_id"])}))
+    listed = client.get("/api/admin/orders", headers=headers)
+    assert listed.status_code == 200
+    assert listed.json()[0]["order_id"] == "MK-ADMIN-001"
+
+    processing = client.patch(
+        "/api/admin/orders/MK-ADMIN-001/status",
+        headers=headers,
+        json={"status": "Processing"},
+    )
+    assert processing.status_code == 200
+    shipped = client.patch(
+        "/api/admin/orders/MK-ADMIN-001/status",
+        headers=headers,
+        json={"status": "Shipped"},
+    )
+    assert shipped.status_code == 200
+    invalid = client.patch(
+        "/api/admin/orders/MK-ADMIN-001/status",
+        headers=headers,
+        json={"status": "Cancelled"},
+    )
+    assert invalid.status_code == 409
+
+
+def test_admin_product_image_upload_validates_and_persists_file(
+    client, users, tmp_path, monkeypatch
+):
+    monkeypatch.setattr(settings, "UPLOAD_DIR", tmp_path)
+    with SessionLocal() as db:
+        admin = db.get(User, users["second_id"])
+        admin.is_admin = True
+        category = Category(name="Product Upload Test")
+        db.add(category)
+        db.flush()
+        product = Product(
+            name="Image Upload Product",
+            category=category,
+            price=25,
+            stock=20,
+        )
+        db.add(product)
+        db.commit()
+        product_id = product.id
+
+    image_bytes = b"\x89PNG\r\n\x1a\n" + b"test-image-data"
+    response = client.post(
+        f"/api/uploads/products/{product_id}",
+        headers=auth(create_access_token({"sub": str(users["second_id"])})),
+        files={"file": ("product.png", image_bytes, "image/png")},
+    )
+    assert response.status_code == 201
+    image_url = response.json()["image_url"]
+    assert image_url.startswith("/uploads/products/")
+    assert (tmp_path / "products" / image_url.rsplit("/", 1)[-1]).read_bytes() == image_bytes
+
+    with SessionLocal() as db:
+        assert db.get(Product, product_id).image == image_url
+
+    rejected = client.post(
+        f"/api/uploads/products/{product_id}",
+        headers=auth(create_access_token({"sub": str(users["second_id"])})),
+        files={"file": ("script.png", b"<script>", "image/png")},
+    )
+    assert rejected.status_code == 415
 
 
 def test_checkout_saves_address_and_order_then_clears_cart(client, users):
@@ -600,6 +1035,66 @@ def test_catalog_seed_is_repeatable_and_shop_api_returns_product_details(
     assert product["pack_size"] == "10 tablets"
     assert product["discount_price"] == 99
     assert product["reviews"] == 12
+
+
+@pytest.mark.parametrize(
+    "image_path",
+    [
+        "/catalog/products/product1.png",
+        "product12.webp",
+        r"C:\uploads\product3.jpg",
+        "/catalog/medicines/mediction2.png",
+    ],
+)
+def test_catalog_placeholder_images_are_detected(image_path):
+    assert is_placeholder_image(image_path)
+
+
+def test_catalog_seed_replaces_generic_image_but_preserves_custom_image(users):
+    with SessionLocal() as db:
+        category = Category(name="Catalog Image Test")
+        db.add(category)
+        db.flush()
+        generic = Product(
+            name="Generic Image Product",
+            category=category,
+            price=10,
+            stock=10,
+            image="/catalog/products/product1.png",
+        )
+        custom = Product(
+            name="Custom Image Product",
+            category=category,
+            price=10,
+            stock=10,
+            image="/uploads/custom-image.png",
+        )
+        db.add_all([generic, custom])
+        db.commit()
+
+        result = seed_catalog(
+            db,
+            [
+                {
+                    "name": "Generic Image Product",
+                    "category": "Catalog Image Test",
+                    "price": 10,
+                    "image": "/catalog/medicines/generic-image-product.png",
+                },
+                {
+                    "name": "Custom Image Product",
+                    "category": "Catalog Image Test",
+                    "price": 10,
+                    "image": "/catalog/medicines/custom-image-product.png",
+                },
+            ],
+        )
+        db.refresh(generic)
+        db.refresh(custom)
+
+    assert result == {"inserted": 0, "updated": 1}
+    assert generic.image == "/catalog/medicines/generic-image-product.png"
+    assert custom.image == "/uploads/custom-image.png"
 
 
 def test_catalog_sync_adds_product_details_to_an_existing_schema():

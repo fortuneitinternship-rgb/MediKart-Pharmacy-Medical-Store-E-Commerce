@@ -9,6 +9,8 @@ class Settings(BaseSettings):
         # Database
     DATABASE_URL: str
 
+    UPLOAD_DIR: Path = Path(__file__).resolve().parents[2] / "uploads"
+
     SECRET_KEY: str = "change-this-secret-key-before-deploying"
 
     ALGORITHM: str = "HS256"

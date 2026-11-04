@@ -15,6 +15,26 @@ import Register from "../Register/Register";
 import ForgotPassword from "../ForgotPassword/ForgotPassword";
 import { getAccessToken, getCart } from "../../api/cartApi";
 import { getWishlist } from "../../api/wishlistApi";
+import { logoutUser } from "../../api/loginApi";
+
+function getLocalShoppingCounts() {
+  try {
+    const localCart = JSON.parse(localStorage.getItem("cart") || "[]");
+    const localWishlist = JSON.parse(localStorage.getItem("wishlist") || "[]");
+    return {
+      cart: Array.isArray(localCart)
+        ? localCart.reduce(
+            (total, item) => total + (Number(item.quantity) || 1),
+            0
+          )
+        : 0,
+      wishlist: Array.isArray(localWishlist) ? localWishlist.length : 0,
+    };
+  } catch (error) {
+    console.error("Unable to read local shopping counts:", error);
+    return { cart: 0, wishlist: 0 };
+  }
+}
 
 function UserActions() {
   const navigate = useNavigate();
@@ -32,29 +52,44 @@ function UserActions() {
 
   const updateCount = async () => {
     if (!getAccessToken()) {
-      const localCart = JSON.parse(localStorage.getItem("cart") || "[]");
-      const localWishlist = JSON.parse(localStorage.getItem("wishlist") || "[]");
-      setCartCount(
-        Array.isArray(localCart)
-          ? localCart.reduce(
-              (total, item) => total + (Number(item.quantity) || 1),
-              0
-            )
-          : 0
-      );
-      setWishlistCount(Array.isArray(localWishlist) ? localWishlist.length : 0);
+      const localCounts = getLocalShoppingCounts();
+      setCartCount(localCounts.cart);
+      setWishlistCount(localCounts.wishlist);
     } else {
-      try {
-        const [cart, wishlist] = await Promise.all([
+      const [cartResult, wishlistResult] = await Promise.allSettled([
           getCart(),
           getWishlist(),
-        ]);
-        setCartCount(cart.reduce((total, item) => total + item.quantity, 0));
-        setWishlistCount(Array.isArray(wishlist) ? wishlist.length : 0);
-      } catch (error) {
-        console.error("Unable to load shopping counts:", error);
-        setCartCount(0);
-        setWishlistCount(0);
+      ]);
+      const localCounts = getLocalShoppingCounts();
+      const cartFailed = cartResult.status === "rejected";
+      const wishlistFailed = wishlistResult.status === "rejected";
+
+      if (cartFailed) {
+        console.error("Unable to load cart count:", cartResult.reason);
+      }
+      if (wishlistFailed) {
+        console.error("Unable to load wishlist count:", wishlistResult.reason);
+      }
+
+      setCartCount(
+        cartFailed
+          ? localCounts.cart
+          : cartResult.value.reduce(
+              (total, item) => total + item.quantity,
+              0
+            )
+      );
+      setWishlistCount(
+        wishlistFailed
+          ? localCounts.wishlist
+          : wishlistResult.value.length
+      );
+
+      if (
+        (cartFailed && cartResult.reason.response?.status === 401) ||
+        (wishlistFailed && wishlistResult.reason.response?.status === 401)
+      ) {
+        logoutUser();
       }
     }
 
@@ -104,15 +139,9 @@ function UserActions() {
   // ==============================
 
   const handleLogout = () => {
-    localStorage.removeItem("username");
-    localStorage.removeItem("isLoggedIn");
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("user");
-
+    logoutUser();
     setUsername("");
     setShowAccountDropdown(false);
-
-    window.dispatchEvent(new Event("userUpdated"));
 
     navigate("/");
   };

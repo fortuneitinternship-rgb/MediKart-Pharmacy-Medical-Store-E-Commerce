@@ -71,6 +71,19 @@ describe("ProductCard Component", () => {
     ).toBeInTheDocument();
   });
 
+  test("shows the discounted price and original price", () => {
+    renderProductCard({
+      product: {
+        ...product,
+        price: 120,
+        discount_price: 95,
+      },
+    });
+
+    expect(screen.getByText("₹95")).toBeInTheDocument();
+    expect(screen.getByText("₹120")).toBeInTheDocument();
+  });
+
   test("renders View Details button", () => {
     renderProductCard();
 

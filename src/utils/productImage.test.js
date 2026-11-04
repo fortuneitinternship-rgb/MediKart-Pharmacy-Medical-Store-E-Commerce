@@ -14,6 +14,17 @@ describe("getProductImage", () => {
     });
   });
 
+  test("uses distinct images for the concentrator and portable oxygen cylinder", () => {
+    const concentrator = products.find(
+      (product) => product.name === "Oxygen Concentrator"
+    );
+    const cylinder = products.find(
+      (product) => product.name === "Portable Oxygen Cylinder"
+    );
+
+    expect(concentrator.image).not.toBe(cylinder.image);
+  });
+
   test("uses a fallback for an empty image value", () => {
     expect(getProductImage("")).toBe(fallbackProductImage);
   });
@@ -24,6 +35,34 @@ describe("getProductImage", () => {
     ).image;
 
     expect(getProductImage("", "Crocin Advance 500 mg")).toBe(catalogImage);
+  });
+
+  test("replaces a generic catalog image with the medicine's own image", () => {
+    const azithralImage = products.find(
+      (product) => product.name === "Azithral 500"
+    ).image;
+
+    expect(
+      getProductImage(
+        "/catalog/products/product1.png",
+        "Azithral 500",
+        "Medicines"
+      )
+    ).toBe(azithralImage);
+  });
+
+  test("replaces a generic uploaded image with the medicine's own image", () => {
+    const azithralImage = products.find(
+      (product) => product.name === "Azithral 500"
+    ).image;
+
+    expect(
+      getProductImage(
+        "/uploads/product1.png",
+        "Azithral 500",
+        "Medicines"
+      )
+    ).toBe(azithralImage);
   });
 
   test.each([
@@ -51,7 +90,7 @@ describe("getProductImage", () => {
 
   test("does not show the liquid image for the tablet product", () => {
     expect(getProductImage("/uploads/azithral.png", "Azithral 500")).toBe(
-      fallbackProductImage
+      products.find((product) => product.name === "Azithral 500").image
     );
   });
 

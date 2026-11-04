@@ -73,7 +73,7 @@ const categories = [
     id: 10,
     name: "Women's Health",
     image: womencare,
-    link: "/shop/womencare",
+    link: "/shop/women-care",
   },
 ];
 

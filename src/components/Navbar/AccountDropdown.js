@@ -19,6 +19,7 @@ import {
 } from "react-icons/fa";
 
 import "./AccountDropdown.css";
+import { logoutUser } from "../../api/loginApi";
 
 const AccountDropdown = ({ username = "Satender" }) => {
   const navigate = useNavigate();
@@ -28,13 +29,7 @@ const AccountDropdown = ({ username = "Satender" }) => {
   // ============================================
 
   const handleLogout = () => {
-    localStorage.removeItem("username");
-    localStorage.removeItem("isLoggedIn");
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("user");
-
-    window.dispatchEvent(new Event("userUpdated"));
-
+    logoutUser();
     navigate("/login");
   };
 

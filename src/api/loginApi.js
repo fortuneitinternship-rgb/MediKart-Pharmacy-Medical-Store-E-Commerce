@@ -1,4 +1,8 @@
 import axios from "axios";
+import {
+  clearAuthSession,
+  getStoredAccessToken,
+} from "../services/api";
 
 
 // =====================================================
@@ -171,8 +175,7 @@ export const loginUser = async (
 // =====================================================
 
 export const getCurrentUser = async () => {
-  const token =
-    localStorage.getItem("access_token");
+  const token = getStoredAccessToken();
 
   if (!token) {
     throw new Error("Not logged in");
@@ -227,8 +230,7 @@ export const getCurrentUser = async () => {
 export const updateCurrentUser = async (
   userData
 ) => {
-  const token =
-    localStorage.getItem("access_token");
+  const token = getStoredAccessToken();
 
   if (!token) {
     throw new Error("Not logged in");
@@ -300,25 +302,7 @@ export const updateCurrentUser = async (
 // =====================================================
 
 export const logoutUser = () => {
-  localStorage.removeItem(
-    "access_token"
-  );
-
-  localStorage.removeItem(
-    "user"
-  );
-
-  localStorage.removeItem(
-    "isLoggedIn"
-  );
-
-  localStorage.removeItem(
-    "username"
-  );
-
-  window.dispatchEvent(
-    new Event("userUpdated")
-  );
+  clearAuthSession();
 };
 
 // =====================================================
@@ -326,11 +310,7 @@ export const logoutUser = () => {
 // =====================================================
 
 export const isAuthenticated = () => {
-  return Boolean(
-    localStorage.getItem(
-      "access_token"
-    )
-  );
+  return Boolean(getStoredAccessToken());
 };
 
 // ==========================================

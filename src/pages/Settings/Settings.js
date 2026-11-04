@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { FaUser, FaBell, FaLock, FaGlobe, FaMoon, FaShoppingBag, FaHeart, FaMapMarkerAlt, FaSignOutAlt, } from "react-icons/fa";
 import "./Settings.css";
+import { logoutUser } from "../../api/loginApi";
 
 const Settings = () => {
   const [notifications, setNotifications] = useState(true);
@@ -8,12 +9,7 @@ const Settings = () => {
   const [orderUpdates, setOrderUpdates] = useState(true);
 
   const handleLogout = () => {
-    localStorage.removeItem("isLoggedIn");
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("user");
-    localStorage.removeItem("username");
-    localStorage.removeItem("user");
-
+    logoutUser();
     alert("Logged out successfully!");
     window.location.href = "/login";
   };

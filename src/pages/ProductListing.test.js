@@ -1,196 +1,386 @@
-import React from "react";
-import { render, screen, fireEvent } from "@testing-library/react";
-import "@testing-library/jest-dom";
-import { MemoryRouter } from "react-router-dom";
-import ProductListing from "./ProductListingPage";
 
-// Mock useParams
-jest.mock("react-router-dom", () => ({
-  ...jest.requireActual("react-router-dom"),
-  useParams: jest.fn(),
+import React from "react";
+import {
+    render,
+    screen,
+    waitFor,
+    fireEvent,
+} from "@testing-library/react";
+
+import {
+    MemoryRouter,
+    Routes,
+    Route,
+} from "react-router-dom";
+
+import ProductListing from "../ProductListingPage";
+import { getProducts } from "../../api/productApi";
+
+jest.mock("../../api/productApi", () => ({
+    getProducts: jest.fn(),
 }));
 
-const { useParams } = require("react-router-dom");
+jest.mock("../../components/SearchBar/SearchBar", () => {
+    return function MockSearchBar({ searchTerm, setSearchTerm }) {
+        return (
+            <input
+                aria-label="Search products"
+                placeholder="Search..."
+                value={searchTerm}
+                onChange={(event) =>
+                    setSearchTerm(event.target.value)
+                }
+            />
+        );
+    };
+});
 
-// Mock products
-jest.mock("../data/products", () => [
-  {
-    id: 1,
-    name: "Paracetamol",
-    category: "Medicine",
-    price: 50,
-  },
-  {
-    id: 2,
-    name: "Vitamin C",
-    category: "Vitamin",
-    price: 100,
-  },
-  {
-    id: 3,
-    name: "Thermometer",
-    category: "Equipment",
-    price: 300,
-  },
-]);
+jest.mock("../../components/ProductCard/ProductCard", () => {
+    return function MockProductCard({ product }) {
+        return (
+            <div data-testid="product-card">
+                {product.name || "Unnamed item"}
+            </div>
+        );
+    };
+});
 
-// Mock SearchBar
-jest.mock("../components/SearchBar/SearchBar", () => (props) => (
-  <input
-    data-testid="search-input"
-    value={props.searchTerm}
-    onChange={(e) => props.setSearchTerm(e.target.value)}
-  />
-));
+describe("ProductListing Page Tests", () => {
+    // Synthetic test data only.
+    const mockProducts = [
+        {
+            id: 10001,
+            name: "Synthetic Item Alpha",
+            category: "medicines",
+            description: "Synthetic test description",
+        },
+        {
+            id: 10002,
+            name: "Synthetic Item Beta",
+            category: "vitamins",
+            description: "Synthetic test description",
+        },
+        {
+            id: 10003,
+            name: "Synthetic Item Gamma",
+            category: "personal care",
+            description: "",
+        },
+    ];
 
-// Mock ProductCard
-jest.mock("../components/ProductCard/ProductCard", () => ({ product }) => (
-  <div data-testid="product-card">{product.name}</div>
-));
+    const renderPage = (path = "/products") => {
+        return render(
+            <MemoryRouter initialEntries={[path]}>
+                <Routes>
+                    <Route
+                        path="/products"
+                        element={<ProductListing />}
+                    />
 
-describe("ProductListing", () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
+                    <Route
+                        path="/products/:category"
+                        element={<ProductListing />}
+                    />
+                </Routes>
+            </MemoryRouter>
+        );
+    };
 
-  test("renders page title when no category", () => {
-    useParams.mockReturnValue({});
-
-    render(
-      <MemoryRouter>
-        <ProductListing />
-      </MemoryRouter>
-    );
-
-    expect(screen.getByText("MediKart Products")).toBeInTheDocument();
-  });
-
-  test("renders category title", () => {
-    useParams.mockReturnValue({
-      category: "medicine",
+    beforeEach(() => {
+        jest.clearAllMocks();
     });
 
-    render(
-      <MemoryRouter>
-        <ProductListing />
-      </MemoryRouter>
-    );
+    // --------------------------------
+    // PAGE RENDERING TESTS
+    // --------------------------------
 
-    expect(
-      screen.getByText("Category: medicine")
-    ).toBeInTheDocument();
-  });
+    test("should display the page heading", async () => {
+        getProducts.mockResolvedValue(mockProducts);
 
-  test("renders all products", () => {
-    useParams.mockReturnValue({});
+        renderPage();
 
-    render(
-      <MemoryRouter>
-        <ProductListing />
-      </MemoryRouter>
-    );
+        expect(
+            screen.getByRole("heading", {
+                name: "MediKart Products",
+            })
+        ).toBeInTheDocument();
 
-    expect(screen.getByText("Paracetamol")).toBeInTheDocument();
-    expect(screen.getByText("Vitamin C")).toBeInTheDocument();
-    expect(screen.getByText("Thermometer")).toBeInTheDocument();
-  });
-
-  test("filters products by search", () => {
-    useParams.mockReturnValue({});
-
-    render(
-      <MemoryRouter>
-        <ProductListing />
-      </MemoryRouter>
-    );
-
-    fireEvent.change(screen.getByTestId("search-input"), {
-      target: {
-        value: "Vitamin",
-      },
+        await waitFor(() => {
+            expect(
+                screen.getAllByTestId("product-card")
+            ).toHaveLength(3);
+        });
     });
 
-    expect(screen.getByText("Vitamin C")).toBeInTheDocument();
-    expect(screen.queryByText("Paracetamol")).not.toBeInTheDocument();
-    expect(screen.queryByText("Thermometer")).not.toBeInTheDocument();
-  });
+    test("should display the search input", () => {
+        getProducts.mockResolvedValue([]);
 
-  test("filters by category", () => {
-    useParams.mockReturnValue({
-      category: "medicine",
+        renderPage();
+
+        expect(
+            screen.getByRole("textbox", {
+                name: "Search products",
+            })
+        ).toBeInTheDocument();
     });
 
-    render(
-      <MemoryRouter>
-        <ProductListing />
-      </MemoryRouter>
-    );
+    test("should display the loading message", () => {
+        getProducts.mockReturnValue(new Promise(() => {}));
 
-    expect(screen.getByText("Paracetamol")).toBeInTheDocument();
-    expect(screen.queryByText("Vitamin C")).not.toBeInTheDocument();
-    expect(screen.queryByText("Thermometer")).not.toBeInTheDocument();
-  });
+        renderPage();
 
-  test("maps shop category slugs to matching products", () => {
-    useParams.mockReturnValue({
-      category: "medicines",
+        expect(
+            screen.getByRole("status")
+        ).toHaveTextContent("Loading products...");
     });
 
-    render(
-      <MemoryRouter>
-        <ProductListing />
-      </MemoryRouter>
-    );
+    // --------------------------------
+    // API TESTS
+    // --------------------------------
 
-    expect(screen.getByText("Paracetamol")).toBeInTheDocument();
-    expect(screen.queryByText("Vitamin C")).not.toBeInTheDocument();
-  });
+    test("should load products successfully", async () => {
+        getProducts.mockResolvedValue(mockProducts);
 
-  test("shows no products found", () => {
-    useParams.mockReturnValue({});
+        renderPage();
 
-    render(
-      <MemoryRouter>
-        <ProductListing />
-      </MemoryRouter>
-    );
+        await waitFor(() => {
+            expect(getProducts).toHaveBeenCalledTimes(1);
+        });
 
-    fireEvent.change(screen.getByTestId("search-input"), {
-      target: {
-        value: "xyz",
-      },
+        expect(
+            await screen.findAllByTestId("product-card")
+        ).toHaveLength(3);
     });
 
-    expect(
-      screen.getByText("No Products Found")
-    ).toBeInTheDocument();
+    test("should display error when API request fails", async () => {
+        getProducts.mockRejectedValue(
+            new Error("Synthetic API failure")
+        );
 
-    expect(
-      screen.getByText("Try another keyword.")
-    ).toBeInTheDocument();
-  });
+        renderPage();
 
-  test("renders SearchBar", () => {
-    useParams.mockReturnValue({});
+        expect(
+            await screen.findByRole("alert")
+        ).toHaveTextContent(
+            "Products could not be loaded from the database."
+        );
+    });
 
-    render(
-      <MemoryRouter>
-        <ProductListing />
-      </MemoryRouter>
-    );
+    test("should handle an empty API response", async () => {
+        getProducts.mockResolvedValue([]);
 
-    expect(
-      screen.getByTestId("search-input")
-    ).toBeInTheDocument();
-  });
+        renderPage();
 
-  test("renders correct number of ProductCards", () => {
-    useParams.mockReturnValue({});
+        expect(
+            await screen.findByText("No Products Found")
+        ).toBeInTheDocument();
+    });
 
-    render(
-      <MemoryRouter>
-        <ProductListing />
-      </MemoryRouter>
-    );
-  });
+    test("should handle invalid API response", async () => {
+        getProducts.mockResolvedValue({
+            results: "invalid",
+        });
+
+        renderPage();
+
+        expect(
+            await screen.findByText("No Products Found")
+        ).toBeInTheDocument();
+    });
+
+    // --------------------------------
+    // SEARCH TESTS
+    // --------------------------------
+
+    test("should filter products by name", async () => {
+        getProducts.mockResolvedValue(mockProducts);
+
+        renderPage();
+
+        await screen.findAllByTestId("product-card");
+
+        fireEvent.change(
+            screen.getByRole("textbox", {
+                name: "Search products",
+            }),
+            {
+                target: {
+                    value: "Alpha",
+                },
+            }
+        );
+
+        expect(
+            screen.getAllByTestId("product-card")
+        ).toHaveLength(1);
+
+        expect(
+            screen.getByText("Synthetic Item Alpha")
+        ).toBeInTheDocument();
+    });
+
+    test("should filter products by category", async () => {
+        getProducts.mockResolvedValue(mockProducts);
+
+        renderPage();
+
+        await screen.findAllByTestId("product-card");
+
+        fireEvent.change(
+            screen.getByRole("textbox", {
+                name: "Search products",
+            }),
+            {
+                target: {
+                    value: "vitamins",
+                },
+            }
+        );
+
+        expect(
+            screen.getAllByTestId("product-card")
+        ).toHaveLength(1);
+
+        expect(
+            screen.getByText("Synthetic Item Beta")
+        ).toBeInTheDocument();
+    });
+
+    test("should display no products for unmatched search", async () => {
+        getProducts.mockResolvedValue(mockProducts);
+
+        renderPage();
+
+        await screen.findAllByTestId("product-card");
+
+        fireEvent.change(
+            screen.getByRole("textbox", {
+                name: "Search products",
+            }),
+            {
+                target: {
+                    value: "NoMatchingItem",
+                },
+            }
+        );
+
+        expect(
+            screen.getByText("No Products Found")
+        ).toBeInTheDocument();
+    });
+
+    // --------------------------------
+    // CATEGORY TESTS
+    // --------------------------------
+
+    test("should filter products by category route", async () => {
+        getProducts.mockResolvedValue(mockProducts);
+
+        renderPage("/products/vitamins");
+
+        expect(
+            screen.getByRole("heading", {
+                name: "Category: vitamins",
+            })
+        ).toBeInTheDocument();
+
+        expect(
+            await screen.findAllByTestId("product-card")
+        ).toHaveLength(1);
+
+        expect(
+            screen.getByText("Synthetic Item Beta")
+        ).toBeInTheDocument();
+    });
+
+    test("should support hyphenated category routes", async () => {
+        getProducts.mockResolvedValue(mockProducts);
+
+        renderPage("/products/personal-care");
+
+        expect(
+            await screen.findAllByTestId("product-card")
+        ).toHaveLength(1);
+
+        expect(
+            screen.getByText("Synthetic Item Gamma")
+        ).toBeInTheDocument();
+    });
+
+    test("should display no products for an unknown category", async () => {
+        getProducts.mockResolvedValue(mockProducts);
+
+        renderPage("/products/unknown-category");
+
+        expect(
+            await screen.findByText("No Products Found")
+        ).toBeInTheDocument();
+    });
+
+    // --------------------------------
+    // EDGE CASE TESTS
+    // --------------------------------
+
+    test("should handle missing product name", async () => {
+        getProducts.mockResolvedValue([
+            {
+                id: 10004,
+                category: "healthcare",
+                description: "",
+            },
+        ]);
+
+        renderPage();
+
+        expect(
+            await screen.findByTestId("product-card")
+        ).toHaveTextContent("Unnamed item");
+    });
+
+    test("should handle missing optional fields", async () => {
+        getProducts.mockResolvedValue([
+            {
+                id: 10005,
+            },
+        ]);
+
+        renderPage();
+
+        expect(
+            await screen.findByTestId("product-card")
+        ).toBeInTheDocument();
+    });
+
+    test("should ignore search letter case", async () => {
+        getProducts.mockResolvedValue(mockProducts);
+
+        renderPage();
+
+        await screen.findAllByTestId("product-card");
+
+        fireEvent.change(
+            screen.getByRole("textbox", {
+                name: "Search products",
+            }),
+            {
+                target: {
+                    value: "SYNTHETIC ITEM ALPHA",
+                },
+            }
+        );
+
+        expect(
+            screen.getAllByTestId("product-card")
+        ).toHaveLength(1);
+    });
+
+    test("should make only one API request on initial render", async () => {
+        getProducts.mockResolvedValue(mockProducts);
+
+        renderPage();
+
+        await waitFor(() => {
+            expect(getProducts).toHaveBeenCalledTimes(1);
+        });
+    });
 });

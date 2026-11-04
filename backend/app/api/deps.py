@@ -1,6 +1,7 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError
+from jose.exceptions import ExpiredSignatureError
 from sqlalchemy.orm import Session
 
 from app.core.security import decode_access_token
@@ -36,10 +37,17 @@ def get_current_user(
 
         user_id = int(user_id)
 
-    except (JWTError, ValueError, TypeError):
+    except ExpiredSignatureError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Your session has expired. Please log in again.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except (JWTError, ValueError, TypeError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Your login token is invalid. Please log in again.",
+            headers={"WWW-Authenticate": "Bearer"},
         )
 
     user = db.query(User).filter(User.id == user_id).first()

@@ -1,5 +1,9 @@
 
 import axios from "axios";
+import {
+  clearAuthSession,
+  getStoredAccessToken,
+} from "../services/api";
 
 const API_BASE_URL =
   process.env.REACT_APP_API_URL || "http://127.0.0.1:8000";
@@ -12,12 +16,7 @@ const checkoutApi = axios.create({
 });
 
 function getToken() {
-  return (
-    localStorage.getItem("access_token") ||
-    localStorage.getItem("accessToken") ||
-    localStorage.getItem("token") ||
-    ""
-  );
+  return getStoredAccessToken();
 }
 
 checkoutApi.interceptors.request.use((config) => {
@@ -29,6 +28,17 @@ checkoutApi.interceptors.request.use((config) => {
 
   return config;
 });
+
+checkoutApi.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      clearAuthSession();
+    }
+
+    return Promise.reject(error);
+  }
+);
 
 export async function getCheckoutCart() {
   const response = await checkoutApi.get("/cart");

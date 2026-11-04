@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database.database import get_db
 from app.models.cart_item import CartItem
 from app.models.product import Product
+from app.models.shopping_list_import import ShoppingListImport
 from app.api.deps import get_current_user
 
 router = APIRouter(prefix="/api/cart", tags=["Cart"])
@@ -17,6 +19,16 @@ class CartQuantityUpdate(BaseModel):
 class CartItemCreate(BaseModel):
     product_id: int
     quantity: int = Field(default=1, ge=1)
+
+
+class CartImportItem(BaseModel):
+    product_id: int = Field(gt=0)
+    quantity: int = Field(default=1, ge=1)
+
+
+class CartImportRequest(BaseModel):
+    migration_id: str = Field(min_length=8, max_length=64)
+    items: list[CartImportItem] = Field(min_length=1, max_length=100)
 
 
 def get_product_data(db: Session, product_id):
@@ -73,6 +85,14 @@ def serialize_cart_item(db: Session, item: CartItem):
     }
 
 
+def get_cart_items(db: Session, user_id: int):
+    return (
+        db.query(CartItem)
+        .filter(CartItem.user_id == user_id)
+        .all()
+    )
+
+
 @router.get("")
 @router.get("/")
 @router.get("")
@@ -80,13 +100,114 @@ def get_cart(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    items = (
-        db.query(CartItem)
-        .filter(CartItem.user_id == current_user.id)
+    return {
+        "items": [
+            serialize_cart_item(db, item)
+            for item in get_cart_items(db, current_user.id)
+        ]
+    }
+
+
+@router.post("/import")
+def import_local_cart(
+    payload: CartImportRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    existing_import = (
+        db.query(ShoppingListImport)
+        .filter(
+            ShoppingListImport.user_id == current_user.id,
+            ShoppingListImport.list_type == "cart",
+            ShoppingListImport.migration_id == payload.migration_id,
+        )
+        .first()
+    )
+    if existing_import:
+        return {
+            "message": "Cart import was already processed.",
+            "items": [
+                serialize_cart_item(db, item)
+                for item in get_cart_items(db, current_user.id)
+            ],
+        }
+
+    quantities: dict[int, int] = {}
+    for item in payload.items:
+        quantities[item.product_id] = (
+            quantities.get(item.product_id, 0) + item.quantity
+        )
+
+    products = (
+        db.query(Product)
+        .filter(Product.id.in_(quantities))
         .all()
     )
+    products_by_id = {product.id: product for product in products}
+    missing_product_ids = set(quantities).difference(products_by_id)
+    if missing_product_ids:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Products not found: {sorted(missing_product_ids)}.",
+        )
 
-    return {"items": [serialize_cart_item(db, item) for item in items]}
+    for product_id, quantity in quantities.items():
+        existing_item = (
+            db.query(CartItem)
+            .filter(
+                CartItem.user_id == current_user.id,
+                CartItem.product_id == product_id,
+            )
+            .first()
+        )
+        if existing_item:
+            existing_item.quantity += quantity
+        else:
+            db.add(
+                CartItem(
+                    user_id=current_user.id,
+                    product_id=product_id,
+                    quantity=quantity,
+                )
+            )
+
+    db.add(
+        ShoppingListImport(
+            user_id=current_user.id,
+            list_type="cart",
+            migration_id=payload.migration_id,
+        )
+    )
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        existing_import = (
+            db.query(ShoppingListImport)
+            .filter(
+                ShoppingListImport.user_id == current_user.id,
+                ShoppingListImport.list_type == "cart",
+                ShoppingListImport.migration_id == payload.migration_id,
+            )
+            .first()
+        )
+        if existing_import is None:
+            raise
+        return {
+            "message": "Cart import was already processed.",
+            "items": [
+                serialize_cart_item(db, item)
+                for item in get_cart_items(db, current_user.id)
+            ],
+        }
+
+    return {
+        "message": "Cart imported successfully.",
+        "items": [
+            serialize_cart_item(db, item)
+            for item in get_cart_items(db, current_user.id)
+        ],
+    }
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)

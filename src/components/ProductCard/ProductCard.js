@@ -14,12 +14,21 @@ import {
   removeWishlistItem,
 } from "../../api/wishlistApi";
 
-const ProductCard = ({ product, showWishlist = true }) => {
+const ProductCard = ({
+  product,
+  showWishlist = true,
+}) => {
   const [isWishlisted, setIsWishlisted] = useState(false);
   const salePrice = Number(product.discount_price ?? product.price ?? 0);
-  const originalPrice = Number(product.originalPrice ?? product.price ?? 0);
+  const originalPrice = Number(
+    product.originalPrice ?? product.original_price ?? product.price ?? 0
+  );
 
   useEffect(() => {
+    if (!showWishlist) {
+      return undefined;
+    }
+
     let active = true;
     getWishlist()
       .then((wishlist) => {
@@ -36,7 +45,7 @@ const ProductCard = ({ product, showWishlist = true }) => {
     return () => {
       active = false;
     };
-  }, [product.id]);
+  }, [product.id, showWishlist]);
 
   // Add to Cart
   const handleAddToCart = async () => {

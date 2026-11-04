@@ -10,7 +10,6 @@ import {
   handleProductImageError,
 } from "../utils/productImage";
 
-
 function TrendingProducts() {
   const [addedItems, setAddedItems] = useState({});
   const [trendingProducts, setTrendingProducts] = useState([]);
@@ -29,14 +28,14 @@ function TrendingProducts() {
     try {
       await addProductToCart(product);
       toast.success(`${product.name} added to cart!`, {
-      position: "top-right",
-      autoClose: 2000,
-      hideProgressBar: false,
-      closeOnClick: true,
-      pauseOnHover: true,
-      draggable: true,
-      theme: "colored",
-      icon: "🛒",
+        position: "top-right",
+        autoClose: 2000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        theme: "colored",
+        icon: "🛒",
       });
 
       setAddedItems((prev) => ({
@@ -45,10 +44,10 @@ function TrendingProducts() {
       }));
 
       setTimeout(() => {
-      setAddedItems((prev) => ({
-        ...prev,
-        [product.id]: false,
-      }));
+        setAddedItems((prev) => ({
+          ...prev,
+          [product.id]: false,
+        }));
       }, 2000);
     } catch (error) {
       toast.error(error.message || "Unable to add this product to your cart.");
@@ -89,11 +88,9 @@ function TrendingProducts() {
 
               <div className="product-info">
                 <h3>{product.name}</h3>
-
                 <p className="price">
                   <strong>₹{product.price}</strong>
                 </p>
-
                 <p className="rating">⭐ {product.rating}</p>
 
                 <div className="button-group">
@@ -103,15 +100,13 @@ function TrendingProducts() {
                   >
                     View Details
                   </Link>
-
                   <button
-                    className={`cart-btn ${addedItems[product.id] ? "added" : ""
-                      }`}
+                    className={`cart-btn ${
+                      addedItems[product.id] ? "added" : ""
+                    }`}
                     onClick={() => handleAddToCart(product)}
                   >
-                    {addedItems[product.id]
-                      ? "✓ Added"
-                      : "Add to Cart"}
+                    {addedItems[product.id] ? "✓ Added" : "Add to Cart"}
                   </button>
                 </div>
               </div>

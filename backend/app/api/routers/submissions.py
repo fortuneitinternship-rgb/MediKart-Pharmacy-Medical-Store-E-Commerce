@@ -5,21 +5,16 @@ from app.api.deps import get_current_user
 from app.database.database import get_db
 from app.models.order import Order
 from app.models.submission import (
-    ContactMessage,
     HealthRecord,
     OrderFeedback,
     Prescription,
-    ProductReview,
 )
 from app.models.user import User
 from app.schemas.submission import (
-    ContactMessageCreate,
     HealthRecordCreate,
     HealthRecordResponse,
     OrderFeedbackCreate,
     PrescriptionResponse,
-    ProductReviewCreate,
-    ProductReviewResponse,
 )
 
 router = APIRouter(tags=["Submissions"])
@@ -29,57 +24,6 @@ PRESCRIPTION_TYPES = {
     "image/jpeg",
     "image/png",
 }
-
-
-@router.post(
-    "/api/contact/messages",
-    status_code=status.HTTP_201_CREATED,
-)
-def create_contact_message(
-    data: ContactMessageCreate,
-    db: Session = Depends(get_db),
-):
-    message = ContactMessage(
-        name=data.name.strip(),
-        email=str(data.email).lower(),
-        phone=data.phone.strip(),
-        message=data.message.strip(),
-    )
-    db.add(message)
-    db.commit()
-    db.refresh(message)
-    return {"id": message.id, "message": "Message received"}
-
-
-@router.get(
-    "/api/reviews",
-    response_model=list[ProductReviewResponse],
-)
-def get_reviews(db: Session = Depends(get_db)):
-    return db.query(ProductReview).order_by(
-        ProductReview.created_at.desc()
-    ).all()
-
-
-@router.post(
-    "/api/reviews",
-    response_model=ProductReviewResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-def create_review(
-    data: ProductReviewCreate,
-    db: Session = Depends(get_db),
-):
-    review = ProductReview(
-        name=data.name.strip(),
-        product=data.product.strip(),
-        rating=data.rating,
-        review=data.review.strip(),
-    )
-    db.add(review)
-    db.commit()
-    db.refresh(review)
-    return review
 
 
 @router.post(

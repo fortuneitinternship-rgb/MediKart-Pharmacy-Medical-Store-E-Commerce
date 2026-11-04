@@ -14,3 +14,8 @@ from app.models.submission import ( ContactMessage, HealthRecord, OrderFeedback,
 from app.models.cart_item import CartItem
 from app.models.wishlist import Wishlist
 from app.models.comparison import Comparison
+from app.models.coupon import Coupon
+from app.models.return_request import ReturnRequest
+from app.models.shopping_list_import import ShoppingListImport
+from app.models.blog_post import BlogPost
+from app.models.job_listing import JobListing

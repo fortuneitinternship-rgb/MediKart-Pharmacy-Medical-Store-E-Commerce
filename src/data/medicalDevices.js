@@ -13,6 +13,7 @@ import hotWaterBag from "../assets/medicalDevices/hot-water-bag.png";
 import stethoscope from "../assets/medicalDevices/stethoscope.png";
 import ecgMonitor from "../assets/medicalDevices/ecg-monitor.png";
 import oxygenConcentrator from "../assets/medicalDevices/oxygen-concentrator.png";
+import portableOxygenCylinder from "../assets/medicalDevices/portable-oxygen-cylinder.svg";
 import wheelchair from "../assets/medicalDevices/wheelchair.png";
 import walkingStick from "../assets/medicalDevices/walking-stick.png";
 import walker from "../assets/medicalDevices/walker.png";
@@ -535,7 +536,7 @@ const medicalDevices = [
     rating: 4.7,
     reviews: 410,
     discount: 11,
-    image: oxygenConcentrator,
+    image: portableOxygenCylinder,
     packSize: "1 Unit",
     expiry: "24 Months",
     delivery: "3-5 Business Days",

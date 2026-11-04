@@ -1,5 +1,9 @@
 import axios from "axios";
 import { addProductToCart } from "./cartApi";
+import {
+    clearAuthSession,
+    getStoredAccessToken,
+} from "../services/api";
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000";
 
@@ -11,6 +15,41 @@ const wishlistApi = axios.create({
 });
 
 const LOCAL_WISHLIST_KEY = "wishlist";
+const PENDING_WISHLIST_IMPORT_KEY = "pendingWishlistImport";
+let localWishlistFallbackIds = new Set();
+
+const createMigrationId = () => {
+    if (typeof crypto !== "undefined" && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+
+    return `migration-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+};
+
+const getPendingImport = (items) => {
+    const stored = localStorage.getItem(PENDING_WISHLIST_IMPORT_KEY);
+    if (stored) {
+        const pending = JSON.parse(stored);
+        if (
+            typeof pending?.migration_id !== "string" ||
+            !Array.isArray(pending.items)
+        ) {
+            throw new Error("Saved wishlist import data is invalid.");
+        }
+        return pending;
+    }
+
+    const snapshot = items.map((item) => ({
+        product_id: Number(item.product_id ?? item.id),
+    }));
+    if (!snapshot.length) {
+        return null;
+    }
+
+    const pending = { migration_id: createMigrationId(), items: snapshot };
+    localStorage.setItem(PENDING_WISHLIST_IMPORT_KEY, JSON.stringify(pending));
+    return pending;
+};
 
 const getLocalWishlist = () => {
     const items = JSON.parse(localStorage.getItem(LOCAL_WISHLIST_KEY) || "[]");
@@ -33,10 +72,7 @@ const normalizeWishlistItem = (item) => {
 
 // Get the logged-in user's token
 const getAuthConfig = () => {
-    const token =
-        localStorage.getItem("access_token") ||
-        localStorage.getItem("token") ||
-        localStorage.getItem("accessToken");
+    const token = getStoredAccessToken();
 
     return {
         headers: token
@@ -45,10 +81,31 @@ const getAuthConfig = () => {
     };
 };
 
+wishlistApi.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response?.status === 401) {
+            clearAuthSession();
+        }
+
+        return Promise.reject(error);
+    }
+);
+
 // Get wishlist items
 export const getWishlist = async () => {
     if (!getAuthConfig().headers.Authorization) {
+        localWishlistFallbackIds = new Set();
         return getLocalWishlist();
+    }
+
+    try {
+        await syncLocalWishlist();
+    } catch (error) {
+        if (error.response?.status === 401) {
+            throw error;
+        }
+        console.error("Unable to migrate local wishlist items:", error);
     }
 
     const response = await wishlistApi.get(
@@ -59,7 +116,52 @@ export const getWishlist = async () => {
     const items = Array.isArray(response.data)
         ? response.data
         : response.data.items || response.data.wishlist || [];
-    return items.map(normalizeWishlistItem);
+    const serverItems = items.map(normalizeWishlistItem);
+    const serverProductIds = new Set(
+        serverItems.map((item) => Number(item.product_id))
+    );
+    const localItems = getLocalWishlist()
+        .filter(
+            (item) =>
+                !serverProductIds.has(Number(item.product_id ?? item.id))
+        )
+        .map((item) => ({
+            ...normalizeWishlistItem(item),
+            _localItem: true,
+        }));
+    localWishlistFallbackIds = new Set(
+        localItems.map((item) => Number(item.product_id))
+    );
+    return [...serverItems, ...localItems];
+};
+
+export const syncLocalWishlist = async () => {
+    if (!getAuthConfig().headers.Authorization) {
+        return null;
+    }
+
+    const pending = getPendingImport(getLocalWishlist());
+    if (!pending) {
+        return null;
+    }
+
+    const response = await wishlistApi.post(
+        "/api/wishlist/import",
+        pending,
+        getAuthConfig()
+    );
+    const importedIds = new Set(
+        pending.items.map((item) => Number(item.product_id))
+    );
+    saveLocalWishlist(
+        getLocalWishlist().filter(
+            (item) => !importedIds.has(Number(item.product_id ?? item.id))
+        )
+    );
+    localStorage.removeItem(PENDING_WISHLIST_IMPORT_KEY);
+    localWishlistFallbackIds = new Set();
+    window.dispatchEvent(new Event("wishlistUpdated"));
+    return response.data;
 };
 
 // Add product to wishlist
@@ -78,6 +180,7 @@ export const addToWishlist = async (product) => {
         return wishlist;
     }
 
+    await syncLocalWishlist();
     const response = await wishlistApi.post(
         "/api/wishlist",
         { product_id: item.id },
@@ -94,6 +197,31 @@ export const removeWishlistItem = async (productId) => {
             (item) => Number(item.id ?? item.product_id) !== Number(productId)
         );
         saveLocalWishlist(wishlist);
+        return wishlist;
+    }
+
+    if (localWishlistFallbackIds.has(Number(productId))) {
+        const wishlist = getLocalWishlist().filter(
+            (item) => Number(item.id ?? item.product_id) !== Number(productId)
+        );
+        saveLocalWishlist(wishlist);
+        const pending = localStorage.getItem(PENDING_WISHLIST_IMPORT_KEY);
+        if (pending) {
+            const pendingImport = JSON.parse(pending);
+            pendingImport.items = pendingImport.items.filter(
+                (item) => Number(item.product_id) !== Number(productId)
+            );
+            if (pendingImport.items.length) {
+                localStorage.setItem(
+                    PENDING_WISHLIST_IMPORT_KEY,
+                    JSON.stringify(pendingImport)
+                );
+            } else {
+                localStorage.removeItem(PENDING_WISHLIST_IMPORT_KEY);
+            }
+        }
+        localWishlistFallbackIds.delete(Number(productId));
+        window.dispatchEvent(new Event("wishlistUpdated"));
         return wishlist;
     }
 

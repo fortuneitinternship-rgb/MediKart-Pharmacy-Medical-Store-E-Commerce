@@ -14,6 +14,9 @@ CATALOG_FILE = (
     Path(__file__).resolve().parents[2] / "data" / "product_catalog.json"
 )
 PROMOTIONAL_IMAGE = re.compile(r"mediction(?:[1-3])?\.png$", re.IGNORECASE)
+GENERIC_PRODUCT_IMAGE = re.compile(
+    r"product\d+\.(?:png|jpe?g|webp)$", re.IGNORECASE
+)
 CATALOG_FIELDS = (
     "brand",
     "description",
@@ -64,6 +67,17 @@ def ensure_catalog_schema(bind=engine) -> None:
 def normalize_product_name(name: str) -> str:
     normalized = re.sub(r"(\d+)\s+(mg|mcg|ml|g)\b", r"\1\2", name.lower())
     return re.sub(r"[^a-z0-9]+", " ", normalized).strip()
+
+
+def is_placeholder_image(image_path: str | None) -> bool:
+    if not image_path:
+        return True
+
+    image_name = re.split(r"[/\\]", image_path)[-1]
+    return bool(
+        PROMOTIONAL_IMAGE.fullmatch(image_name)
+        or GENERIC_PRODUCT_IMAGE.fullmatch(image_name)
+    )
 
 
 def is_catalog_name_match(existing_name: str, catalog_name: str) -> bool:
@@ -163,9 +177,11 @@ def seed_catalog(db: Session, catalog: list[dict[str, Any]]) -> dict[str, int]:
             product.rating = item["rating"]
             changed = True
 
-        if not product.image or PROMOTIONAL_IMAGE.search(product.image):
-            product.image = item.get("image")
-            changed = True
+        catalog_image = item.get("image")
+        if catalog_image and is_placeholder_image(product.image):
+            if product.image != catalog_image:
+                product.image = catalog_image
+                changed = True
 
         if changed:
             updated += 1

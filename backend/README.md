@@ -58,21 +58,29 @@ Frontend paths below are relative to `medikart\src`.
 | `GET/POST /api/addresses`, `PUT/DELETE /api/addresses/{id}` | `pages/Addresses/Addresses.js` via `api/addressApi.js` |
 | `GET /api/checkout/cart`, `POST /api/checkout/address`, `POST /api/checkout/orders` | `pages/Checkout/Checkout.js` via `api/checkoutApi.js`; cart checkout clears ordered cart rows, while Buy Now checks out the selected product without changing the saved cart |
 | `GET/POST /api/orders/`, `GET /api/orders/{order_id}`, `PATCH /api/orders/{order_id}/cancel`, `GET /api/orders/{order_id}/track` | `api/ordersApi.js`; the Account page and tracking page load the signed-in user's orders |
+| `GET/POST /api/cart`, `POST /api/cart/import`, `PUT/DELETE /api/cart/{id}` | `api/cartApi.js`; anonymous cart contents migrate idempotently after login |
+| `GET/POST /api/wishlist`, `POST /api/wishlist/import`, `DELETE /api/wishlist/{product_id}` | `api/wishlistApi.js`; anonymous wishlist contents migrate idempotently after login |
+| `GET/POST/DELETE /api/compare[/{product_id}]` | `api/compare.py`; signed-in users can compare up to four products |
 | `GET /api/products` (optional `q`, `category`, `min_price`, `max_price`, `sort_by`, `sort_order`, `limit`, `offset`), `GET /api/products/{id}` | `pages/ProductListingPage.js`, `pages/ProductDetails/ProductDetails.js` |
 | `GET /api/products/categories`, admin `POST/PUT/DELETE /api/products/categories[/{id}]` | Product category listing and administration |
 | `POST/PUT/DELETE /api/products[/{id}]` (admin bearer token required) | `pages/AdminProducts/AdminProducts.js` via `services/api.js` |
 | `GET /api/products/featured`, `/trending`, `/flash-sale`, `/new-arrivals` | Available in `api/productApi.js`; the home sections still use static presentation data |
 | `POST /api/newsletter/subscribe` | `components/Newsletter/Newsletter.js` via `services/api.js`; displays backend success/error responses |
 | Card endpoints | `pages/Payments/Payments.js` expects card endpoints, but no `/api/cards` router is currently registered |
-| `POST /api/payments/process`, `GET /api/payments/order/{order_id}` | No current frontend caller; local-only simulator records `Simulated` and does not charge a payment method or mark the order paid |
-| `GET /api/admin/dashboard` | No current frontend caller |
-| `POST /api/contact/messages` | `pages/Contact/Contact.js` |
+| `GET/POST /api/coupons`, `POST /api/coupons/validate`, admin `GET/PUT/DELETE /api/coupons/{id}` | Coupon validation is also enforced during checkout; coupon use is counted with order creation |
+| `POST /api/uploads/products/{product_id}` | Admin-only JPEG/PNG/WebP upload; files are served under `/uploads` |
+| `GET/POST /api/returns`, admin `GET/PATCH /api/returns/admin[/{id}]` | Signed-in shoppers can request returns for delivered orders; administrators manage the request/refund status |
+| `GET /api/admin/orders`, `PATCH /api/admin/orders/{order_id}/status` | Admin order listing, filtering, and guarded status transitions |
+| `GET /api/admin/reports/sales`, `GET /api/admin/dashboard` | Admin sales summaries and dashboard metrics |
+| `POST /api/contact/messages`, admin `GET /api/admin/contact/messages` | `pages/Contact/Contact.js` |
 | `GET/POST /api/reviews` | `pages/Reviews/Reviews.js` |
 | `POST /api/feedback` | `components/Feedback/Feedback.js` |
 | `GET/POST/DELETE /api/health-records` | `pages/HealthRecords/HealthRecords.js` |
 | `GET/POST /api/prescriptions` | `pages/UploadPrescription/UploadPrescription.js`; file bytes and metadata are stored in the configured database |
 
-The shared `services/api.js` client uses `REACT_APP_API_URL` (default `http://127.0.0.1:8000`) and attaches the signed-in user's bearer token. Cart and wishlist API endpoints persist authenticated users' records in the configured database. Checkout records the selected payment method with the order; `/api/payments/process` is a local simulator only and never represents a real charge.
+The shared `services/api.js` client uses `REACT_APP_API_URL` (default `http://127.0.0.1:8000`) and attaches the signed-in user's bearer token. Cart and wishlist imports use persistent migration IDs so retries do not duplicate items. Product image uploads are stored under `UPLOAD_DIR` (default `backend\uploads`) and served from `/uploads`. Checkout validates coupons on the server and records their usage with the order.
+
+`/api/payments/process` is still a local simulator and never represents a real charge. A payment provider (for example, Razorpay or Stripe) and its test credentials must be selected/configured before real gateway checkout or provider-specific webhook verification can be implemented. Never store full card numbers or CVV values in this application.
 
 ## Refresh the Shop catalog
 
@@ -85,7 +93,7 @@ cd .\backend
 .\environment\Scripts\python.exe -m app.scripts.seed_product_catalog
 ```
 
-The export is written to `backend\data\product_catalog.json`. The sync creates missing categories and products, fills only missing catalog details on existing products, and replaces missing or promotional-banner product images with the matching catalog image path. Existing product pricing and other non-empty product details are preserved. The sync also adds the catalog detail columns to an existing `products` table and removes a legacy name-only unique index so the same product name can exist in distinct categories. Run it again after changing the frontend catalog; it is safe to repeat. The Shop then loads all active products and categories from `GET /api/products`; “Load More Products” reveals the next batch and “Show All Products” reveals the full filtered catalog.
+The export is written to `backend\data\product_catalog.json`. The sync creates missing categories and products, fills only missing catalog details on existing products, and replaces missing, promotional-banner, or generic `productN.*` image placeholders with the matching catalog image path. Existing product pricing and other non-empty product details are preserved. The sync also adds the catalog detail columns to an existing `products` table and removes a legacy name-only unique index so the same product name can exist in distinct categories. Run it again after changing the frontend catalog; it is safe to repeat. The Shop then loads all active products and categories from `GET /api/products`; “Load More Products” reveals the next batch and “Show All Products” reveals the full filtered catalog.
 
 After registering, make an administrator in the configured database before using Product Inventory:
 

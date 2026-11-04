@@ -468,7 +468,9 @@ function CartPopup({
   return (
     <div
       className={styles.cartModalOverlay}
-      onClick={onClose}
+      onClick={() => {
+        if (!busy) onClose();
+      }}
     >
       <div
         className={styles.cartModal}

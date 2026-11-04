@@ -376,3 +376,117 @@ width:100%;
     font-size: 21px;
   }
 }
+
+.cartModalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.58);
+  backdrop-filter: blur(3px);
+}
+
+.cartModal {
+  width: min(100%, 440px);
+  padding: 28px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.28);
+  text-align: center;
+  animation: cartModalEnter 160ms ease-out;
+}
+
+.cartModal h2 {
+  margin: 0 0 12px;
+  color: #172033;
+  font-size: 23px;
+  font-weight: 700;
+}
+
+.cartModal p {
+  margin: 0;
+  color: #596579;
+  font-size: 16px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.cartModalActions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.cartModalActions button {
+  min-width: 120px;
+  padding: 11px 18px;
+  border: 1px solid #d5dbe5;
+  border-radius: 9px;
+  background: #fff;
+  color: #273449;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background-color 140ms ease, transform 140ms ease;
+}
+
+.cartModalActions button:hover:not(:disabled) {
+  background: #f3f5f8;
+  transform: translateY(-1px);
+}
+
+.cartModalActions button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.cartModalActions .cartModalDanger {
+  border-color: #dc2626;
+  background: #dc2626;
+  color: #fff;
+}
+
+.cartModalActions .cartModalDanger:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
+.cartModalActions .cartModalPrimary {
+  border-color: #16803c;
+  background: #16803c;
+  color: #fff;
+}
+
+.cartModalActions .cartModalPrimary:hover:not(:disabled) {
+  background: #11632e;
+}
+
+@keyframes cartModalEnter {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (max-width: 480px) {
+  .cartModal {
+    padding: 24px 20px;
+  }
+
+  .cartModalActions {
+    flex-direction: column-reverse;
+  }
+
+  .cartModalActions button {
+    width: 100%;
+  }
+}

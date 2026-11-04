@@ -14,7 +14,11 @@ import {
 
 import image from "../../assets/Login.png";
 import "./Login.css";
-import { getCurrentUser, loginUser } from "../../api/loginApi";
+import {
+  getCurrentUser,
+  loginUser,
+  logoutUser,
+} from "../../api/loginApi";
 
 const Login = ({
   onClose,
@@ -129,7 +133,7 @@ const Login = ({
       alert("Login successful!");
       handleClose();
     } catch (error) {
-      localStorage.removeItem("access_token");
+      logoutUser();
       alert(error.message || "Unable to login. Please try again.");
     }
   };

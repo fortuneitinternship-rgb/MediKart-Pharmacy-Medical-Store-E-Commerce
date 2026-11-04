@@ -68,6 +68,18 @@ describe("Categories", () => {
     expect(links.length).toBe(10);
   });
 
+  test("links women's health to the correct shop category", () => {
+    render(
+      <MemoryRouter>
+        <Categories />
+      </MemoryRouter>
+    );
+
+    expect(
+      screen.getByRole("link", { name: /women's health/i })
+    ).toHaveAttribute("href", "/shop/women-care");
+  });
+
   test("renders 10 category images", () => {
     render(
       <MemoryRouter>

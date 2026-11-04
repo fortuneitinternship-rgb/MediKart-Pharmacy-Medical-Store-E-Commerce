@@ -11,9 +11,11 @@ from app.api.deps import get_current_user
 from app.database.database import get_db
 from app.models.address import Address
 from app.models.cart_item import CartItem
+from app.models.coupon import Coupon
 from app.models.order import Order
 from app.models.order_item import OrderItem
 from app.models.product import Product
+from app.services.coupons import calculate_coupon_discount
 
 router = APIRouter(
     prefix="/api/checkout",
@@ -48,6 +50,7 @@ class CheckoutOrderRequest(BaseModel):
     payment_method: Literal["COD", "CARD", "NETBANKING"]
     delivery_type: Literal["normal", "express", "today"] = "normal"
     delivery_distance: Literal["short", "medium", "long"] = "short"
+    coupon_code: str | None = Field(default=None, min_length=3, max_length=50)
     remove_from_cart: bool = True
 
 
@@ -256,6 +259,29 @@ def create_checkout_order(
     # These are example checkout rules. Keep them consistent with
     # the pricing rules that your store intends to enforce.
     discount = money(subtotal * Decimal("0.10"))
+    coupon_discount = Decimal("0.00")
+    coupon = None
+    if payload.coupon_code:
+        coupon = (
+            db.query(Coupon)
+            .filter(Coupon.code == payload.coupon_code.strip().upper())
+            .with_for_update()
+            .first()
+        )
+        if coupon is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Coupon not found.",
+            )
+        try:
+            coupon_discount = calculate_coupon_discount(coupon, subtotal)
+        except ValueError as error:
+            raise HTTPException(
+                status_code=422,
+                detail=str(error),
+            ) from error
+        discount = min(subtotal, discount + coupon_discount)
+        discount = money(discount)
 
     if payload.delivery_type == "express":
         if subtotal < Decimal("299"):
@@ -321,6 +347,9 @@ def create_checkout_order(
             )
             db.add(order_item)
 
+        if coupon is not None:
+            coupon.usage_count += 1
+
         if payload.remove_from_cart:
             # Cart checkout clears purchased products; Buy Now leaves the cart unchanged.
             (
@@ -364,6 +393,7 @@ def create_checkout_order(
             ],
             "subtotal": float(subtotal),
             "discount": float(discount),
+            "coupon_discount": float(coupon_discount),
             "delivery_charge": float(delivery_charge),
         },
     }

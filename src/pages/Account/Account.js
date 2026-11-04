@@ -26,6 +26,7 @@ import "./Account.css";
 import { getAccessToken, getCart } from "../../api/cartApi";
 import { getWishlist } from "../../api/wishlistApi";
 import { getOrders } from "../../api/ordersApi";
+import { logoutUser } from "../../api/loginApi";
 
 const Account = () => {
   const navigate = useNavigate();
@@ -50,12 +51,14 @@ const Account = () => {
     window.addEventListener("cartUpdated", handleStorage);
     window.addEventListener("wishlistUpdated", handleStorage);
     window.addEventListener("ordersUpdated", handleStorage);
+    window.addEventListener("userUpdated", handleStorage);
 
     return () => {
       window.removeEventListener("storage", handleStorage);
       window.removeEventListener("cartUpdated", handleStorage);
       window.removeEventListener("wishlistUpdated", handleStorage);
       window.removeEventListener("ordersUpdated", handleStorage);
+      window.removeEventListener("userUpdated", handleStorage);
     };
   }, []);
 
@@ -94,11 +97,7 @@ const Account = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("isLoggedIn");
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("user");
-    localStorage.removeItem("username");
-
+    logoutUser();
     navigate("/login");
   };
 

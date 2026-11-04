@@ -1,12 +1,64 @@
+
 import React from "react";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  act,
+} from "@testing-library/react";
+import "@testing-library/jest-dom";
 import { MemoryRouter } from "react-router-dom";
 
-import FlashSale from "./FlashSale";
-import flashSaleProducts from "../data/flashSaleProducts";
+import FlashSale from "../FlashSale";
 
-// Mock CSS module
-jest.mock("./FlashSale.module.css", () => ({
+import { addProductToCart } from "../../api/cartApi";
+import { getFlashSaleProducts } from "../../api/productApi";
+
+import {
+  getProductImage,
+  handleProductImageError,
+} from "../../utils/productImage";
+
+import { toast } from "react-toastify";
+
+// ---------------------------------------------
+// MOCK API
+// ---------------------------------------------
+
+jest.mock("../../api/cartApi", () => ({
+  addProductToCart: jest.fn(),
+}));
+
+jest.mock("../../api/productApi", () => ({
+  getFlashSaleProducts: jest.fn(),
+}));
+
+// ---------------------------------------------
+// MOCK IMAGE UTILITIES
+// ---------------------------------------------
+
+jest.mock("../../utils/productImage", () => ({
+  getProductImage: jest.fn(),
+  handleProductImageError: jest.fn(),
+}));
+
+// ---------------------------------------------
+// MOCK TOAST
+// ---------------------------------------------
+
+jest.mock("react-toastify", () => ({
+  toast: {
+    success: jest.fn(),
+    error: jest.fn(),
+  },
+}));
+
+// ---------------------------------------------
+// MOCK CSS MODULE
+// ---------------------------------------------
+
+jest.mock("../FlashSale.module.css", () => ({
   flashSale: "flashSale",
   header: "header",
   titleSection: "titleSection",
@@ -28,94 +80,73 @@ jest.mock("./FlashSale.module.css", () => ({
   added: "added",
 }));
 
-// Mock react-toastify
-jest.mock("react-toastify", () => ({
-  toast: {
-    success: jest.fn(),
-  },
-}));
+// ---------------------------------------------
+// SYNTHETIC TEST DATA
+// ---------------------------------------------
 
-// Mock images so Jest does not need real image files
-jest.mock("../data/flashSaleProducts", () => [
+const mockProducts = [
   {
-    id: 9001,
-    name: "Dolo 650",
-    brand: "Micro Labs",
-    category: "Medicines",
-    originalPrice: 199,
-    price: 149,
-    rating: 4.8,
-    image: "/images/dolo650.png",
+    id: 90001,
+    name: "Synthetic Item Alpha",
+    brand: "Synthetic Brand A",
+    category: "category-alpha",
+    image: "synthetic-image-alpha",
+    price: 500,
+    discount_price: 400,
+    rating: 4.5,
   },
   {
-    id: 9002,
-    name: "Vitamin C Tablets",
-    brand: "Limcee",
-    category: "Vitamins",
-    originalPrice: 299,
-    price: 249,
-    rating: 4.7,
-    image: "/images/vitamin-c.png",
+    id: 90002,
+    name: "Synthetic Item Beta",
+    brand: "Synthetic Brand B",
+    category: "category-beta",
+    image: "synthetic-image-beta",
+    price: 300,
+    discount_price: 250,
+    rating: 4.0,
   },
-  {
-    id: 9003,
-    name: "Hand Sanitizer",
-    brand: "Dettol",
-    category: "Healthcare",
-    originalPrice: 179,
-    price: 129,
-    rating: 4.6,
-    image: "/images/sanitizer.png",
-  },
-  {
-    id: 9004,
-    name: "Digital Thermometer",
-    brand: "Dr Trust",
-    category: "Medical Devices",
-    originalPrice: 249,
-    price: 149,
-    rating: 4.9,
-    image: "/images/thermometer.png",
-  },
-]);
+];
 
-const renderComponent = () => {
-  return render(
+// ---------------------------------------------
+// RENDER HELPER
+// ---------------------------------------------
+
+const renderComponent = () =>
+  render(
     <MemoryRouter>
       <FlashSale />
     </MemoryRouter>
   );
-};
 
-const getProductCard = (productName) => {
-  const heading = screen.getByRole("heading", {
-    name: productName,
-    level: 3,
-  });
+// =============================================
+// FLASH SALE TESTS
+// =============================================
 
-  return heading.closest(".productCard");
-};
-
-describe("FlashSale", () => {
+describe("FlashSale Component", () => {
   beforeEach(() => {
-    localStorage.clear();
-
     jest.clearAllMocks();
 
-    jest.useFakeTimers();
+    getFlashSaleProducts.mockResolvedValue(mockProducts);
 
-    // Reset localStorage before every test
-    localStorage.setItem("cart", JSON.stringify([]));
+    addProductToCart.mockResolvedValue({
+      success: true,
+    });
+
+    getProductImage.mockReturnValue(
+      "/synthetic-image.png"
+    );
+
+    handleProductImageError.mockImplementation(() => {});
   });
 
   afterEach(() => {
-    jest.runOnlyPendingTimers();
+    jest.clearAllTimers();
     jest.useRealTimers();
   });
 
-  // =========================================================
-  // BASIC RENDERING
-  // =========================================================
+  // -------------------------------------------
+  // 1. BASIC RENDERING
+  // -------------------------------------------
 
   test("renders Flash Sale heading", () => {
     renderComponent();
@@ -127,426 +158,370 @@ describe("FlashSale", () => {
     ).toBeInTheDocument();
   });
 
-  test("renders Limited Time Deals text", () => {
+  test("renders limited time deals text", () => {
     renderComponent();
 
     expect(
-      screen.getByText("Limited Time Deals")
+      screen.getByText(/limited time deals/i)
     ).toBeInTheDocument();
   });
 
-  // =========================================================
-  // TIMER
-  // =========================================================
-
-  test("renders the flash sale timer", () => {
+  test("renders countdown timer labels", () => {
     renderComponent();
 
-    expect(
-      screen.getByText("Hours")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByText("Minutes")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByText("Seconds")
-    ).toBeInTheDocument();
-
-    // There are TWO "00" elements:
-    // Minutes and Seconds.
-    // Therefore getAllByText must be used.
-    const zeroValues = screen.getAllByText("00");
-
-    expect(zeroValues.length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("Hours")).toBeInTheDocument();
+    expect(screen.getByText("Minutes")).toBeInTheDocument();
+    expect(screen.getByText("Seconds")).toBeInTheDocument();
   });
 
-  test("starts timer at 24 hours", () => {
+  test("renders initial countdown values", () => {
+    renderComponent();
+
+    expect(screen.getByText("24")).toBeInTheDocument();
+    expect(screen.getAllByText("00")).toHaveLength(2);
+  });
+
+  // -------------------------------------------
+  // 2. API TESTS
+  // -------------------------------------------
+
+  test("calls getFlashSaleProducts API", () => {
+    renderComponent();
+
+    expect(getFlashSaleProducts).toHaveBeenCalledTimes(1);
+  });
+
+  test("displays products returned by the API", async () => {
     renderComponent();
 
     expect(
-      screen.getByText("24", {
-        selector: "span",
+      await screen.findByText("Synthetic Item Alpha")
+    ).toBeInTheDocument();
+
+    expect(
+      screen.getByText("Synthetic Item Beta")
+    ).toBeInTheDocument();
+  });
+
+  test("displays product brand", async () => {
+    renderComponent();
+
+    expect(
+      await screen.findByText("Synthetic Brand A")
+    ).toBeInTheDocument();
+  });
+
+  test("displays product rating", async () => {
+    renderComponent();
+
+    expect(
+      await screen.findByText("⭐ 4.5")
+    ).toBeInTheDocument();
+  });
+
+  test("displays original and discounted prices", async () => {
+    renderComponent();
+
+    await screen.findByText("Synthetic Item Alpha");
+
+    expect(screen.getByText("₹500")).toBeInTheDocument();
+    expect(screen.getByText("₹400")).toBeInTheDocument();
+  });
+
+  test("uses original price when discount price is missing", async () => {
+    getFlashSaleProducts.mockResolvedValue([
+      {
+        id: 90003,
+        name: "Synthetic Item Gamma",
+        brand: "Synthetic Brand C",
+        category: "category-gamma",
+        image: "synthetic-image-gamma",
+        price: 600,
+        rating: 3.5,
+      },
+    ]);
+
+    renderComponent();
+
+    await screen.findByText("Synthetic Item Gamma");
+
+    expect(screen.getByText("₹600")).toBeInTheDocument();
+  });
+
+  test("handles an empty API response", async () => {
+    getFlashSaleProducts.mockResolvedValue([]);
+
+    const { container } = renderComponent();
+
+    await waitFor(() => {
+      expect(getFlashSaleProducts).toHaveBeenCalledTimes(1);
+    });
+
+    expect(
+      container.querySelectorAll(".productCard")
+    ).toHaveLength(0);
+  });
+
+  // -------------------------------------------
+  // 3. IMAGE TESTS
+  // -------------------------------------------
+
+  test("calls getProductImage with product details", async () => {
+    renderComponent();
+
+    await screen.findByText("Synthetic Item Alpha");
+
+    expect(getProductImage).toHaveBeenCalledWith(
+      "synthetic-image-alpha",
+      "Synthetic Item Alpha",
+      "category-alpha"
+    );
+  });
+
+  test("renders product images with alt text", async () => {
+    renderComponent();
+
+    expect(
+      await screen.findByAltText("Synthetic Item Alpha")
+    ).toBeInTheDocument();
+
+    expect(
+      screen.getByAltText("Synthetic Item Beta")
+    ).toBeInTheDocument();
+  });
+
+  test("calls image error handler when image fails", async () => {
+    renderComponent();
+
+    const image = await screen.findByAltText(
+      "Synthetic Item Alpha"
+    );
+
+    fireEvent.error(image);
+
+    expect(handleProductImageError).toHaveBeenCalledWith(
+      expect.any(Object),
+      "Synthetic Item Alpha",
+      "category-alpha"
+    );
+  });
+
+  // -------------------------------------------
+  // 4. NAVIGATION TESTS
+  // -------------------------------------------
+
+  test("renders View Details links", async () => {
+    renderComponent();
+
+    await screen.findByText("Synthetic Item Alpha");
+
+    expect(
+      screen.getAllByRole("link", {
+        name: /view details/i,
+      })
+    ).toHaveLength(2);
+  });
+
+  test("uses the correct product detail URLs", async () => {
+    renderComponent();
+
+    await screen.findByText("Synthetic Item Alpha");
+
+    const links = screen.getAllByRole("link", {
+      name: /view details/i,
+    });
+
+    expect(links[0]).toHaveAttribute(
+      "href",
+      "/product/90001"
+    );
+
+    expect(links[1]).toHaveAttribute(
+      "href",
+      "/product/90002"
+    );
+  });
+
+  // -------------------------------------------
+  // 5. ADD TO CART TESTS
+  // -------------------------------------------
+
+  test("renders Add to Cart buttons", async () => {
+    renderComponent();
+
+    await screen.findByText("Synthetic Item Alpha");
+
+    expect(
+      screen.getAllByRole("button", {
+        name: /add to cart/i,
+      })
+    ).toHaveLength(2);
+  });
+
+  test("calls addProductToCart with selected product", async () => {
+    renderComponent();
+
+    await screen.findByText("Synthetic Item Alpha");
+
+    fireEvent.click(
+      screen.getAllByRole("button", {
+        name: /add to cart/i,
+      })[0]
+    );
+
+    await waitFor(() => {
+      expect(addProductToCart).toHaveBeenCalledWith(
+        mockProducts[0]
+      );
+    });
+  });
+
+  test("shows success toast after adding to cart", async () => {
+    renderComponent();
+
+    await screen.findByText("Synthetic Item Alpha");
+
+    fireEvent.click(
+      screen.getAllByRole("button", {
+        name: /add to cart/i,
+      })[0]
+    );
+
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith(
+        "Synthetic Item Alpha added to cart!",
+        expect.objectContaining({
+          position: "top-right",
+          autoClose: 2000,
+          theme: "colored",
+        })
+      );
+    });
+  });
+
+  test("changes button text after successful cart addition", async () => {
+    renderComponent();
+
+    await screen.findByText("Synthetic Item Alpha");
+
+    fireEvent.click(
+      screen.getAllByRole("button", {
+        name: /add to cart/i,
+      })[0]
+    );
+
+    expect(
+      await screen.findByRole("button", {
+        name: /added/i,
       })
     ).toBeInTheDocument();
   });
 
-  test("updates timer after one second", () => {
+  test("shows error toast when adding to cart fails", async () => {
+    addProductToCart.mockRejectedValue(
+      new Error("Synthetic cart failure")
+    );
+
     renderComponent();
 
-    act(() => {
-      jest.advanceTimersByTime(1000);
-    });
+    await screen.findByText("Synthetic Item Alpha");
 
-    expect(
-      screen.getByText("Hours")
-    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getAllByRole("button", {
+        name: /add to cart/i,
+      })[0]
+    );
 
-    expect(
-      screen.getByText("Minutes")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByText("Seconds")
-    ).toBeInTheDocument();
-  });
-
-  // =========================================================
-  // PRODUCTS
-  // =========================================================
-
-  test("renders all flash sale products", () => {
-    renderComponent();
-
-    flashSaleProducts.forEach((product) => {
-      expect(
-        screen.getByRole("heading", {
-          name: product.name,
-          level: 3,
-        })
-      ).toBeInTheDocument();
-    });
-  });
-
-  test("renders product brands", () => {
-    renderComponent();
-
-    flashSaleProducts.forEach((product) => {
-      expect(
-        screen.getByText(product.brand)
-      ).toBeInTheDocument();
-    });
-  });
-
-  test("renders product ratings", () => {
-    renderComponent();
-
-    flashSaleProducts.forEach((product) => {
-      expect(
-        screen.getByText(
-          new RegExp(String(product.rating))
-        )
-      ).toBeInTheDocument();
-    });
-  });
-
-  test("renders product original and discounted prices", () => {
-    renderComponent();
-
-    flashSaleProducts.forEach((product) => {
-      const card = getProductCard(product.name);
-
-      expect(card).toBeInTheDocument();
-
-      // IMPORTANT:
-      // Do NOT use screen.getByText() globally because
-      // multiple products can have the same price.
-      expect(
-        card.querySelector(".originalPrice")
-      ).toHaveTextContent(`₹${product.originalPrice}`);
-
-      expect(
-        card.querySelector(".discountedPrice")
-      ).toHaveTextContent(`₹${product.price}`);
-    });
-  });
-
-  test("renders product images with correct alt text", () => {
-    renderComponent();
-
-    flashSaleProducts.forEach((product) => {
-      expect(
-        screen.getByRole("img", {
-          name: product.name,
-        })
-      ).toBeInTheDocument();
-    });
-  });
-
-  // =========================================================
-  // VIEW DETAILS LINKS
-  // =========================================================
-
-  test("renders View Details link for every product", () => {
-    renderComponent();
-
-    flashSaleProducts.forEach((product) => {
-      const card = getProductCard(product.name);
-
-      const link = card.querySelector(".viewBtn");
-
-      expect(link).toBeInTheDocument();
-
-      expect(link).toHaveAttribute(
-        "href",
-        `/product/${product.id}`
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith(
+        "Synthetic cart failure"
       );
-
-      expect(link).toHaveTextContent("View Details");
     });
   });
 
-  test("Digital Thermometer has correct View Details link", () => {
+  test("shows fallback error when error message is missing", async () => {
+    addProductToCart.mockRejectedValue({});
+
     renderComponent();
 
-    const card = getProductCard(
-      "Digital Thermometer"
+    await screen.findByText("Synthetic Item Alpha");
+
+    fireEvent.click(
+      screen.getAllByRole("button", {
+        name: /add to cart/i,
+      })[0]
     );
 
-    expect(card).toBeInTheDocument();
-
-    const link = card.querySelector(".viewBtn");
-
-    expect(link).toHaveAttribute(
-      "href",
-      "/product/9004"
-    );
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith(
+        "Unable to add this product to your cart."
+      );
+    });
   });
 
-  // =========================================================
-  // ADD TO CART
-  // =========================================================
+  // -------------------------------------------
+  // 6. BUTTON RESET TIMER
+  // -------------------------------------------
 
-  test("adds Digital Thermometer to cart", () => {
+  test("resets button text after two seconds", async () => {
+    jest.useFakeTimers();
+
     renderComponent();
 
-    const card = getProductCard(
-      "Digital Thermometer"
-    );
+    await act(async () => {
+      await Promise.resolve();
+    });
 
-    expect(card).toBeInTheDocument();
+    const button = screen.getAllByRole("button", {
+      name: /add to cart/i,
+    })[0];
 
-    const button = card.querySelector(".cartBtn");
-
-    expect(button).toBeInTheDocument();
-
-    expect(button).toHaveTextContent(
-      "Add to Cart"
-    );
-
-    fireEvent.click(button);
-
-    const cart = JSON.parse(
-      localStorage.getItem("cart")
-    );
-
-    expect(cart).toHaveLength(1);
-
-    expect(cart[0].name).toBe(
-      "Digital Thermometer"
-    );
-
-    expect(cart[0].id).toBe(9004);
-
-    expect(cart[0].quantity).toBe(1);
-
-    expect(cart[0].price).toBe(149);
-  });
-
-  test("adds Dolo 650 to cart", () => {
-    renderComponent();
-
-    const card = getProductCard("Dolo 650");
-
-    expect(card).toBeInTheDocument();
-
-    const button = card.querySelector(".cartBtn");
-
-    fireEvent.click(button);
-
-    const cart = JSON.parse(
-      localStorage.getItem("cart")
-    );
-
-    expect(cart).toHaveLength(1);
-
-    expect(cart[0].name).toBe("Dolo 650");
-    expect(cart[0].id).toBe(9001);
-    expect(cart[0].quantity).toBe(1);
-  });
-
-  test("increases quantity when same product is added twice", () => {
-    renderComponent();
-
-    const card = getProductCard(
-      "Digital Thermometer"
-    );
-
-    const button = card.querySelector(".cartBtn");
-
-    fireEvent.click(button);
-
-    // After first click the button changes to ✓ Added,
-    // but the same button can still be clicked.
-    fireEvent.click(button);
-
-    const cart = JSON.parse(
-      localStorage.getItem("cart")
-    );
-
-    expect(cart).toHaveLength(1);
-
-    expect(cart[0].name).toBe(
-      "Digital Thermometer"
-    );
-
-    expect(cart[0].quantity).toBe(2);
-  });
-
-  // =========================================================
-  // BUTTON STATE
-  // =========================================================
-
-  test("changes button text to Added after clicking", () => {
-    renderComponent();
-
-    const card = getProductCard(
-      "Digital Thermometer"
-    );
-
-    const button = card.querySelector("button");
-
-    fireEvent.click(button);
-
-    expect(button).toHaveTextContent("✓ Added");
-  });
-
-  test("changes button back to Add to Cart after 2 seconds", () => {
-    renderComponent();
-
-    const card = getProductCard(
-      "Digital Thermometer"
-    );
-
-    const button = card.querySelector("button");
-
-    fireEvent.click(button);
+    await act(async () => {
+      fireEvent.click(button);
+      await Promise.resolve();
+    });
 
     expect(button).toHaveTextContent("✓ Added");
 
-    act(() => {
+    await act(async () => {
       jest.advanceTimersByTime(2000);
     });
 
-    expect(button).toHaveTextContent(
-      "Add to Cart"
-    );
+    expect(button).toHaveTextContent("Add to Cart");
   });
 
-  // =========================================================
-  // TOAST
-  // =========================================================
+  // -------------------------------------------
+  // 7. COUNTDOWN TIMER
+  // -------------------------------------------
 
-  test("shows success toast when product is added", () => {
-    const { toast } = require("react-toastify");
+  test("updates countdown after one second", async () => {
+    jest.useFakeTimers();
 
     renderComponent();
 
-    const card = getProductCard(
-      "Digital Thermometer"
-    );
-
-    const button = card.querySelector("button");
-
-    fireEvent.click(button);
-
-    expect(
-      toast.success
-    ).toHaveBeenCalledWith(
-      "Digital Thermometer added to cart!",
-      expect.objectContaining({
-        position: "top-right",
-        autoClose: 2000,
-        theme: "colored",
-      })
-    );
-  });
-
-  // =========================================================
-  // CART UPDATED EVENT
-  // =========================================================
-
-  test("dispatches cartUpdated event", () => {
-    const eventHandler = jest.fn();
-
-    window.addEventListener(
-      "cartUpdated",
-      eventHandler
-    );
-
-    renderComponent();
-
-    const card = getProductCard(
-      "Digital Thermometer"
-    );
-
-    const button = card.querySelector("button");
-
-    fireEvent.click(button);
-
-    expect(eventHandler).toHaveBeenCalledTimes(1);
-
-    window.removeEventListener(
-      "cartUpdated",
-      eventHandler
-    );
-  });
-
-  // =========================================================
-  // EXISTING CART
-  // =========================================================
-
-  test("increases existing product quantity", () => {
-    localStorage.setItem(
-      "cart",
-      JSON.stringify([
-        {
-          id: 9004,
-          name: "Digital Thermometer",
-          price: 149,
-          quantity: 2,
-        },
-      ])
-    );
-
-    renderComponent();
-
-    const card = getProductCard(
-      "Digital Thermometer"
-    );
-
-    const button = card.querySelector("button");
-
-    fireEvent.click(button);
-
-    const cart = JSON.parse(
-      localStorage.getItem("cart")
-    );
-
-    expect(cart).toHaveLength(1);
-
-    expect(cart[0].id).toBe(9004);
-
-    expect(cart[0].quantity).toBe(3);
-  });
-
-  // =========================================================
-  // IMAGE
-  // =========================================================
-
-  test("renders Digital Thermometer image", () => {
-    renderComponent();
-
-    const image = screen.getByRole("img", {
-      name: "Digital Thermometer",
+    await act(async () => {
+      jest.advanceTimersByTime(1000);
     });
 
-    expect(image).toBeInTheDocument();
+    expect(screen.getByText("23")).toBeInTheDocument();
+    expect(screen.getByText("59")).toBeInTheDocument();
+  });
 
-    expect(image).toHaveAttribute(
-      "src",
-      "/images/thermometer.png"
+  // -------------------------------------------
+  // 8. API ERROR HANDLING
+  // -------------------------------------------
+
+  test("displays error when flash-sale API fails", async () => {
+    getFlashSaleProducts.mockRejectedValue(
+      new Error("Synthetic API failure")
+    );
+
+    renderComponent();
+
+    expect(
+      await screen.findByRole("alert")
+    ).toHaveTextContent(
+      "Flash-sale products could not be loaded."
     );
   });
 });
