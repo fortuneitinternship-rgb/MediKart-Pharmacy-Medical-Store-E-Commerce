@@ -432,9 +432,7 @@
 }
 
 .form-group input,
-.form-group textarea,
-.payment-form input,
-.payment-form select {
+.form-group textarea {
   width: 100%;
   box-sizing: border-box;
   border: 1px solid #d1d5db;
@@ -447,9 +445,7 @@
 }
 
 .form-group input:focus,
-.form-group textarea:focus,
-.payment-form input:focus,
-.payment-form select:focus {
+.form-group textarea:focus {
   border-color: #2874f0;
   box-shadow: 0 0 0 2px rgba(40, 116, 240, 0.1);
 }
@@ -904,20 +900,100 @@
   font-size: 12px;
 }
 
-.payment-form {
+.checkout-coupon {
   margin-top: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
 }
 
-.payment-form .form-row {
-  display: flex;
-  gap: 12px;
+.checkout-coupon label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 700;
 }
 
-.payment-form .form-row input {
+.checkout-coupon-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.checkout-coupon-controls input {
+  min-width: 0;
   flex: 1;
+  padding: 11px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+  font: inherit;
+}
+
+.checkout-coupon-controls button,
+.payment-receipt button {
+  border: 0;
+  border-radius: 7px;
+  padding: 10px 14px;
+  background: #2874f0;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.checkout-coupon-controls button:disabled,
+.payment-receipt button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.checkout-coupon-controls .remove-coupon {
+  background: #6b7280;
+}
+
+.coupon-message,
+.coupon-error {
+  margin: 8px 0 0;
+  font-size: 13px;
+}
+
+.coupon-message {
+  color: #15803d;
+}
+
+.coupon-error {
+  color: #b91c1c;
+}
+
+.payment-demo-note {
+  margin: 12px 0 0;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.payment-receipt {
+  margin-top: 20px;
+  padding: 16px;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  background: #f8fbff;
+  text-align: left;
+}
+
+.payment-receipt h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.payment-receipt p {
+  margin: 0 0 12px;
+  color: #4b5563;
+  font-size: 13px;
+}
+
+.payment-receipt div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+}
+
+.payment-receipt span {
+  color: #6b7280;
 }
 
 /* =========================================================
@@ -1273,8 +1349,12 @@
     width: 100%;
   }
 
-  .payment-form .form-row {
-    flex-direction: row;
+  .checkout-coupon-controls {
+    flex-wrap: wrap;
+  }
+
+  .checkout-coupon-controls input {
+    flex-basis: 100%;
   }
 
   .success-card {

@@ -2,26 +2,26 @@
 import axios from "axios";
 
 import {
-  addToWishlist,
   getWishlist,
+  syncLocalWishlist,
+  addToWishlist,
   removeWishlistItem,
   moveWishlistItemToCart,
-  syncLocalWishlist,
-} from "../wishlistApi";
+} from "./wishlistApi";
+
+import { addProductToCart } from "./cartApi";
 
 import {
   clearAuthSession,
   getStoredAccessToken,
-} from "../../src/api";
+} from "../services/api";
 
-import { addProductToCart } from "../cartApi";
+/* =====================================================
+   MOCKS
+===================================================== */
 
-// ---------------------------------------------
-// MOCK AXIOS
-// ---------------------------------------------
-
-jest.mock("axios", () => {
-  const mockInstance = {
+jest.mock("axios", () => ({
+  create: jest.fn(() => ({
     get: jest.fn(),
     post: jest.fn(),
     delete: jest.fn(),
@@ -30,687 +30,978 @@ jest.mock("axios", () => {
         use: jest.fn(),
       },
     },
-  };
+  })),
+}));
 
-  return {
-    __esModule: true,
-    default: {
-      create: jest.fn(() => mockInstance),
-    },
-  };
-});
+jest.mock("./cartApi", () => ({
+  addProductToCart: jest.fn(),
+}));
 
-// ---------------------------------------------
-// MOCK AUTHENTICATION
-// ---------------------------------------------
-
-jest.mock("../../src/api", () => ({
+jest.mock("../services/api", () => ({
   clearAuthSession: jest.fn(),
   getStoredAccessToken: jest.fn(),
 }));
 
-// ---------------------------------------------
-// MOCK CART API
-// ---------------------------------------------
-
-jest.mock("../cartApi", () => ({
-  addProductToCart: jest.fn(),
-}));
-
-// ---------------------------------------------
-// AXIOS INSTANCE
-// ---------------------------------------------
+/* =====================================================
+   AXIOS INSTANCE
+===================================================== */
 
 const mockWishlistApi = axios.create.mock.results[0].value;
 
-// ---------------------------------------------
-// SYNTHETIC TEST DATA
-// ---------------------------------------------
+/* =====================================================
+   GENERIC TEST DATA
+===================================================== */
 
-const mockProducts = [
+const sampleItems = [
   {
-    id: 90001,
-    name: "Synthetic Item Alpha",
+    id: 101,
+    name: "Sample Item One",
     price: 100,
-    category: "category-alpha",
   },
   {
-    id: 90002,
-    name: "Synthetic Item Beta",
+    id: 102,
+    name: "Sample Item Two",
     price: 200,
-    category: "category-beta",
   },
 ];
 
-const mockServerItems = [
+const sampleServerItems = [
   {
     id: 501,
-    product_id: 90001,
+    product_id: 101,
     product: {
-      id: 90001,
-      name: "Synthetic Item Alpha",
+      id: 101,
+      name: "Sample Item One",
       price: 100,
-      category: "category-alpha",
+    },
+  },
+  {
+    id: 502,
+    product_id: 102,
+    product: {
+      id: 102,
+      name: "Sample Item Two",
+      price: 200,
     },
   },
 ];
 
-// ---------------------------------------------
-// TEST SETUP
-// ---------------------------------------------
+/* =====================================================
+   LOCAL STORAGE KEYS
+===================================================== */
 
-describe("wishlistApi", () => {
-  beforeEach(async () => {
-    jest.clearAllMocks();
+const LOCAL_WISHLIST_KEY = "wishlist";
+const PENDING_WISHLIST_IMPORT_KEY = "pendingWishlistImport";
 
-    localStorage.clear();
+/* =====================================================
+   HELPERS
+===================================================== */
 
-    getStoredAccessToken.mockReturnValue(null);
+const saveLocalWishlist = (items) => {
+  localStorage.setItem(
+    LOCAL_WISHLIST_KEY,
+    JSON.stringify(items)
+  );
+};
+
+const readLocalWishlist = () => {
+  return JSON.parse(
+    localStorage.getItem(LOCAL_WISHLIST_KEY) || "[]"
+  );
+};
+
+const setAuthenticated = () => {
+  getStoredAccessToken.mockReturnValue("mock-access-token");
+};
+
+const setUnauthenticated = () => {
+  getStoredAccessToken.mockReturnValue(null);
+};
+
+/* =====================================================
+   SETUP
+===================================================== */
+
+beforeEach(async () => {
+  jest.clearAllMocks();
+
+  localStorage.clear();
+
+  mockWishlistApi.get.mockReset();
+  mockWishlistApi.post.mockReset();
+  mockWishlistApi.delete.mockReset();
+
+  getStoredAccessToken.mockReturnValue(null);
+
+  addProductToCart.mockResolvedValue({
+    message: "Added to cart",
+  });
+
+  // Reset module-level local fallback tracking.
+  await getWishlist();
+});
+
+/* =====================================================
+   1. API CONFIGURATION
+===================================================== */
+
+describe("Wishlist API configuration", () => {
+  test("creates Axios instance", () => {
+    expect(axios.create).toHaveBeenCalledWith({
+      baseURL:
+        process.env.REACT_APP_API_URL ||
+        "http://127.0.0.1:8000",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+  });
+
+  test("registers response interceptor", () => {
+    expect(
+      mockWishlistApi.interceptors.response.use
+    ).toHaveBeenCalledTimes(1);
+  });
+
+  test("returns successful response from interceptor", () => {
+    const [successHandler] =
+      mockWishlistApi.interceptors.response.use.mock.calls[0];
+
+    const response = {
+      data: {
+        message: "Success",
+      },
+    };
+
+    expect(successHandler(response)).toBe(response);
+  });
+
+  test("clears authentication session when interceptor receives 401", async () => {
+    const [, errorHandler] =
+      mockWishlistApi.interceptors.response.use.mock.calls[0];
+
+    const error = {
+      response: {
+        status: 401,
+      },
+    };
+
+    await expect(errorHandler(error)).rejects.toBe(error);
+
+    expect(clearAuthSession).toHaveBeenCalledTimes(1);
+  });
+
+  test("does not clear authentication session for non-401 errors", async () => {
+    const [, errorHandler] =
+      mockWishlistApi.interceptors.response.use.mock.calls[0];
+
+    const error = {
+      response: {
+        status: 500,
+      },
+    };
+
+    await expect(errorHandler(error)).rejects.toBe(error);
+
+    expect(clearAuthSession).not.toHaveBeenCalled();
+  });
+});
+
+/* =====================================================
+   2. GET WISHLIST
+===================================================== */
+
+describe("getWishlist", () => {
+  test("returns empty array when local wishlist is empty and user is logged out", async () => {
+    setUnauthenticated();
+
+    const result = await getWishlist();
+
+    expect(result).toEqual([]);
+    expect(mockWishlistApi.get).not.toHaveBeenCalled();
+  });
+
+  test("returns local wishlist when user is logged out", async () => {
+    setUnauthenticated();
+    saveLocalWishlist(sampleItems);
+
+    const result = await getWishlist();
+
+    expect(result).toEqual(sampleItems);
+    expect(mockWishlistApi.get).not.toHaveBeenCalled();
+  });
+
+  test("does not modify local wishlist when retrieving it", async () => {
+    setUnauthenticated();
+    saveLocalWishlist(sampleItems);
+
+    await getWishlist();
+
+    expect(readLocalWishlist()).toEqual(sampleItems);
+  });
+
+  test("fetches wishlist from server when user is authenticated", async () => {
+    setAuthenticated();
 
     mockWishlistApi.get.mockResolvedValue({
-      data: [],
+      data: {
+        items: sampleServerItems,
+      },
     });
+
+    const result = await getWishlist();
+
+    expect(mockWishlistApi.get).toHaveBeenCalledWith(
+      "/api/wishlist",
+      {
+        headers: {
+          Authorization: "Bearer mock-access-token",
+        },
+      }
+    );
+
+    expect(result).toHaveLength(2);
+  });
+
+  test("normalizes server wishlist items", async () => {
+    setAuthenticated();
+
+    mockWishlistApi.get.mockResolvedValue({
+      data: {
+        items: sampleServerItems,
+      },
+    });
+
+    const result = await getWishlist();
+
+    expect(result[0]).toEqual(
+      expect.objectContaining({
+        id: 101,
+        wishlist_id: 501,
+        product_id: 101,
+        name: "Sample Item One",
+      })
+    );
+  });
+
+  test("supports direct array response from server", async () => {
+    setAuthenticated();
+
+    mockWishlistApi.get.mockResolvedValue({
+      data: sampleServerItems,
+    });
+
+    const result = await getWishlist();
+
+    expect(result).toHaveLength(2);
+    expect(result[0].id).toBe(101);
+  });
+
+  test("supports wishlist property in server response", async () => {
+    setAuthenticated();
+
+    mockWishlistApi.get.mockResolvedValue({
+      data: {
+        wishlist: sampleServerItems,
+      },
+    });
+
+    const result = await getWishlist();
+
+    expect(result).toHaveLength(2);
+  });
+
+  test("merges local wishlist items not present on server", async () => {
+    setAuthenticated();
+
+    saveLocalWishlist([
+      {
+        id: 101,
+        name: "Sample Item One",
+      },
+      {
+        id: 103,
+        name: "Sample Item Three",
+      },
+    ]);
+
+    mockWishlistApi.post.mockRejectedValue(
+      new Error("Import unavailable")
+    );
+
+    mockWishlistApi.get.mockResolvedValue({
+      data: {
+        items: [sampleServerItems[0]],
+      },
+    });
+
+    const consoleSpy = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+
+    const result = await getWishlist();
+
+    expect(result).toHaveLength(2);
+
+    expect(
+      result.some((item) => item.product_id === 101)
+    ).toBe(true);
+
+    expect(
+      result.some(
+        (item) =>
+          item.product_id === 103 &&
+          item._localItem === true
+      )
+    ).toBe(true);
+
+    consoleSpy.mockRestore();
+  });
+
+  test("does not duplicate local items already present on server", async () => {
+    setAuthenticated();
+
+    saveLocalWishlist([
+      {
+        id: 101,
+        name: "Sample Item One",
+      },
+    ]);
+
+    mockWishlistApi.post.mockRejectedValue(
+      new Error("Import unavailable")
+    );
+
+    mockWishlistApi.get.mockResolvedValue({
+      data: {
+        items: [sampleServerItems[0]],
+      },
+    });
+
+    const consoleSpy = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+
+    const result = await getWishlist();
+
+    expect(result).toHaveLength(1);
+
+    consoleSpy.mockRestore();
+  });
+
+  test("throws error when server request fails", async () => {
+    setAuthenticated();
+
+    mockWishlistApi.get.mockRejectedValue(
+      new Error("Server unavailable")
+    );
+
+    await expect(getWishlist()).rejects.toThrow(
+      "Server unavailable"
+    );
+  });
+
+  test("throws 401 error when local wishlist migration receives 401", async () => {
+    setAuthenticated();
+
+    saveLocalWishlist(sampleItems);
+
+    mockWishlistApi.post.mockRejectedValue({
+      response: {
+        status: 401,
+      },
+    });
+
+    await expect(getWishlist()).rejects.toMatchObject({
+      response: {
+        status: 401,
+      },
+    });
+
+    expect(mockWishlistApi.get).not.toHaveBeenCalled();
+  });
+});
+
+/* =====================================================
+   3. SYNC LOCAL WISHLIST
+===================================================== */
+
+describe("syncLocalWishlist", () => {
+  test("returns null when user is logged out", async () => {
+    setUnauthenticated();
+
+    saveLocalWishlist(sampleItems);
+
+    const result = await syncLocalWishlist();
+
+    expect(result).toBeNull();
+    expect(mockWishlistApi.post).not.toHaveBeenCalled();
+  });
+
+  test("returns null when local wishlist is empty", async () => {
+    setAuthenticated();
+
+    const result = await syncLocalWishlist();
+
+    expect(result).toBeNull();
+    expect(mockWishlistApi.post).not.toHaveBeenCalled();
+  });
+
+  test("imports local wishlist items when user is authenticated", async () => {
+    setAuthenticated();
+
+    saveLocalWishlist(sampleItems);
 
     mockWishlistApi.post.mockResolvedValue({
-      data: { success: true },
+      data: {
+        message: "Wishlist imported",
+      },
     });
 
-    mockWishlistApi.delete.mockResolvedValue({
-      data: { success: true },
-    });
+    const result = await syncLocalWishlist();
 
-    addProductToCart.mockResolvedValue({
-      success: true,
-    });
-
-    // Reset module-level fallback IDs.
-    await getWishlist();
-  });
-
-  // -------------------------------------------
-  // 1. GUEST WISHLIST
-  // -------------------------------------------
-
-  describe("Guest wishlist", () => {
-    test("returns an empty wishlist when local storage is empty", async () => {
-      const result = await getWishlist();
-
-      expect(result).toEqual([]);
-    });
-
-    test("returns wishlist items from local storage", async () => {
-      localStorage.setItem(
-        "wishlist",
-        JSON.stringify(mockProducts)
-      );
-
-      const result = await getWishlist();
-
-      expect(result).toEqual(mockProducts);
-    });
-
-    test("adds an item to the local wishlist", async () => {
-      const result = await addToWishlist(mockProducts[0]);
-
-      expect(result).toEqual([mockProducts[0]]);
-
-      expect(JSON.parse(localStorage.getItem("wishlist"))).toEqual([
-        mockProducts[0],
-      ]);
-    });
-
-    test("does not add duplicate items", async () => {
-      localStorage.setItem(
-        "wishlist",
-        JSON.stringify([mockProducts[0]])
-      );
-
-      const result = await addToWishlist(mockProducts[0]);
-
-      expect(result).toHaveLength(1);
-      expect(result[0].id).toBe(90001);
-    });
-
-    test("accepts a numeric product ID", async () => {
-      const result = await addToWishlist(90001);
-
-      expect(result).toEqual([
-        {
-          id: 90001,
+    expect(mockWishlistApi.post).toHaveBeenCalledWith(
+      "/api/wishlist/import",
+      expect.objectContaining({
+        migration_id: expect.any(String),
+        items: [
+          { product_id: 101 },
+          { product_id: 102 },
+        ],
+      }),
+      {
+        headers: {
+          Authorization: "Bearer mock-access-token",
         },
-      ]);
-    });
+      }
+    );
 
-    test("rejects a product without an ID", async () => {
-      await expect(
-        addToWishlist({
-          name: "Synthetic Item",
-        })
-      ).rejects.toThrow(
-        "This product has no database product ID."
-      );
-    });
-
-    test("removes an item from the local wishlist", async () => {
-      localStorage.setItem(
-        "wishlist",
-        JSON.stringify(mockProducts)
-      );
-
-      const result = await removeWishlistItem(90001);
-
-      expect(result).toEqual([mockProducts[1]]);
-
-      expect(JSON.parse(localStorage.getItem("wishlist"))).toEqual([
-        mockProducts[1],
-      ]);
-    });
-
-    test("returns an empty array after removing the last item", async () => {
-      localStorage.setItem(
-        "wishlist",
-        JSON.stringify([mockProducts[0]])
-      );
-
-      const result = await removeWishlistItem(90001);
-
-      expect(result).toEqual([]);
-    });
-
-    test("handles invalid non-array local wishlist data", async () => {
-      localStorage.setItem("wishlist", JSON.stringify({ invalid: true }));
-
-      const result = await getWishlist();
-
-      expect(result).toEqual([]);
+    expect(result).toEqual({
+      message: "Wishlist imported",
     });
   });
 
-  // -------------------------------------------
-  // 2. AUTHENTICATION
-  // -------------------------------------------
+  test("removes imported items from local storage after successful import", async () => {
+    setAuthenticated();
 
-  describe("Authentication", () => {
-    test("uses the stored access token for authenticated requests", async () => {
-      getStoredAccessToken.mockReturnValue("synthetic-access-token");
+    saveLocalWishlist(sampleItems);
 
-      await getWishlist();
-
-      expect(mockWishlistApi.get).toHaveBeenCalledWith(
-        "/api/wishlist",
-        {
-          headers: {
-            Authorization: "Bearer synthetic-access-token",
-          },
-        }
-      );
+    mockWishlistApi.post.mockResolvedValue({
+      data: {
+        message: "Imported",
+      },
     });
 
-    test("does not call the server for a guest wishlist", async () => {
-      getStoredAccessToken.mockReturnValue(null);
+    await syncLocalWishlist();
 
-      await addToWishlist(mockProducts[0]);
-
-      expect(mockWishlistApi.post).not.toHaveBeenCalled();
-      expect(mockWishlistApi.get).not.toHaveBeenCalled();
-    });
-
-    test("clears authentication when the response interceptor receives 401", async () => {
-      const interceptor =
-        mockWishlistApi.interceptors.response.use.mock.calls[0][1];
-
-      const error = {
-        response: {
-          status: 401,
-        },
-      };
-
-      await expect(interceptor(error)).rejects.toEqual(error);
-
-      expect(clearAuthSession).toHaveBeenCalledTimes(1);
-    });
-
-    test("does not clear authentication for a non-401 error", async () => {
-      const interceptor =
-        mockWishlistApi.interceptors.response.use.mock.calls[0][1];
-
-      const error = {
-        response: {
-          status: 500,
-        },
-      };
-
-      await expect(interceptor(error)).rejects.toEqual(error);
-
-      expect(clearAuthSession).not.toHaveBeenCalled();
-    });
+    expect(readLocalWishlist()).toEqual([]);
   });
 
-  // -------------------------------------------
-  // 3. AUTHENTICATED WISHLIST
-  // -------------------------------------------
+  test("removes pending import data after successful import", async () => {
+    setAuthenticated();
 
-  describe("Authenticated wishlist", () => {
-    beforeEach(() => {
-      getStoredAccessToken.mockReturnValue("synthetic-token");
+    saveLocalWishlist(sampleItems);
+
+    mockWishlistApi.post.mockResolvedValue({
+      data: {
+        message: "Imported",
+      },
     });
 
-    test("fetches wishlist from the server", async () => {
-      mockWishlistApi.get.mockResolvedValue({
-        data: mockServerItems,
-      });
+    await syncLocalWishlist();
 
-      const result = await getWishlist();
-
-      expect(mockWishlistApi.get).toHaveBeenCalledWith(
-        "/api/wishlist",
-        expect.any(Object)
-      );
-
-      expect(result[0]).toMatchObject({
-        id: 90001,
-        product_id: 90001,
-        wishlist_id: 501,
-      });
-    });
-
-    test("supports an items response object", async () => {
-      mockWishlistApi.get.mockResolvedValue({
-        data: {
-          items: mockServerItems,
-        },
-      });
-
-      const result = await getWishlist();
-
-      expect(result).toHaveLength(1);
-      expect(result[0].product_id).toBe(90001);
-    });
-
-    test("supports a wishlist response object", async () => {
-      mockWishlistApi.get.mockResolvedValue({
-        data: {
-          wishlist: mockServerItems,
-        },
-      });
-
-      const result = await getWishlist();
-
-      expect(result).toHaveLength(1);
-    });
-
-    test("adds a product through the authenticated API", async () => {
-      await addToWishlist(mockProducts[0]);
-
-      expect(mockWishlistApi.post).toHaveBeenCalledWith(
-        "/api/wishlist",
-        {
-          product_id: 90001,
-        },
-        expect.objectContaining({
-          headers: {
-            Authorization: "Bearer synthetic-token",
-          },
-        })
-      );
-    });
-
-    test("returns the server response after adding an item", async () => {
-      mockWishlistApi.post.mockResolvedValue({
-        data: {
-          id: 501,
-          product_id: 90001,
-        },
-      });
-
-      const result = await addToWishlist(mockProducts[0]);
-
-      expect(result).toEqual({
-        id: 501,
-        product_id: 90001,
-      });
-    });
-
-    test("removes an authenticated wishlist item", async () => {
-      const result = await removeWishlistItem(90001);
-
-      expect(mockWishlistApi.delete).toHaveBeenCalledWith(
-        "/api/wishlist/90001",
-        expect.objectContaining({
-          headers: {
-            Authorization: "Bearer synthetic-token",
-          },
-        })
-      );
-
-      expect(result).toEqual({
-        success: true,
-      });
-    });
+    expect(
+      localStorage.getItem(PENDING_WISHLIST_IMPORT_KEY)
+    ).toBeNull();
   });
 
-  // -------------------------------------------
-  // 4. LOCAL WISHLIST MIGRATION
-  // -------------------------------------------
+  test("saves pending import data before sending request", async () => {
+    setAuthenticated();
 
-  describe("Wishlist migration", () => {
-    beforeEach(() => {
-      getStoredAccessToken.mockReturnValue("synthetic-token");
-    });
+    saveLocalWishlist(sampleItems);
 
-    test("returns null when there are no local items", async () => {
-      const result = await syncLocalWishlist();
-
-      expect(result).toBeNull();
-      expect(mockWishlistApi.post).not.toHaveBeenCalled();
-    });
-
-    test("imports local wishlist items into the server", async () => {
-      localStorage.setItem(
-        "wishlist",
-        JSON.stringify(mockProducts)
-      );
-
-      await syncLocalWishlist();
-
-      expect(mockWishlistApi.post).toHaveBeenCalledWith(
-        "/api/wishlist/import",
-        expect.objectContaining({
-          items: [
-            { product_id: 90001 },
-            { product_id: 90002 },
-          ],
-          migration_id: expect.any(String),
-        }),
-        expect.any(Object)
-      );
-    });
-
-    test("saves pending migration data before importing", async () => {
-      localStorage.setItem(
-        "wishlist",
-        JSON.stringify([mockProducts[0]])
-      );
-
-      await syncLocalWishlist();
-
-      expect(
-        localStorage.getItem("pendingWishlistImport")
-      ).toBeNull();
-    });
-
-    test("removes imported items from local storage", async () => {
-      localStorage.setItem(
-        "wishlist",
-        JSON.stringify(mockProducts)
-      );
-
-      await syncLocalWishlist();
-
-      expect(JSON.parse(localStorage.getItem("wishlist"))).toEqual([]);
-    });
-
-    test("dispatches wishlistUpdated after successful migration", async () => {
-      const dispatchSpy = jest.spyOn(window, "dispatchEvent");
-
-      localStorage.setItem(
-        "wishlist",
-        JSON.stringify([mockProducts[0]])
-      );
-
-      await syncLocalWishlist();
-
-      expect(dispatchSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: "wishlistUpdated",
-        })
-      );
-
-      dispatchSpy.mockRestore();
-    });
-
-    test("reuses an existing pending migration ID", async () => {
-      const pending = {
-        migration_id: "synthetic-migration-id",
-        items: [{ product_id: 90001 }],
-      };
-
-      localStorage.setItem(
-        "pendingWishlistImport",
-        JSON.stringify(pending)
-      );
-
-      await syncLocalWishlist();
-
-      expect(mockWishlistApi.post).toHaveBeenCalledWith(
-        "/api/wishlist/import",
-        pending,
-        expect.any(Object)
-      );
-    });
-
-    test("rejects invalid saved migration data", async () => {
-      localStorage.setItem(
-        "pendingWishlistImport",
-        JSON.stringify({
-          migration_id: 123,
-          items: [],
-        })
-      );
-
-      await expect(
-        syncLocalWishlist()
-      ).rejects.toThrow(
-        "Saved wishlist import data is invalid."
-      );
-    });
-
-    test("does not import when the user is not authenticated", async () => {
-      getStoredAccessToken.mockReturnValue(null);
-
-      localStorage.setItem(
-        "wishlist",
-        JSON.stringify([mockProducts[0]])
-      );
-
-      const result = await syncLocalWishlist();
-
-      expect(result).toBeNull();
-      expect(mockWishlistApi.post).not.toHaveBeenCalled();
-    });
-  });
-
-  // -------------------------------------------
-  // 5. LOCAL FALLBACK ITEMS
-  // -------------------------------------------
-
-  describe("Local fallback wishlist items", () => {
-    beforeEach(() => {
-      getStoredAccessToken.mockReturnValue("synthetic-token");
-    });
-
-    test("keeps local items when migration fails with a non-401 error", async () => {
-      localStorage.setItem(
-        "wishlist",
-        JSON.stringify([mockProducts[0]])
-      );
-
-      mockWishlistApi.post.mockRejectedValue(
-        new Error("Synthetic migration failure")
-      );
-
-      mockWishlistApi.get.mockResolvedValue({
-        data: [],
-      });
-
-      const consoleSpy = jest
-        .spyOn(console, "error")
-        .mockImplementation(() => {});
-
-      const result = await getWishlist();
-
-      expect(result).toHaveLength(1);
-      expect(result[0]).toMatchObject({
-        id: 90001,
-        product_id: 90001,
-        _localItem: true,
-      });
-
-      consoleSpy.mockRestore();
-    });
-
-    test("removes a local fallback item without calling server delete", async () => {
-      localStorage.setItem(
-        "wishlist",
-        JSON.stringify([mockProducts[0]])
-      );
-
-      mockWishlistApi.post.mockRejectedValue(
-        new Error("Synthetic migration failure")
-      );
-
-      mockWishlistApi.get.mockResolvedValue({
-        data: [],
-      });
-
-      const consoleSpy = jest
-        .spyOn(console, "error")
-        .mockImplementation(() => {});
-
-      await getWishlist();
-
-      const result = await removeWishlistItem(90001);
-
-      expect(result).toEqual([]);
-      expect(mockWishlistApi.delete).not.toHaveBeenCalled();
-
-      consoleSpy.mockRestore();
-    });
-
-    test("removes a fallback item from pending migration data", async () => {
-      localStorage.setItem(
-        "wishlist",
-        JSON.stringify([mockProducts[0]])
-      );
-
-      localStorage.setItem(
-        "pendingWishlistImport",
-        JSON.stringify({
-          migration_id: "synthetic-migration-id",
-          items: [
-            { product_id: 90001 },
-            { product_id: 90002 },
-          ],
-        })
-      );
-
-      mockWishlistApi.post.mockRejectedValue(
-        new Error("Synthetic migration failure")
-      );
-
-      mockWishlistApi.get.mockResolvedValue({
-        data: [],
-      });
-
-      const consoleSpy = jest
-        .spyOn(console, "error")
-        .mockImplementation(() => {});
-
-      await getWishlist();
-      await removeWishlistItem(90001);
-
+    mockWishlistApi.post.mockImplementation(() => {
       const pending = JSON.parse(
-        localStorage.getItem("pendingWishlistImport")
+        localStorage.getItem(PENDING_WISHLIST_IMPORT_KEY)
       );
 
       expect(pending.items).toEqual([
-        { product_id: 90002 },
+        { product_id: 101 },
+        { product_id: 102 },
       ]);
 
-      consoleSpy.mockRestore();
+      return Promise.resolve({
+        data: {
+          message: "Imported",
+        },
+      });
     });
 
-    test("propagates 401 errors during migration", async () => {
-      localStorage.setItem(
-        "wishlist",
-        JSON.stringify([mockProducts[0]])
-      );
+    await syncLocalWishlist();
 
-      const error = {
-        response: {
-          status: 401,
+    expect(mockWishlistApi.post).toHaveBeenCalledTimes(1);
+  });
+
+  test("keeps local wishlist when import request fails", async () => {
+    setAuthenticated();
+
+    saveLocalWishlist(sampleItems);
+
+    mockWishlistApi.post.mockRejectedValue(
+      new Error("Import failed")
+    );
+
+    await expect(syncLocalWishlist()).rejects.toThrow(
+      "Import failed"
+    );
+
+    expect(readLocalWishlist()).toEqual(sampleItems);
+  });
+
+  test("reuses existing pending migration data", async () => {
+    setAuthenticated();
+
+    saveLocalWishlist(sampleItems);
+
+    const pending = {
+      migration_id: "existing-migration",
+      items: [
+        { product_id: 101 },
+        { product_id: 102 },
+      ],
+    };
+
+    localStorage.setItem(
+      PENDING_WISHLIST_IMPORT_KEY,
+      JSON.stringify(pending)
+    );
+
+    mockWishlistApi.post.mockResolvedValue({
+      data: {
+        message: "Imported",
+      },
+    });
+
+    await syncLocalWishlist();
+
+    expect(mockWishlistApi.post).toHaveBeenCalledWith(
+      "/api/wishlist/import",
+      pending,
+      expect.any(Object)
+    );
+  });
+
+  test("throws error for invalid pending migration data", async () => {
+    setAuthenticated();
+
+    localStorage.setItem(
+      PENDING_WISHLIST_IMPORT_KEY,
+      JSON.stringify({
+        migration_id: 123,
+        items: "invalid",
+      })
+    );
+
+    await expect(syncLocalWishlist()).rejects.toThrow(
+      "Saved wishlist import data is invalid."
+    );
+  });
+
+  test("dispatches wishlistUpdated after successful import", async () => {
+    setAuthenticated();
+
+    saveLocalWishlist(sampleItems);
+
+    mockWishlistApi.post.mockResolvedValue({
+      data: {
+        message: "Imported",
+      },
+    });
+
+    const eventHandler = jest.fn();
+
+    window.addEventListener(
+      "wishlistUpdated",
+      eventHandler
+    );
+
+    await syncLocalWishlist();
+
+    expect(eventHandler).toHaveBeenCalledTimes(1);
+
+    window.removeEventListener(
+      "wishlistUpdated",
+      eventHandler
+    );
+  });
+});
+
+/* =====================================================
+   4. ADD TO WISHLIST
+===================================================== */
+
+describe("addToWishlist", () => {
+  test("adds item to local wishlist when user is logged out", async () => {
+    setUnauthenticated();
+
+    const result = await addToWishlist(sampleItems[0]);
+
+    expect(result).toEqual([sampleItems[0]]);
+    expect(readLocalWishlist()).toEqual([sampleItems[0]]);
+  });
+
+  test("does not add duplicate local wishlist items", async () => {
+    setUnauthenticated();
+
+    saveLocalWishlist([sampleItems[0]]);
+
+    const result = await addToWishlist(sampleItems[0]);
+
+    expect(result).toHaveLength(1);
+  });
+
+  test("accepts numeric item ID", async () => {
+    setUnauthenticated();
+
+    const result = await addToWishlist(103);
+
+    expect(result).toEqual([
+      {
+        id: 103,
+      },
+    ]);
+  });
+
+  test("throws error when item has no ID", async () => {
+    await expect(
+      addToWishlist({
+        name: "Sample Item",
+      })
+    ).rejects.toThrow(
+      "This product has no database product ID."
+    );
+  });
+
+  test("adds item to server wishlist when authenticated", async () => {
+    setAuthenticated();
+
+    mockWishlistApi.post.mockResolvedValue({
+      data: {
+        message: "Added",
+      },
+    });
+
+    const result = await addToWishlist({
+      id: 101,
+      name: "Sample Item One",
+    });
+
+    expect(mockWishlistApi.post).toHaveBeenCalledWith(
+      "/api/wishlist",
+      {
+        product_id: 101,
+      },
+      {
+        headers: {
+          Authorization: "Bearer mock-access-token",
         },
-      };
+      }
+    );
 
-      mockWishlistApi.post.mockRejectedValue(error);
-
-      await expect(getWishlist()).rejects.toEqual(error);
-
-      expect(mockWishlistApi.get).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      message: "Added",
     });
   });
 
-  // -------------------------------------------
-  // 6. MOVE WISHLIST ITEM TO CART
-  // -------------------------------------------
+  test("returns server error when adding item fails", async () => {
+    setAuthenticated();
 
-  describe("Move wishlist item to cart", () => {
-    test("moves a guest wishlist item to cart", async () => {
-      localStorage.setItem(
-        "wishlist",
-        JSON.stringify([mockProducts[0]])
-      );
+    mockWishlistApi.post.mockRejectedValue(
+      new Error("Unable to add item")
+    );
 
-      await moveWishlistItemToCart(90001);
+    await expect(
+      addToWishlist({
+        id: 101,
+      })
+    ).rejects.toThrow("Unable to add item");
+  });
+});
 
-      expect(addProductToCart).toHaveBeenCalledWith(
-        mockProducts[0]
-      );
+/* =====================================================
+   5. REMOVE WISHLIST ITEM
+===================================================== */
+
+describe("removeWishlistItem", () => {
+  test("removes item from local wishlist when logged out", async () => {
+    setUnauthenticated();
+
+    saveLocalWishlist(sampleItems);
+
+    const result = await removeWishlistItem(101);
+
+    expect(result).toEqual([sampleItems[1]]);
+    expect(readLocalWishlist()).toEqual([sampleItems[1]]);
+  });
+
+  test("returns empty array when removing the only local item", async () => {
+    setUnauthenticated();
+
+    saveLocalWishlist([sampleItems[0]]);
+
+    const result = await removeWishlistItem(101);
+
+    expect(result).toEqual([]);
+  });
+
+  test("removes server wishlist item when authenticated", async () => {
+    setAuthenticated();
+
+    mockWishlistApi.delete.mockResolvedValue({
+      data: {
+        message: "Removed",
+      },
     });
 
-    test("rejects when guest wishlist item does not exist", async () => {
-      await expect(
-        moveWishlistItemToCart(99999)
-      ).rejects.toThrow(
-        "This product is no longer in your wishlist."
-      );
-    });
+    const result = await removeWishlistItem(501);
 
-    test("adds an authenticated wishlist item to the server cart", async () => {
-      getStoredAccessToken.mockReturnValue("synthetic-token");
-
-      await moveWishlistItemToCart(90001);
-
-      expect(mockWishlistApi.post).toHaveBeenCalledWith(
-        "/api/cart",
-        {
-          product_id: 90001,
-          quantity: 1,
+    expect(mockWishlistApi.delete).toHaveBeenCalledWith(
+      "/api/wishlist/501",
+      {
+        headers: {
+          Authorization: "Bearer mock-access-token",
         },
-        expect.objectContaining({
-          headers: {
-            Authorization: "Bearer synthetic-token",
-          },
-        })
-      );
+      }
+    );
+
+    expect(result).toEqual({
+      message: "Removed",
+    });
+  });
+
+  test("returns error when server removal fails", async () => {
+    setAuthenticated();
+
+    mockWishlistApi.delete.mockRejectedValue(
+      new Error("Unable to remove item")
+    );
+
+    await expect(
+      removeWishlistItem(501)
+    ).rejects.toThrow("Unable to remove item");
+  });
+
+  test("removes local fallback item when authenticated", async () => {
+    setAuthenticated();
+
+    saveLocalWishlist([
+      {
+        id: 103,
+        name: "Sample Item Three",
+      },
+    ]);
+
+    mockWishlistApi.post.mockRejectedValue(
+      new Error("Import unavailable")
+    );
+
+    mockWishlistApi.get.mockResolvedValue({
+      data: {
+        items: [],
+      },
     });
 
-    test("returns the authenticated cart response", async () => {
-      getStoredAccessToken.mockReturnValue("synthetic-token");
+    const consoleSpy = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
 
-      mockWishlistApi.post.mockResolvedValue({
-        data: {
-          success: true,
-          quantity: 1,
-        },
-      });
+    await getWishlist();
 
-      const result = await moveWishlistItemToCart(90001);
+    const result = await removeWishlistItem(103);
 
-      expect(result).toEqual({
-        success: true,
+    expect(result).toEqual([]);
+    expect(readLocalWishlist()).toEqual([]);
+    expect(mockWishlistApi.delete).not.toHaveBeenCalled();
+
+    consoleSpy.mockRestore();
+  });
+
+  test("updates pending import when removing a local fallback item", async () => {
+    setAuthenticated();
+
+    saveLocalWishlist([
+      {
+        id: 103,
+        name: "Sample Item Three",
+      },
+      {
+        id: 104,
+        name: "Sample Item Four",
+      },
+    ]);
+
+    mockWishlistApi.post.mockRejectedValue(
+      new Error("Import unavailable")
+    );
+
+    mockWishlistApi.get.mockResolvedValue({
+      data: {
+        items: [],
+      },
+    });
+
+    const consoleSpy = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+
+    await getWishlist();
+
+    await removeWishlistItem(103);
+
+    const pending = JSON.parse(
+      localStorage.getItem(PENDING_WISHLIST_IMPORT_KEY)
+    );
+
+    expect(pending.items).toEqual([
+      {
+        product_id: 104,
+      },
+    ]);
+
+    consoleSpy.mockRestore();
+  });
+
+  test("dispatches wishlistUpdated after removing local fallback item", async () => {
+    setAuthenticated();
+
+    saveLocalWishlist([
+      {
+        id: 103,
+        name: "Sample Item Three",
+      },
+    ]);
+
+    mockWishlistApi.post.mockRejectedValue(
+      new Error("Import unavailable")
+    );
+
+    mockWishlistApi.get.mockResolvedValue({
+      data: {
+        items: [],
+      },
+    });
+
+    const consoleSpy = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+
+    await getWishlist();
+
+    const eventHandler = jest.fn();
+
+    window.addEventListener(
+      "wishlistUpdated",
+      eventHandler
+    );
+
+    await removeWishlistItem(103);
+
+    expect(eventHandler).toHaveBeenCalled();
+
+    window.removeEventListener(
+      "wishlistUpdated",
+      eventHandler
+    );
+
+    consoleSpy.mockRestore();
+  });
+});
+
+/* =====================================================
+   6. MOVE WISHLIST ITEM TO CART
+===================================================== */
+
+describe("moveWishlistItemToCart", () => {
+  test("adds local wishlist item to cart when logged out", async () => {
+    setUnauthenticated();
+
+    saveLocalWishlist(sampleItems);
+
+    await moveWishlistItemToCart(101);
+
+    expect(addProductToCart).toHaveBeenCalledWith(
+      sampleItems[0]
+    );
+  });
+
+  test("throws error when local wishlist item does not exist", async () => {
+    setUnauthenticated();
+
+    saveLocalWishlist([]);
+
+    await expect(
+      moveWishlistItemToCart(999)
+    ).rejects.toThrow(
+      "This product is no longer in your wishlist."
+    );
+
+    expect(addProductToCart).not.toHaveBeenCalled();
+  });
+
+  test("sends authenticated cart request", async () => {
+    setAuthenticated();
+
+    mockWishlistApi.post.mockResolvedValue({
+      data: {
+        message: "Added to cart",
+      },
+    });
+
+    const result = await moveWishlistItemToCart(101);
+
+    expect(mockWishlistApi.post).toHaveBeenCalledWith(
+      "/api/cart",
+      {
+        product_id: 101,
         quantity: 1,
-      });
+      },
+      {
+        headers: {
+          Authorization: "Bearer mock-access-token",
+        },
+      }
+    );
+
+    expect(result).toEqual({
+      message: "Added to cart",
+    });
+  });
+
+  test("returns error when cart API fails", async () => {
+    setAuthenticated();
+
+    mockWishlistApi.post.mockRejectedValue(
+      new Error("Unable to add to cart")
+    );
+
+    await expect(
+      moveWishlistItemToCart(101)
+    ).rejects.toThrow("Unable to add to cart");
+  });
+
+  test("uses local cart API when logged out", async () => {
+    setUnauthenticated();
+
+    saveLocalWishlist([sampleItems[0]]);
+
+    addProductToCart.mockResolvedValue({
+      message: "Cart updated",
+    });
+
+    const result = await moveWishlistItemToCart(101);
+
+    expect(result).toEqual({
+      message: "Cart updated",
     });
   });
 });

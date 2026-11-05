@@ -1,402 +1,590 @@
 import React from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { MemoryRouter } from "react-router-dom";
 
 import Wishlist from "./Wishlist";
 
-// Mock WishlistItem
-jest.mock("../../components/WishlistItem/WishlistItem", () => {
-  return function MockWishlistItem({ item, onMoveToCart, onRemove }) {
-    return (
-      <div data-testid={`wishlist-item-${item.id}`}>
-        <span>{item.name}</span>
+import {
+  getWishlist,
+  removeWishlistItem,
+  moveWishlistItemToCart,
+} from "../../api/wishlistApi";
 
-        <button onClick={() => onMoveToCart(item.id)}>
-          Move to Cart
-        </button>
+/* =====================================================
+   MOCK API
+===================================================== */
 
-        <button onClick={() => onRemove(item.id)}>
-          Remove
-        </button>
-      </div>
-    );
-  };
-});
+jest.mock("../../api/wishlistApi", () => ({
+  getWishlist: jest.fn(),
+  removeWishlistItem: jest.fn(),
+  moveWishlistItemToCart: jest.fn(),
+}));
 
-// Mock EmptyState
-jest.mock("../../components/EmptyState/EmptyState", () => {
-  return function MockEmptyState({
-    title,
-    description,
-    buttonText,
-    buttonLink,
-  }) {
-    return (
-      <div data-testid="empty-state">
-        <h2>{title}</h2>
-        <p>{description}</p>
+/* =====================================================
+   MOCK CSS AND IMAGE
+===================================================== */
 
-        <a href={buttonLink}>{buttonText}</a>
-      </div>
-    );
-  };
-});
+jest.mock("./Wishlist.module.css", () => ({}));
 
-// Mock image
 jest.mock("../../assets/empty-wishlist.png", () => "empty-wishlist.png");
 
+/* =====================================================
+   MOCK EMPTY STATE
+   Do not add a fake empty-state test ID.
+===================================================== */
+
+jest.mock(
+  "../../components/EmptyState/EmptyState",
+  () => {
+    const React = require("react");
+
+    return function MockEmptyState({
+      title,
+      description,
+      buttonText,
+      buttonLabel,
+      buttonLink,
+    }) {
+      return React.createElement(
+        "div",
+        { className: "mock-empty-state" },
+        React.createElement("h2", null, title),
+        React.createElement("p", null, description),
+        React.createElement(
+          "a",
+          { href: buttonLink || "/shop" },
+          buttonText || buttonLabel || "Continue Shopping"
+        )
+      );
+    };
+  }
+);
+
+/* =====================================================
+   MOCK WISHLIST ITEM
+
+   Actual component props:
+   item, onMoveToCart, onRemove, disabled
+===================================================== */
+
+jest.mock(
+  "../../components/WishlistItem/WishlistItem",
+  () => {
+    const React = require("react");
+
+    return function MockWishlistItem({
+      item,
+      onMoveToCart,
+      onRemove,
+      disabled,
+    }) {
+      return React.createElement(
+        "div",
+        {
+          "data-testid": `wishlist-item-${item.id}`,
+        },
+        React.createElement(
+          "h3",
+          null,
+          item.name || item.title || "Sample Item"
+        ),
+        React.createElement(
+          "button",
+          {
+            type: "button",
+            disabled: Boolean(disabled),
+            onClick: () => onRemove(item.id),
+          },
+          "Remove"
+        ),
+        React.createElement(
+          "button",
+          {
+            type: "button",
+            disabled: Boolean(disabled),
+            onClick: () => onMoveToCart(item.id),
+          },
+          "Move to Cart"
+        )
+      );
+    };
+  }
+);
+
+/* =====================================================
+   GENERIC TEST DATA
+===================================================== */
+
+const sampleItems = [
+  {
+    id: 101,
+    name: "Sample Item One",
+    price: 100,
+    quantity: 1,
+    image: "sample-one.png",
+  },
+  {
+    id: 102,
+    name: "Sample Item Two",
+    price: 200,
+    quantity: 1,
+    image: "sample-two.png",
+  },
+];
+
+/* =====================================================
+   RENDER HELPER
+
+   MemoryRouter is required because Wishlist uses Link.
+===================================================== */
+
+const renderWishlist = () => {
+  return render(
+    <MemoryRouter initialEntries={["/wishlist"]}>
+      <Wishlist />
+    </MemoryRouter>
+  );
+};
+
+/* =====================================================
+   TEST SETUP
+===================================================== */
+
+beforeEach(() => {
+  jest.clearAllMocks();
+
+  getWishlist.mockResolvedValue({
+    items: sampleItems,
+  });
+
+  removeWishlistItem.mockResolvedValue({
+    message: "Item removed successfully",
+  });
+
+  moveWishlistItemToCart.mockResolvedValue({
+    message: "Item moved successfully",
+  });
+});
+
+/* =====================================================
+   WISHLIST TESTS
+===================================================== */
+
 describe("Wishlist Component", () => {
-  beforeEach(() => {
-    localStorage.clear();
+  /* -------------------------------------------------
+     1. Basic rendering
+  ------------------------------------------------- */
 
-    window.dispatchEvent = jest.fn();
+  test("renders Wishlist component", async () => {
+    renderWishlist();
+
+    expect(
+      await screen.findByText(/my wishlist/i)
+    ).toBeInTheDocument();
   });
 
-  afterEach(() => {
-    jest.clearAllMocks();
+  test("displays loading message initially", () => {
+    getWishlist.mockReturnValue(new Promise(() => { }));
+
+    renderWishlist();
+
+    expect(
+      screen.getByText(/loading your wishlist/i)
+    ).toBeInTheDocument();
   });
 
-  test("renders empty wishlist state when wishlist is empty", async () => {
-    localStorage.setItem("wishlist", JSON.stringify([]));
-
-    render(
-      <MemoryRouter>
-        <Wishlist />
-      </MemoryRouter>
-    );
+  test("calls getWishlist when component loads", async () => {
+    renderWishlist();
 
     await waitFor(() => {
-      expect(
-        screen.getByText("Your Wishlist is Empty")
-      ).toBeInTheDocument();
+      expect(getWishlist).toHaveBeenCalledTimes(1);
     });
+  });
+
+  /* -------------------------------------------------
+     2. Wishlist data
+  ------------------------------------------------- */
+
+  test("displays wishlist items after successful API response", async () => {
+    renderWishlist();
+
+    expect(
+      await screen.findByText("Sample Item One")
+    ).toBeInTheDocument();
+
+    expect(
+      screen.getByText("Sample Item Two")
+    ).toBeInTheDocument();
+  });
+
+  test("displays items when API returns an array", async () => {
+    getWishlist.mockResolvedValue(sampleItems);
+
+    renderWishlist();
+
+    expect(
+      await screen.findByText("Sample Item One")
+    ).toBeInTheDocument();
+  });
+
+  test("displays items when API returns wishlist property", async () => {
+    getWishlist.mockResolvedValue({
+      wishlist: sampleItems,
+    });
+
+    renderWishlist();
+
+    expect(
+      await screen.findByText("Sample Item One")
+    ).toBeInTheDocument();
+  });
+
+  test("displays items when API returns items property", async () => {
+    getWishlist.mockResolvedValue({
+      items: sampleItems,
+    });
+
+    renderWishlist();
+
+    expect(
+      await screen.findByText("Sample Item Two")
+    ).toBeInTheDocument();
+  });
+
+  /* -------------------------------------------------
+     3. Empty wishlist
+  ------------------------------------------------- */
+
+  test("displays empty wishlist message when API returns empty array", async () => {
+    getWishlist.mockResolvedValue([]);
+
+    renderWishlist();
+
+    expect(
+      await screen.findByText("Your Wishlist is Empty")
+    ).toBeInTheDocument();
 
     expect(
       screen.getByText("Save your favourite products here.")
     ).toBeInTheDocument();
+  });
+
+  test("displays Continue Shopping link for empty wishlist", async () => {
+    getWishlist.mockResolvedValue([]);
+
+    renderWishlist();
+
+    const shoppingLink = await screen.findByRole("link", {
+      name: /continue shopping/i,
+    });
+
+    expect(shoppingLink).toBeInTheDocument();
+    expect(shoppingLink).toHaveAttribute("href", "/shop");
+  });
+
+  test("does not display wishlist heading when wishlist is empty", async () => {
+    getWishlist.mockResolvedValue([]);
+
+    renderWishlist();
+
+    await screen.findByText("Your Wishlist is Empty");
 
     expect(
-      screen.getByText("Continue Shopping")
+      screen.queryByText(/my wishlist/i)
+    ).not.toBeInTheDocument();
+  });
+
+  /* -------------------------------------------------
+     4. API error handling
+  ------------------------------------------------- */
+
+  test("displays error message when wishlist API fails", async () => {
+    getWishlist.mockRejectedValue(
+      new Error("Unable to load wishlist")
+    );
+
+    renderWishlist();
+
+    expect(
+      await screen.findByRole("alert")
     ).toBeInTheDocument();
   });
 
-  test("renders empty wishlist when localStorage has no wishlist", async () => {
-    localStorage.removeItem("wishlist");
-
-    render(
-      <MemoryRouter>
-        <Wishlist />
-      </MemoryRouter>
+  test("displays Retry button when API fails", async () => {
+    getWishlist.mockRejectedValue(
+      new Error("Unable to load wishlist")
     );
 
-    await waitFor(() => {
-      expect(
-        screen.getByText("Your Wishlist is Empty")
-      ).toBeInTheDocument();
-    });
+    renderWishlist();
+
+    expect(
+      await screen.findByRole("button", {
+        name: /retry/i,
+      })
+    ).toBeInTheDocument();
   });
 
-  test("renders wishlist items", async () => {
-    const wishlist = [
-      {
-        id: 1,
-        name: "Test Product",
-      },
-      {
-        id: 2,
-        name: "Sample Product",
-      },
-    ];
+  test("retries wishlist API when Retry button is clicked", async () => {
+    getWishlist
+      .mockRejectedValueOnce(new Error("Network error"))
+      .mockResolvedValueOnce({
+        items: sampleItems,
+      });
 
-    localStorage.setItem("wishlist", JSON.stringify(wishlist));
+    renderWishlist();
 
-    render(
-      <MemoryRouter>
-        <Wishlist />
-      </MemoryRouter>
-    );
-
-    await waitFor(() => {
-      expect(screen.getByText("❤️ My Wishlist")).toBeInTheDocument();
+    const retryButton = await screen.findByRole("button", {
+      name: /retry/i,
     });
 
-    expect(screen.getByText("Test Product")).toBeInTheDocument();
-    expect(screen.getByText("Sample Product")).toBeInTheDocument();
+    fireEvent.click(retryButton);
+
+    expect(
+      await screen.findByText("Sample Item One")
+    ).toBeInTheDocument();
+
+    expect(getWishlist).toHaveBeenCalledTimes(2);
   });
 
-  test("renders wishlist title", async () => {
-    const wishlist = [
-      {
-        id: 1,
-        name: "Test Product",
-      },
-    ];
+  /* -------------------------------------------------
+     5. Remove wishlist item
+  ------------------------------------------------- */
 
-    localStorage.setItem("wishlist", JSON.stringify(wishlist));
+  test("removes an item when Remove button is clicked", async () => {
+    renderWishlist();
 
-    render(
-      <MemoryRouter>
-        <Wishlist />
-      </MemoryRouter>
-    );
-
-    await waitFor(() => {
-      expect(
-        screen.getByText("❤️ My Wishlist")
-      ).toBeInTheDocument();
-    });
-  });
-
-  test("removes wishlist item", async () => {
-    const wishlist = [
-      {
-        id: 1,
-        name: "Test Product",
-      },
-      {
-        id: 2,
-        name: "Another Product",
-      },
-    ];
-
-    localStorage.setItem("wishlist", JSON.stringify(wishlist));
-
-    render(
-      <MemoryRouter>
-        <Wishlist />
-      </MemoryRouter>
-    );
-
-    await waitFor(() => {
-      expect(screen.getByText("Test Product")).toBeInTheDocument();
-    });
+    const item = await screen.findByTestId("wishlist-item-101");
 
     fireEvent.click(
-      screen.getAllByRole("button", {
-        name: "Remove",
-      })[0]
+      within(item).getByRole("button", {
+        name: /remove/i,
+      })
     );
 
     await waitFor(() => {
+      expect(removeWishlistItem).toHaveBeenCalledWith(101);
+    });
+
+    await waitFor(() => {
       expect(
-        screen.queryByText("Test Product")
+        screen.queryByText("Sample Item One")
       ).not.toBeInTheDocument();
     });
 
-    expect(screen.getByText("Another Product")).toBeInTheDocument();
-
-    const savedWishlist = JSON.parse(
-      localStorage.getItem("wishlist")
-    );
-
-    expect(savedWishlist).toHaveLength(1);
-    expect(savedWishlist[0].id).toBe(2);
+    expect(
+      screen.getByText("Sample Item Two")
+    ).toBeInTheDocument();
   });
 
-  test("dispatches wishlistUpdated event when item is removed", async () => {
-    const wishlist = [
-      {
-        id: 1,
-        name: "Test Product",
-      },
-    ];
+  test("does not remove an item when remove API fails", async () => {
+    removeWishlistItem.mockRejectedValueOnce(
+      new Error("Unable to remove item")
+    );
 
-    localStorage.setItem("wishlist", JSON.stringify(wishlist));
+    renderWishlist();
 
-    render(
-      <MemoryRouter>
-        <Wishlist />
-      </MemoryRouter>
+    const item = await screen.findByTestId("wishlist-item-101");
+
+    fireEvent.click(
+      within(item).getByRole("button", {
+        name: /remove/i,
+      })
     );
 
     await waitFor(() => {
-      expect(screen.getByText("Test Product")).toBeInTheDocument();
+      expect(removeWishlistItem).toHaveBeenCalledWith(101);
     });
 
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Remove",
-      })
-    );
-
-    expect(window.dispatchEvent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: "wishlistUpdated",
-      })
-    );
+    expect(
+      await screen.findByText("Sample Item One")
+    ).toBeInTheDocument();
   });
 
-  test("moves wishlist item to cart", async () => {
-    const wishlist = [
-      {
-        id: 1,
-        name: "Test Product",
-      },
-    ];
+  /* -------------------------------------------------
+     6. Move item to cart
+  ------------------------------------------------- */
 
-    localStorage.setItem("wishlist", JSON.stringify(wishlist));
-    localStorage.setItem("cart", JSON.stringify([]));
+  test("calls moveWishlistItemToCart when Move to Cart is clicked", async () => {
+    renderWishlist();
 
-    render(
-      <MemoryRouter>
-        <Wishlist />
-      </MemoryRouter>
+    const item = await screen.findByTestId("wishlist-item-101");
+
+    fireEvent.click(
+      within(item).getByRole("button", {
+        name: /move to cart/i,
+      })
     );
 
     await waitFor(() => {
-      expect(screen.getByText("Test Product")).toBeInTheDocument();
+      expect(moveWishlistItemToCart).toHaveBeenCalledWith(101);
     });
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Move to Cart",
-      })
-    );
-
-    const cart = JSON.parse(
-      localStorage.getItem("cart")
-    );
-
-    expect(cart).toHaveLength(1);
-    expect(cart[0].id).toBe(1);
-    expect(cart[0].quantity).toBe(1);
   });
 
-  test("removes item from wishlist after moving to cart", async () => {
-    const wishlist = [
-      {
-        id: 1,
-        name: "Test Product",
-      },
-    ];
+  test("removes wishlist item after successful move to cart", async () => {
+    renderWishlist();
 
-    localStorage.setItem("wishlist", JSON.stringify(wishlist));
-    localStorage.setItem("cart", JSON.stringify([]));
+    const item = await screen.findByTestId("wishlist-item-101");
 
-    render(
-      <MemoryRouter>
-        <Wishlist />
-      </MemoryRouter>
+    fireEvent.click(
+      within(item).getByRole("button", {
+        name: /move to cart/i,
+      })
     );
 
     await waitFor(() => {
-      expect(screen.getByText("Test Product")).toBeInTheDocument();
+      expect(removeWishlistItem).toHaveBeenCalledWith(101);
     });
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Move to Cart",
-      })
-    );
 
     await waitFor(() => {
       expect(
-        screen.queryByText("Test Product")
+        screen.queryByText("Sample Item One")
       ).not.toBeInTheDocument();
     });
+
+    expect(
+      screen.getByText("Sample Item Two")
+    ).toBeInTheDocument();
   });
 
-  test("increases quantity when product already exists in cart", async () => {
-    const wishlist = [
-      {
-        id: 1,
-        name: "Test Product",
-      },
-    ];
-
-    const cart = [
-      {
-        id: 1,
-        name: "Test Product",
-        quantity: 2,
-      },
-    ];
-
-    localStorage.setItem("wishlist", JSON.stringify(wishlist));
-    localStorage.setItem("cart", JSON.stringify(cart));
-
-    render(
-      <MemoryRouter>
-        <Wishlist />
-      </MemoryRouter>
+  test("does not remove wishlist item if move to cart API fails", async () => {
+    moveWishlistItemToCart.mockRejectedValueOnce(
+      new Error("Unable to move item")
     );
 
-    await waitFor(() => {
-      expect(screen.getByText("Test Product")).toBeInTheDocument();
-    });
+    renderWishlist();
+
+    const item = await screen.findByTestId("wishlist-item-101");
 
     fireEvent.click(
-      screen.getByRole("button", {
-        name: "Move to Cart",
+      within(item).getByRole("button", {
+        name: /move to cart/i,
       })
     );
 
-    const updatedCart = JSON.parse(
-      localStorage.getItem("cart")
-    );
+    await waitFor(() => {
+      expect(moveWishlistItemToCart).toHaveBeenCalledWith(101);
+    });
 
-    expect(updatedCart[0].quantity).toBe(3);
+    expect(
+      await screen.findByText("Sample Item One")
+    ).toBeInTheDocument();
+
+    expect(removeWishlistItem).not.toHaveBeenCalled();
   });
 
-  test("dispatches cartUpdated event when moving item to cart", async () => {
-    const wishlist = [
-      {
-        id: 1,
-        name: "Test Product",
-      },
-    ];
-
-    localStorage.setItem("wishlist", JSON.stringify(wishlist));
-    localStorage.setItem("cart", JSON.stringify([]));
-
-    render(
-      <MemoryRouter>
-        <Wishlist />
-      </MemoryRouter>
+  test("does not remove wishlist item if removal fails after moving to cart", async () => {
+    removeWishlistItem.mockRejectedValueOnce(
+      new Error("Unable to remove item")
     );
 
-    await waitFor(() => {
-      expect(screen.getByText("Test Product")).toBeInTheDocument();
-    });
+    renderWishlist();
+
+    const item = await screen.findByTestId("wishlist-item-101");
 
     fireEvent.click(
-      screen.getByRole("button", {
-        name: "Move to Cart",
+      within(item).getByRole("button", {
+        name: /move to cart/i,
       })
-    );
-
-    expect(window.dispatchEvent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: "cartUpdated",
-      })
-    );
-  });
-
-  test("renders Continue Shopping link", async () => {
-    const wishlist = [
-      {
-        id: 1,
-        name: "Test Product",
-      },
-    ];
-
-    localStorage.setItem("wishlist", JSON.stringify(wishlist));
-
-    render(
-      <MemoryRouter>
-        <Wishlist />
-      </MemoryRouter>
     );
 
     await waitFor(() => {
-      expect(
-        screen.getByText("Continue Shopping")
-      ).toBeInTheDocument();
+      expect(moveWishlistItemToCart).toHaveBeenCalledWith(101);
+      expect(removeWishlistItem).toHaveBeenCalledWith(101);
     });
 
-    const link = screen.getByText("Continue Shopping");
+    expect(
+      await screen.findByText("Sample Item One")
+    ).toBeInTheDocument();
+  });
 
-    expect(link).toHaveAttribute("href", "/shop");
+  /* -------------------------------------------------
+     7. Continue shopping
+  ------------------------------------------------- */
+
+  test("displays Continue Shopping link in populated wishlist", async () => {
+    renderWishlist();
+
+    const shoppingLink = await screen.findByRole("link", {
+      name: /continue shopping/i,
+    });
+
+    expect(shoppingLink).toHaveAttribute("href", "/shop");
+  });
+
+  /* -------------------------------------------------
+     8. Wishlist events
+  ------------------------------------------------- */
+
+  test("dispatches wishlistUpdated event after removing item", async () => {
+    const eventHandler = jest.fn();
+
+    window.addEventListener("wishlistUpdated", eventHandler);
+
+    renderWishlist();
+
+    const item = await screen.findByTestId("wishlist-item-101");
+
+    fireEvent.click(
+      within(item).getByRole("button", {
+        name: /remove/i,
+      })
+    );
+
+    await waitFor(() => {
+      expect(eventHandler).toHaveBeenCalled();
+    });
+
+    window.removeEventListener("wishlistUpdated", eventHandler);
+  });
+
+  test("dispatches cartUpdated event after moving item to cart", async () => {
+    const eventHandler = jest.fn();
+
+    window.addEventListener("cartUpdated", eventHandler);
+
+    renderWishlist();
+
+    const item = await screen.findByTestId("wishlist-item-101");
+
+    fireEvent.click(
+      within(item).getByRole("button", {
+        name: /move to cart/i,
+      })
+    );
+
+    await waitFor(() => {
+      expect(eventHandler).toHaveBeenCalled();
+    });
+
+    window.removeEventListener("cartUpdated", eventHandler);
+  });
+
+  test("dispatches wishlistUpdated event after moving item to cart", async () => {
+    const eventHandler = jest.fn();
+
+    window.addEventListener("wishlistUpdated", eventHandler);
+
+    renderWishlist();
+
+    const item = await screen.findByTestId("wishlist-item-101");
+
+    fireEvent.click(
+      within(item).getByRole("button", {
+        name: /move to cart/i,
+      })
+    );
+
+    await waitFor(() => {
+      expect(eventHandler).toHaveBeenCalled();
+    });
+
+    window.removeEventListener("wishlistUpdated", eventHandler);
   });
 });

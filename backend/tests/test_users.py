@@ -494,7 +494,7 @@ def test_coupon_validation_and_checkout_discount(client, users):
                 "address": "123 Test Street",
                 "city": "Oakland",
                 "state": "CA",
-                "pincode": "94601",
+                "pincode": "094601",
             },
             "payment_method": "COD",
             "delivery_type": "normal",
@@ -513,6 +513,121 @@ def test_coupon_validation_and_checkout_discount(client, users):
         json={"code": "SAVE20", "order_amount": 180},
     )
     assert exhausted.status_code == 422
+
+
+def test_checkout_payment_receipt_is_owned_and_cod_is_not_marked_paid(client, users):
+    with SessionLocal() as db:
+        category = Category(name="Payment Checkout")
+        db.add(category)
+        db.flush()
+        product = Product(
+            name="Payment Checkout Product",
+            category=category,
+            price=100,
+            discount_price=100,
+            stock=20,
+        )
+        db.add(product)
+        db.commit()
+        product_id = product.id
+
+    order_response = client.post(
+        "/api/checkout/orders",
+        headers=auth(users["first_token"]),
+        json={
+            "items": [{"product_id": product_id, "quantity": 1}],
+            "shipping_address": {
+                "name": "First User",
+                "phone": "4155550100",
+                "address": "123 Test Street",
+                "city": "Oakland",
+                "state": "CA",
+                "pincode": "094601",
+            },
+            "payment_method": "COD",
+            "delivery_type": "normal",
+            "remove_from_cart": False,
+        },
+    )
+    assert order_response.status_code == 201
+    order_id = order_response.json()["order"]["order_id"]
+
+    receipt = client.post(
+        "/api/payments/process",
+        headers=auth(users["first_token"]),
+        json={"order_id": order_id, "method": "COD"},
+    )
+    assert receipt.status_code == 200
+    assert receipt.json()["status"] == "Pending"
+    assert receipt.json()["transaction_id"] is None
+    assert receipt.json()["amount"] == 100
+
+    saved_receipt = client.get(
+        f"/api/payments/order/{order_id}",
+        headers=auth(users["first_token"]),
+    )
+    assert saved_receipt.status_code == 200
+    assert saved_receipt.json() == receipt.json()
+
+    unauthorized_receipt = client.get(
+        f"/api/payments/order/{order_id}",
+        headers=auth(create_access_token({"sub": str(users["second_id"])})),
+    )
+    assert unauthorized_receipt.status_code == 404
+
+    mismatched_method = client.post(
+        "/api/payments/process",
+        headers=auth(users["first_token"]),
+        json={"order_id": order_id, "method": "CARD"},
+    )
+    assert mismatched_method.status_code == 409
+
+
+def test_card_payment_receipt_returns_simulated_transaction(client, users):
+    with SessionLocal() as db:
+        category = Category(name="Card Payment")
+        db.add(category)
+        db.flush()
+        product = Product(
+            name="Card Payment Product",
+            category=category,
+            price=100,
+            discount_price=100,
+            stock=20,
+        )
+        db.add(product)
+        db.commit()
+        product_id = product.id
+
+    order_response = client.post(
+        "/api/checkout/orders",
+        headers=auth(users["first_token"]),
+        json={
+            "items": [{"product_id": product_id, "quantity": 1}],
+            "shipping_address": {
+                "name": "First User",
+                "phone": "4155550100",
+                "address": "123 Test Street",
+                "city": "Oakland",
+                "state": "CA",
+                "pincode": "094601",
+            },
+            "payment_method": "CARD",
+            "delivery_type": "normal",
+            "remove_from_cart": False,
+        },
+    )
+    order_id = order_response.json()["order"]["order_id"]
+    receipt = client.post(
+        "/api/payments/process",
+        headers=auth(users["first_token"]),
+        json={"order_id": order_id, "method": "CARD"},
+    )
+
+    assert receipt.status_code == 200
+    assert receipt.json()["status"] == "Simulated"
+    assert receipt.json()["transaction_id"].startswith("TXN-")
+    assert receipt.json()["amount"] == 100
 
 
 def test_admin_can_create_update_list_and_deactivate_coupons(client, users):

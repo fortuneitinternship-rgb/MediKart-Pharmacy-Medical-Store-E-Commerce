@@ -44,10 +44,15 @@ def process_payment(
             method=data.method,
         )
         db.add(payment)
-    payment.transaction_id = "TXN-" + uuid.uuid4().hex[:12].upper()
     payment.method = data.method
     payment.amount = order.total_amount
-    payment.status = "Simulated"
+    if data.method == "COD":
+        payment.transaction_id = None
+        payment.status = "Pending"
+    else:
+        if not payment.transaction_id:
+            payment.transaction_id = "TXN-" + uuid.uuid4().hex[:12].upper()
+        payment.status = "Simulated"
 
     db.commit()
     db.refresh(payment)

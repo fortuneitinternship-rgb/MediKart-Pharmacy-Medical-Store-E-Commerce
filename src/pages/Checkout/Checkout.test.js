@@ -11,7 +11,9 @@ import Checkout from "./Checkout";
 import {
   createCheckoutOrder,
   getCheckoutCart,
+  processCheckoutPayment,
   saveCheckoutAddress,
+  validateCheckoutCoupon,
 } from "../../api/checkoutApi";
 import {
   removeCartItem,
@@ -33,7 +35,9 @@ jest.mock("react-router-dom", () => {
 jest.mock("../../api/checkoutApi", () => ({
   createCheckoutOrder: jest.fn(),
   getCheckoutCart: jest.fn(),
+  processCheckoutPayment: jest.fn(),
   saveCheckoutAddress: jest.fn(),
+  validateCheckoutCoupon: jest.fn(),
 }));
 
 jest.mock("../../api/cartApi", () => ({
@@ -50,6 +54,18 @@ describe("Checkout Component", () => {
     saveCheckoutAddress.mockResolvedValue({});
     createCheckoutOrder.mockResolvedValue({
       order: { order_id: "MK202501010001" },
+    });
+    processCheckoutPayment.mockResolvedValue({
+      transaction_id: "TXN-TEST123",
+      amount: 100,
+      method: "COD",
+      status: "Pending",
+    });
+    validateCheckoutCoupon.mockResolvedValue({
+      code: "SAVE20",
+      discount_amount: 20,
+      order_amount: 100,
+      total_after_discount: 80,
     });
     removeCartItem.mockResolvedValue({});
     updateCartItem.mockResolvedValue({});
@@ -453,7 +469,7 @@ describe("Checkout Component", () => {
     );
   });
 
-  test("selects card payment method", async () => {
+  test("selects card payment without collecting raw card data", async () => {
     await goToAddressStep();
 
     fillAddress();
@@ -476,26 +492,14 @@ describe("Checkout Component", () => {
       })
     );
 
+    expect(screen.queryByPlaceholderText("Card Number")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("CVV")).not.toBeInTheDocument();
     expect(
-      screen.getByPlaceholderText("Card Number")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByPlaceholderText("MM/YY")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByPlaceholderText("CVV")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByPlaceholderText(
-        "Card Holder Name"
-      )
+      screen.getByText(/development payment simulation/i)
     ).toBeInTheDocument();
   });
 
-  test("selects net banking payment method", async () => {
+  test("selects net banking without asking for payment credentials", async () => {
     await goToAddressStep();
 
     fillAddress();
@@ -516,14 +520,9 @@ describe("Checkout Component", () => {
       })
     );
 
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
     expect(
-      screen.getByRole("combobox")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByRole("option", {
-        name: "Select Bank",
-      })
+      screen.getByText(/do not enter real payment details/i)
     ).toBeInTheDocument();
   });
 
@@ -664,8 +663,91 @@ describe("Checkout Component", () => {
         payment_method: "COD",
       })
     );
+    expect(processCheckoutPayment).toHaveBeenCalledWith({
+      order_id: "MK202501010001",
+      method: "COD",
+    });
+    expect(screen.getByTestId("payment-status")).toHaveTextContent("Pending");
+    expect(screen.getByTestId("receipt-amount")).toHaveTextContent("₹100.00");
     expect(removeCartItem).not.toHaveBeenCalled();
     expect(localStorage.getItem("buyNow")).toBeNull();
+  });
+
+  test("validates a coupon and includes it in order totals and API request", async () => {
+    await goToAddressStep();
+    fillAddress();
+    fireEvent.click(
+      screen.getByRole("button", { name: /continue to payment/i })
+    );
+    await screen.findByRole("heading", { name: /payment method/i });
+
+    fireEvent.change(screen.getByLabelText("Coupon code"), {
+      target: { value: "save20" },
+    });
+    fireEvent.click(screen.getByTestId("apply-coupon"));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("SAVE20 applied");
+    expect(validateCheckoutCoupon).toHaveBeenCalledWith("SAVE20", 100);
+    expect(screen.getByTestId("payable-amount")).toHaveTextContent("80.00");
+
+    fireEvent.click(screen.getByTestId("place-order"));
+    await screen.findByTestId("payment-receipt");
+
+    expect(createCheckoutOrder).toHaveBeenCalledWith(
+      expect.objectContaining({ coupon_code: "SAVE20" })
+    );
+  });
+
+  test("reports an invalid coupon without applying a discount", async () => {
+    validateCheckoutCoupon.mockRejectedValueOnce({
+      response: { data: { detail: "Coupon has expired." } },
+    });
+    await goToAddressStep();
+    fillAddress();
+    fireEvent.click(
+      screen.getByRole("button", { name: /continue to payment/i })
+    );
+    await screen.findByRole("heading", { name: /payment method/i });
+    fireEvent.change(screen.getByLabelText("Coupon code"), {
+      target: { value: "OLD" },
+    });
+    fireEvent.click(screen.getByTestId("apply-coupon"));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Coupon has expired."
+    );
+    expect(screen.getByTestId("payable-amount")).toHaveTextContent("100.00");
+  });
+
+  test("retries payment without creating a duplicate order", async () => {
+    processCheckoutPayment
+      .mockRejectedValueOnce({
+        response: { data: { detail: "Payment service unavailable." } },
+      })
+      .mockResolvedValueOnce({
+        transaction_id: "TXN-RETRY",
+        amount: 100,
+        method: "CARD",
+        status: "Simulated",
+      });
+
+    await goToAddressStep();
+    fillAddress();
+    fireEvent.click(
+      screen.getByRole("button", { name: /continue to payment/i })
+    );
+    await screen.findByRole("heading", { name: /payment method/i });
+    fireEvent.click(screen.getByRole("radio", { name: /credit \/ debit card/i }));
+    fireEvent.click(screen.getByTestId("place-order"));
+
+    expect(await screen.findByText("Payment service unavailable.")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("retry-payment"));
+
+    expect(await screen.findByTestId("transaction-id")).toHaveTextContent(
+      "TXN-RETRY"
+    );
+    expect(createCheckoutOrder).toHaveBeenCalledTimes(1);
+    expect(processCheckoutPayment).toHaveBeenCalledTimes(2);
   });
 
   test("checks out the selected Buy Now item without loading or clearing the cart", async () => {

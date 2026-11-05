@@ -1,6 +1,6 @@
 
 import axios from "axios";
-import {
+import api, {
   clearAuthSession,
   getStoredAccessToken,
 } from "../services/api";
@@ -52,6 +52,19 @@ export async function saveCheckoutAddress(address) {
 
 export async function createCheckoutOrder(orderData) {
   const response = await checkoutApi.post("/orders", orderData);
+  return response.data;
+}
+
+export async function validateCheckoutCoupon(code, orderAmount) {
+  const response = await api.post("/api/coupons/validate", {
+    code,
+    order_amount: orderAmount,
+  });
+  return response.data;
+}
+
+export async function processCheckoutPayment(paymentData) {
+  const response = await api.post("/api/payments/process", paymentData);
   return response.data;
 }
 

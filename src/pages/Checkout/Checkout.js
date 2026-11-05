@@ -2,7 +2,13 @@ import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { FaCheck, FaMapMarkerAlt, FaCreditCard, FaUniversity, FaMoneyBillWave, FaTruck, FaBolt, FaClock, FaPlus, FaMinus, FaLocationArrow, FaEdit, FaMap, } from "react-icons/fa";
-import { getCheckoutCart, saveCheckoutAddress, createCheckoutOrder, } from "../../api/checkoutApi";
+import {
+    getCheckoutCart,
+    saveCheckoutAddress,
+    createCheckoutOrder,
+    validateCheckoutCoupon,
+    processCheckoutPayment,
+} from "../../api/checkoutApi";
 import { removeCartItem, updateCartItem, } from "../../api/cartApi";
 import { getApiErrorMessage } from "../../services/api";
 import { getProductImage, handleProductImageError, } from "../../utils/productImage";
@@ -24,6 +30,7 @@ const Checkout = () => {
     const [cartLoadStatus, setCartLoadStatus] = useState(null);
     const [cartLoadAttempt, setCartLoadAttempt] = useState(0);
     const [placingOrder, setPlacingOrder] = useState(false);
+    const [paymentRetrying, setPaymentRetrying] = useState(false);
     const visibleCartItems = Array.isArray(buyNowItems) && buyNowItems.length > 0
         ? buyNowItems.map((item) => {
             const productId = Number(
@@ -69,6 +76,14 @@ const Checkout = () => {
     const [paymentMethod, setPaymentMethod] = useState("COD");
     const [deliveryType, setDeliveryType] = useState("normal");
     const [orderId, setOrderId] = useState("");
+    const [createdOrder, setCreatedOrder] = useState(null);
+    const [paymentReceipt, setPaymentReceipt] = useState(null);
+    const [paymentError, setPaymentError] = useState("");
+    const [couponInput, setCouponInput] = useState("");
+    const [appliedCoupon, setAppliedCoupon] = useState(null);
+    const [couponMessage, setCouponMessage] = useState("");
+    const [couponError, setCouponError] = useState("");
+    const [couponLoading, setCouponLoading] = useState(false);
 
     // NEW:
     // Address mode = map or manual
@@ -186,7 +201,7 @@ const Checkout = () => {
 
     // ======================= PRODUCT TOTAL =======================
 
-    const productTotal = visibleCartItems.reduce(
+    const productTotal = Math.round(visibleCartItems.reduce(
         (total, item) => {
             const price = getPrice(item);
             const quantity = Number(
@@ -196,13 +211,32 @@ const Checkout = () => {
             return total + price * quantity;
         },
         0
-    );
+    ) * 100) / 100;
 
     // ======================= DISCOUNT =======================
 
-    const discount = Math.round(
-        productTotal * 0.1
+    const discount = Math.round(productTotal * 10) / 100;
+    const couponDiscount = appliedCoupon
+        ? Math.min(
+            Math.max(0, productTotal - discount),
+            Number(appliedCoupon.discount_amount) || 0
+        )
+        : 0;
+    const totalDiscount = Math.min(
+        productTotal,
+        discount + couponDiscount
     );
+
+    useEffect(() => {
+        if (
+            appliedCoupon &&
+            Number(appliedCoupon.order_amount) !== productTotal
+        ) {
+            setAppliedCoupon(null);
+            setCouponMessage("");
+            setCouponError("Your cart changed. Apply the coupon again.");
+        }
+    }, [appliedCoupon, productTotal]);
 
     // ======================= SPECIAL CATEGORY =======================
 
@@ -247,9 +281,46 @@ const Checkout = () => {
 
     const totalAmount =
         productTotal -
-        discount +
+        totalDiscount +
         deliveryCharge +
         platformFee;
+
+    const applyCoupon = async () => {
+        const code = couponInput.trim().toUpperCase();
+        if (!code) {
+            setCouponError("Enter a coupon code.");
+            setCouponMessage("");
+            return;
+        }
+
+        setCouponLoading(true);
+        setCouponError("");
+        setCouponMessage("");
+        try {
+            const coupon = await validateCheckoutCoupon(code, productTotal);
+            setAppliedCoupon(coupon);
+            setCouponInput(coupon.code || code);
+            setCouponMessage(
+                `${coupon.code || code} applied. You save ₹${Number(
+                    coupon.discount_amount
+                ).toFixed(2)}.`
+            );
+        } catch (error) {
+            setAppliedCoupon(null);
+            setCouponError(
+                getApiErrorMessage(error, "Unable to validate this coupon.")
+            );
+        } finally {
+            setCouponLoading(false);
+        }
+    };
+
+    const removeCoupon = () => {
+        setAppliedCoupon(null);
+        setCouponInput("");
+        setCouponMessage("");
+        setCouponError("");
+    };
 
     // =====================================================
     // DELIVERY DISTANCE / TIME
@@ -607,6 +678,28 @@ const Checkout = () => {
     // PLACE ORDER
     // =====================================================
 
+    const submitPayment = async (id, method) => {
+        setPaymentRetrying(true);
+        setPaymentError("");
+        try {
+            const receipt = await processCheckoutPayment({
+                order_id: String(id),
+                method,
+            });
+            setPaymentReceipt(receipt);
+        } catch (error) {
+            setPaymentReceipt(null);
+            setPaymentError(
+                getApiErrorMessage(
+                    error,
+                    "The order was created, but payment confirmation is unavailable."
+                )
+            );
+        } finally {
+            setPaymentRetrying(false);
+        }
+    };
+
     const placeOrder = async () => {
         if (!paymentMethod || visibleCartItems.length === 0) {
             alert("Please select a payment method and check your cart.");
@@ -632,12 +725,12 @@ const Checkout = () => {
                 payment_method: paymentMethod,
                 delivery_type: deliveryType,
                 delivery_distance: deliveryDistance,
+                ...(appliedCoupon ? { coupon_code: appliedCoupon.code } : {}),
                 remove_from_cart: !(Array.isArray(buyNowItems) && buyNowItems.length > 0),
             };
 
             const response = await createCheckoutOrder(orderData);
 
-            // Adapt these fields to your backend's response schema.
             const createdOrder = response.order || response;
 
             const generatedOrderId =
@@ -650,6 +743,7 @@ const Checkout = () => {
             }
 
             setOrderId(String(generatedOrderId));
+            setCreatedOrder(createdOrder);
 
             // Cart checkout clears purchased cart rows; Buy Now preserves them.
             localStorage.removeItem("buyNow");
@@ -659,6 +753,7 @@ const Checkout = () => {
             window.dispatchEvent(new Event("ordersUpdated"));
             window.dispatchEvent(new Event("cartUpdated"));
 
+            await submitPayment(generatedOrderId, paymentMethod);
             setStep(5);
         } catch (error) {
             console.error(
@@ -1448,6 +1543,16 @@ const Checkout = () => {
                             </div>
                         )}
 
+                        {couponDiscount > 0 && (
+                            <div
+                                className="discount-row"
+                                data-testid="coupon-discount"
+                            >
+                                <span>Coupon ({appliedCoupon.code})</span>
+                                <strong>- ₹{couponDiscount.toFixed(2)}</strong>
+                            </div>
+                        )}
+
                         <div
                             style={{
                                 display:
@@ -1521,7 +1626,7 @@ const Checkout = () => {
                                 ₹
                                 {(
                                     productTotal -
-                                    discount +
+                                    totalDiscount +
                                     normalDeliveryCharge
                                 ).toLocaleString()}
                             </strong>
@@ -2644,73 +2749,57 @@ const Checkout = () => {
 
                     </div>
 
-                    {/* CARD FORM */}
-
-                    {paymentMethod ===
-                        "CARD" && (
-                            <div className="payment-form">
-
-                                <input
-                                    placeholder="Card Number"
-                                />
-
-                                <div className="form-row">
-
-                                    <input
-                                        placeholder="MM/YY"
-                                    />
-
-                                    <input
-                                        placeholder="CVV"
-                                    />
-
-                                </div>
-
-                                <input
-                                    placeholder="Card Holder Name"
-                                />
-
-                            </div>
+                    <div className="checkout-coupon">
+                        <label htmlFor="checkout-coupon-code">
+                            Coupon code
+                        </label>
+                        <div className="checkout-coupon-controls">
+                            <input
+                                id="checkout-coupon-code"
+                                value={couponInput}
+                                onChange={(event) => {
+                                    setCouponInput(event.target.value);
+                                    if (appliedCoupon) setAppliedCoupon(null);
+                                    setCouponError("");
+                                    setCouponMessage("");
+                                }}
+                                placeholder="Enter coupon code"
+                                autoComplete="off"
+                            />
+                            <button
+                                type="button"
+                                onClick={applyCoupon}
+                                disabled={couponLoading || !couponInput.trim()}
+                                data-testid="apply-coupon"
+                            >
+                                {couponLoading ? "Checking..." : "Apply"}
+                            </button>
+                            {appliedCoupon && (
+                                <button
+                                    type="button"
+                                    className="remove-coupon"
+                                    onClick={removeCoupon}
+                                >
+                                    Remove
+                                </button>
+                            )}
+                        </div>
+                        {couponMessage && (
+                            <p className="coupon-message" role="status">
+                                {couponMessage}
+                            </p>
                         )}
-
-                    {/* NET BANKING */}
-
-                    {paymentMethod ===
-                        "NETBANKING" && (
-                            <div className="payment-form">
-
-                                <select>
-
-                                    <option>
-                                        Select Bank
-                                    </option>
-
-                                    <option>
-                                        State Bank of
-                                        India
-                                    </option>
-
-                                    <option>
-                                        HDFC Bank
-                                    </option>
-
-                                    <option>
-                                        ICICI Bank
-                                    </option>
-
-                                    <option>
-                                        Axis Bank
-                                    </option>
-
-                                    <option>
-                                        Punjab National
-                                        Bank
-                                    </option>
-
-                                </select>
-
-                            </div>
+                        {couponError && (
+                            <p className="coupon-error" role="alert">
+                                {couponError}
+                            </p>
                         )}
+                    </div>
+
+                    <p className="payment-demo-note">
+                        Card and net-banking payments use the development payment
+                        simulation. Do not enter real payment details.
+                    </p>
 
                     {/* DELIVERY ESTIMATE */}
 
@@ -2788,6 +2877,17 @@ const Checkout = () => {
                             </div>
                         )}
 
+                        {couponDiscount > 0 && (
+                            <div data-testid="coupon-summary">
+                                <span>
+                                    Coupon ({appliedCoupon.code})
+                                </span>
+                                <strong className="green-text">
+                                    - ₹{couponDiscount.toFixed(2)}
+                                </strong>
+                            </div>
+                        )}
+
                         <div>
 
                             <span>
@@ -2813,7 +2913,7 @@ const Checkout = () => {
                                 data-testid="payable-amount"
                             >
                                 ₹
-                                {totalAmount.toLocaleString()}
+                                {totalAmount.toFixed(2)}
                             </strong>
 
                         </div>
@@ -3006,11 +3106,70 @@ const Checkout = () => {
 
                             <strong>
                                 ₹
-                                {totalAmount.toLocaleString()}
+                                {Number(
+                                    createdOrder?.total_amount ?? totalAmount
+                                ).toFixed(2)}
                             </strong>
 
                         </div>
 
+                        <div>
+                            <span>Deliver to</span>
+                            <strong>
+                                {address.name}, {address.phone}
+                                <br />
+                                {address.address}, {address.city},{" "}
+                                {address.state} {address.pincode}
+                            </strong>
+                        </div>
+
+                    </div>
+
+                    <div className="payment-receipt" data-testid="payment-receipt">
+                        <h2>Payment receipt</h2>
+                        <p>
+                            {paymentReceipt
+                                ? paymentReceipt.status === "Pending"
+                                    ? "Payment is due when your order is delivered."
+                                    : "Development simulation only; no real payment was collected."
+                                : paymentError || "Payment confirmation is pending."}
+                        </p>
+                        <div>
+                            <span>Payment status</span>
+                            <strong data-testid="payment-status">
+                                {paymentReceipt?.status || "Not confirmed"}
+                            </strong>
+                        </div>
+                        <div>
+                            <span>Amount</span>
+                            <strong data-testid="receipt-amount">
+                                ₹{Number(
+                                    paymentReceipt?.amount ??
+                                    createdOrder?.total_amount ??
+                                    totalAmount
+                                ).toFixed(2)}
+                            </strong>
+                        </div>
+                        {paymentReceipt?.transaction_id && (
+                            <div>
+                                <span>Transaction reference</span>
+                                <strong data-testid="transaction-id">
+                                    {paymentReceipt.transaction_id}
+                                </strong>
+                            </div>
+                        )}
+                        {paymentError && (
+                            <button
+                                type="button"
+                                onClick={() => submitPayment(orderId, paymentMethod)}
+                                disabled={paymentRetrying}
+                                data-testid="retry-payment"
+                            >
+                                {paymentRetrying
+                                    ? "Retrying..."
+                                    : "Retry payment confirmation"}
+                            </button>
+                        )}
                     </div>
 
                     {/* SUCCESS BUTTONS */}
