@@ -14,13 +14,13 @@ import {
 } from "react-router-dom";
 
 import ProductListing from "../ProductListingPage";
-import { getProducts } from "../../api/productApi";
+import { getProducts } from "../api/productApi";
 
-jest.mock("../../api/productApi", () => ({
+jest.mock("../api/productApi", () => ({
     getProducts: jest.fn(),
 }));
 
-jest.mock("../../components/SearchBar/SearchBar", () => {
+jest.mock("../components/SearchBar/SearchBar", () => {
     return function MockSearchBar({ searchTerm, setSearchTerm }) {
         return (
             <input
@@ -35,7 +35,7 @@ jest.mock("../../components/SearchBar/SearchBar", () => {
     };
 });
 
-jest.mock("../../components/ProductCard/ProductCard", () => {
+jest.mock("../components/ProductCard/ProductCard", () => {
     return function MockProductCard({ product }) {
         return (
             <div data-testid="product-card">

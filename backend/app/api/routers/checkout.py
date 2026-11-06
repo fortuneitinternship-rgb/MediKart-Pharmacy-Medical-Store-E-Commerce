@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.core.config import settings
 from app.database.database import get_db
 from app.models.address import Address
 from app.models.cart_item import CartItem
@@ -21,6 +22,23 @@ router = APIRouter(
     prefix="/api/checkout",
     tags=["Checkout"],
 )
+
+
+@router.get("/config")
+def get_checkout_config():
+    return {
+        "tax_rate_percent": settings.GST_RATE_PERCENT,
+        "payment_mode": settings.PAYMENT_MODE,
+        "razorpay_enabled": bool(
+            settings.RAZORPAY_KEY_ID and settings.RAZORPAY_KEY_SECRET
+        ),
+        "free_delivery_threshold": settings.FREE_DELIVERY_THRESHOLD,
+        "standard_delivery_charge": settings.STANDARD_DELIVERY_CHARGE,
+        "express_delivery_minimum": settings.EXPRESS_DELIVERY_MINIMUM,
+        "express_delivery_charge": settings.EXPRESS_DELIVERY_CHARGE,
+        "same_day_delivery_minimum": settings.SAME_DAY_DELIVERY_MINIMUM,
+        "same_day_delivery_charge": settings.SAME_DAY_DELIVERY_CHARGE,
+    }
 
 
 # -------------------- REQUEST SCHEMAS --------------------
@@ -246,6 +264,7 @@ def create_checkout_order(
         product = (
             db.query(Product)
             .filter(Product.id == product_id)
+            .with_for_update()
             .first()
         )
 
@@ -253,6 +272,20 @@ def create_checkout_order(
             raise HTTPException(
                 status_code=404,
                 detail=f"Product {product_id} was not found.",
+            )
+        if not product.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"{product.name} is no longer available.",
+            )
+        if product.stock < quantity:
+            unit_label = "unit" if product.stock == 1 else "units"
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    f"Only {product.stock} {unit_label} of "
+                    f"{product.name} are in stock."
+                ),
             )
 
         products[product_id] = product
@@ -297,29 +330,39 @@ def create_checkout_order(
         discount = money(discount)
 
     if payload.delivery_type == "express":
-        if subtotal < Decimal("299"):
+        if subtotal < Decimal(str(settings.EXPRESS_DELIVERY_MINIMUM)):
             raise HTTPException(
                 status_code=400,
-                detail="Express delivery requires an order of at least ₹299.",
+                detail=(
+                    "Express delivery requires an order of at least "
+                    f"₹{settings.EXPRESS_DELIVERY_MINIMUM:g}."
+                ),
             )
-        delivery_charge = Decimal("49.00")
+        delivery_charge = Decimal(str(settings.EXPRESS_DELIVERY_CHARGE))
 
     elif payload.delivery_type == "today":
-        if subtotal < Decimal("999"):
+        if subtotal < Decimal(str(settings.SAME_DAY_DELIVERY_MINIMUM)):
             raise HTTPException(
                 status_code=400,
-                detail="Today delivery requires an order of at least ₹999.",
+                detail=(
+                    "Today delivery requires an order of at least "
+                    f"₹{settings.SAME_DAY_DELIVERY_MINIMUM:g}."
+                ),
             )
-        delivery_charge = Decimal("99.00")
+        delivery_charge = Decimal(str(settings.SAME_DAY_DELIVERY_CHARGE))
 
     else:
         delivery_charge = (
             Decimal("0.00")
-            if subtotal >= Decimal("499")
-            else Decimal("10.00")
+            if subtotal >= Decimal(str(settings.FREE_DELIVERY_THRESHOLD))
+            else Decimal(str(settings.STANDARD_DELIVERY_CHARGE))
         )
 
-    total = money(subtotal - discount + delivery_charge)
+    taxable_amount = max(Decimal("0.00"), subtotal - discount)
+    tax_amount = money(
+        taxable_amount * Decimal(str(settings.GST_RATE_PERCENT)) / Decimal("100")
+    )
+    total = money(taxable_amount + tax_amount + delivery_charge)
 
     address = payload.shipping_address
     order_id = f"MK{datetime.now(timezone.utc):%Y%m%d%H%M%S%f}"
@@ -338,9 +381,11 @@ def create_checkout_order(
         delivery_charge=float(delivery_charge),
         product_amount=float(subtotal),
         discount=float(discount),
+        tax_amount=float(tax_amount),
         platform_fee=0,
         total_amount=float(total),
         status="Order Confirmed",
+        stock_reserved=True,
     )
 
     try:
@@ -349,6 +394,7 @@ def create_checkout_order(
 
         for line in order_lines:
             product = products[line["product_id"]]
+            product.stock -= line["quantity"]
             order_item = OrderItem(
                 order_id=order.id,
                 product_id=line["product_id"],
@@ -407,6 +453,8 @@ def create_checkout_order(
             "subtotal": float(subtotal),
             "discount": float(discount),
             "coupon_discount": float(coupon_discount),
+            "tax_amount": float(tax_amount),
+            "tax_rate_percent": settings.GST_RATE_PERCENT,
             "delivery_charge": float(delivery_charge),
         },
     }

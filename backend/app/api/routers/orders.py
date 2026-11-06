@@ -7,6 +7,7 @@ from app.api.deps import get_current_user
 from app.database.database import get_db
 from app.models.order import Order
 from app.models.order_item import OrderItem
+from app.models.product import Product
 from app.models.user import User
 from app.schemas.order import OrderCreate, OrderResponse
 
@@ -180,7 +181,8 @@ def get_orders(
 
             "discount":
                 order.discount,
-
+            "tax_amount":
+                order.tax_amount,
             "platform_fee":
                 order.platform_fee,
 
@@ -303,6 +305,9 @@ def get_order(
         "discount":
             order.discount,
 
+        "tax_amount":
+            order.tax_amount,
+
         "platform_fee":
             order.platform_fee,
 
@@ -372,6 +377,18 @@ def cancel_order(
         )
 
     order.status = "Cancelled"
+    if order.stock_reserved:
+        items = db.query(OrderItem).filter(OrderItem.order_id == order.id).all()
+        for item in items:
+            product = (
+                db.query(Product)
+                .filter(Product.id == item.product_id)
+                .with_for_update()
+                .first()
+            )
+            if product is not None:
+                product.stock += item.quantity
+        order.stock_reserved = False
     db.commit()
     db.refresh(order)
     return {"order_id": order.order_id, "status": order.status}

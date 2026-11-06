@@ -10,15 +10,15 @@ import {
 import "@testing-library/jest-dom";
 import { MemoryRouter } from "react-router-dom";
 
-import FlashSale from "../FlashSale";
+import FlashSale from "./FlashSale";
 
-import { addProductToCart } from "../../api/cartApi";
-import { getFlashSaleProducts } from "../../api/productApi";
+import { addProductToCart } from "../api/cartApi";
+import { getFlashSaleProducts } from "../api/productApi";
 
 import {
   getProductImage,
   handleProductImageError,
-} from "../../utils/productImage";
+} from "../utils/productImage";
 
 import { toast } from "react-toastify";
 
@@ -26,11 +26,11 @@ import { toast } from "react-toastify";
 // MOCK API
 // ---------------------------------------------
 
-jest.mock("../../api/cartApi", () => ({
+jest.mock("../api/cartApi", () => ({
   addProductToCart: jest.fn(),
 }));
 
-jest.mock("../../api/productApi", () => ({
+jest.mock("../api/productApi", () => ({
   getFlashSaleProducts: jest.fn(),
 }));
 
@@ -38,7 +38,7 @@ jest.mock("../../api/productApi", () => ({
 // MOCK IMAGE UTILITIES
 // ---------------------------------------------
 
-jest.mock("../../utils/productImage", () => ({
+jest.mock("../utils/productImage", () => ({
   getProductImage: jest.fn(),
   handleProductImageError: jest.fn(),
 }));
@@ -58,7 +58,7 @@ jest.mock("react-toastify", () => ({
 // MOCK CSS MODULE
 // ---------------------------------------------
 
-jest.mock("../FlashSale.module.css", () => ({
+jest.mock("./FlashSale.module.css", () => ({
   flashSale: "flashSale",
   header: "header",
   titleSection: "titleSection",

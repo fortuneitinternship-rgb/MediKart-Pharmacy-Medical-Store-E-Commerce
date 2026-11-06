@@ -42,6 +42,7 @@ def serialize_admin_order(db: Session, order: Order):
         "delivery_charge": order.delivery_charge,
         "product_amount": order.product_amount,
         "discount": order.discount,
+        "tax_amount": order.tax_amount,
         "platform_fee": order.platform_fee,
         "total_amount": order.total_amount,
         "status": order.status,
@@ -112,7 +113,20 @@ def update_admin_order_status(
             detail=f"Cannot move an order from {order.status} to {payload.status}.",
         )
 
+    was_cancelled = order.status == "Cancelled"
     order.status = payload.status
+    if payload.status == "Cancelled" and not was_cancelled and order.stock_reserved:
+        items = db.query(OrderItem).filter(OrderItem.order_id == order.id).all()
+        for item in items:
+            product = (
+                db.query(Product)
+                .filter(Product.id == item.product_id)
+                .with_for_update()
+                .first()
+            )
+            if product is not None:
+                product.stock += item.quantity
+        order.stock_reserved = False
     db.commit()
     db.refresh(order)
     return serialize_admin_order(db, order)

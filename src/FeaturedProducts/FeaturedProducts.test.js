@@ -10,24 +10,24 @@ import {
 
 import { MemoryRouter } from "react-router-dom";
 
-import FeaturedProducts from "../FeaturedProducts";
+import FeaturedProducts from "./FeaturedProducts";
 
-import { addProductToCart } from "../../api/cartApi";
-import { getFeaturedProducts } from "../../api/productApi";
+import { addProductToCart } from "../api/cartApi";
+import { getFeaturedProducts } from "../api/productApi";
 
 import {
     getProductImage,
     handleProductImageError,
-} from "../../utils/productImage";
+} from "../utils/productImage";
 
 import { toast } from "react-toastify";
 
 // Mock API functions
-jest.mock("../../api/cartApi", () => ({
+jest.mock("../api/cartApi", () => ({
     addProductToCart: jest.fn(),
 }));
 
-jest.mock("../../api/productApi", () => ({
+jest.mock("../api/productApi", () => ({
     getFeaturedProducts: jest.fn(),
 }));
 
@@ -40,7 +40,7 @@ jest.mock("react-toastify", () => ({
 }));
 
 // Mock image utilities
-jest.mock("../../utils/productImage", () => ({
+jest.mock("../utils/productImage", () => ({
     getProductImage: jest.fn(),
     handleProductImageError: jest.fn(),
 }));
@@ -48,7 +48,7 @@ jest.mock("../../utils/productImage", () => ({
 // Mock CSS
 jest.mock("react-toastify/dist/ReactToastify.css", () => ({}));
 
-jest.mock("../FeaturedProducts.css", () => ({}));
+jest.mock("./FeaturedProducts.css", () => ({}));
 
 describe("FeaturedProducts Component Tests", () => {
     // Synthetic test data only.

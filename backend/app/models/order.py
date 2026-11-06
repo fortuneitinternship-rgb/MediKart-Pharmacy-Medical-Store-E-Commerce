@@ -1,4 +1,5 @@
 from sqlalchemy import (
+    Boolean,
     Column,
     Integer,
     String,
@@ -42,10 +43,17 @@ class Order(Base):
     delivery_charge = Column(Float, default=0)
     product_amount = Column(Float, default=0)
     discount = Column(Float, default=0)
+    tax_amount = Column(Float, default=0, server_default="0", nullable=False)
     platform_fee = Column(Float, default=0)
     total_amount = Column(Float, default=0)
 
     status = Column(String(50), default="Order Confirmed")
+    stock_reserved = Column(
+        Boolean,
+        default=False,
+        server_default="false",
+        nullable=False,
+    )
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # User relationship

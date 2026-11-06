@@ -28,6 +28,12 @@ class Payment(Base):
         nullable=True,
     )
 
+    provider_order_id: Mapped[str | None] = mapped_column(
+        String(100),
+        unique=True,
+        nullable=True,
+    )
+
     amount: Mapped[float] = mapped_column(Float, nullable=False)
     method: Mapped[str] = mapped_column(String(30), nullable=False)
     status: Mapped[str] = mapped_column(

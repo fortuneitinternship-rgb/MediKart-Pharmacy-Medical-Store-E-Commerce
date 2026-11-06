@@ -91,6 +91,7 @@ const ProductListing = ({ sortBy = "", setSortBy = () => { } }) => {
 
             <input
               type="text"
+              aria-label="Search products"
               placeholder="Search products or categories..."
               value={searchTerm}
               onChange={(e) => {

@@ -20,7 +20,10 @@ def test_production_settings_accept_explicit_secrets_and_trusted_origin():
         APP_ENV="production",
         DATABASE_URL="mysql+pymysql://user:password@db/medikart",
         SECRET_KEY="application-secret-with-at-least-32-characters",
-        PAYMENT_WEBHOOK_SECRET="webhook-secret-with-at-least-32-characters",
+        PAYMENT_MODE="razorpay",
+        RAZORPAY_KEY_ID="rzp_live_test_key",
+        RAZORPAY_KEY_SECRET="razorpay-secret-with-at-least-32-characters",
+        RAZORPAY_WEBHOOK_SECRET="razorpay-webhook-secret-with-at-least-32-characters",
         FRONTEND_ORIGINS="https://shop.example.com",
     )
 

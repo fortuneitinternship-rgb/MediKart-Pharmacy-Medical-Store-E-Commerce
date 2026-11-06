@@ -18,7 +18,7 @@ python -m app.scripts.seed_product_catalog
 uvicorn app.main:app --reload
 ```
 
-`backend\.env` is loaded from the backend folder regardless of the current working directory. If `DATABASE_URL` is omitted, the API uses SQLite at `backend\medikart.db`; the database file is created automatically and keeps records across restarts. Relative SQLite URLs such as `sqlite:///./medikart.db` resolve from the backend folder, not the terminal's current directory. Existing `.env` settings override this default. To use MySQL instead, keep the MySQL URL from `.env.example`, create the `medikart` database, and grant the configured user permission to create and alter tables. Startup upgrades the legacy address columns (`name`/`address_line`) without dropping saved address data, adds the optional second address line, and creates missing tables. `Base.metadata.create_all()` does not migrate arbitrary changes to existing tables.
+`backend\.env` is loaded from the backend folder regardless of the current working directory. If `DATABASE_URL` is omitted, the API uses SQLite at `backend\medikart.db`; the database file is created automatically and keeps records across restarts. Relative SQLite URLs such as `sqlite:///./medikart.db` resolve from the backend folder, not the terminal's current directory. Existing `.env` settings override this default. To use MySQL instead, keep the MySQL URL from `.env.example`, create the `medikart` database, and grant the configured user permission to create and alter tables. Startup upgrades legacy address columns (`name`/`address_line`) without dropping saved address data, creates missing tables, and applies idempotent versioned upgrades for payment, tax, inventory-reservation, and review-owner columns. New schema changes still require a reviewed upgrade before release; `Base.metadata.create_all()` does not migrate arbitrary changes to existing tables.
 
 The local MySQL connection in `.env.example` is:
 
@@ -58,6 +58,8 @@ Frontend paths below are relative to `medikart\src`.
 | `GET/PUT /api/users/me` | `pages/Profile/Profile.js` via `api/loginApi.js` |
 | `GET/POST /api/addresses`, `PUT/DELETE /api/addresses/{id}` | `pages/Addresses/Addresses.js` via `api/addressApi.js` |
 | `GET /api/checkout/cart`, `POST /api/checkout/address`, `POST /api/checkout/orders` | `pages/Checkout/Checkout.js` via `api/checkoutApi.js`; cart checkout clears ordered cart rows, while Buy Now checks out the selected product without changing the saved cart |
+| `GET /api/checkout/config` | Checkout tax-rate and shipping configuration; the server recalculates totals and validates inventory |
+| `GET /api/payments/config`, `POST /api/payments/razorpay/order`, `POST /api/payments/razorpay/verify` | Checkout opens Razorpay Checkout and verifies captured payments server-side; `/api/payments/razorpay/webhook` handles provider events |
 | `GET/POST /api/orders/`, `GET /api/orders/{order_id}`, `PATCH /api/orders/{order_id}/cancel`, `GET /api/orders/{order_id}/track` | `api/ordersApi.js`; the Account page and tracking page load the signed-in user's orders |
 | `GET/POST /api/cart`, `POST /api/cart/import`, `PUT/DELETE /api/cart/{id}` | `api/cartApi.js`; anonymous cart contents migrate idempotently after login |
 | `GET/POST /api/wishlist`, `POST /api/wishlist/import`, `DELETE /api/wishlist/{product_id}` | `api/wishlistApi.js`; anonymous wishlist contents migrate idempotently after login |
@@ -81,7 +83,9 @@ Frontend paths below are relative to `medikart\src`.
 
 The shared `services/api.js` client uses `REACT_APP_API_URL` (default `http://127.0.0.1:8000`) and attaches the signed-in user's bearer token. Cart and wishlist imports use persistent migration IDs so retries do not duplicate items. Product image uploads are stored under `UPLOAD_DIR` (default `backend\uploads`) and served from `/uploads`. Checkout validates coupons on the server and records their usage with the order.
 
-`/api/payments/process` remains a local simulator and never represents a real charge. `POST /api/payments/webhook` supports locally signed test events: set `PAYMENT_WEBHOOK_SECRET` to a random secret and sign the exact request bytes as `HMAC-SHA256(secret, "<unix-timestamp>.<raw-json-body>")`. Send the timestamp and hexadecimal digest in `X-Payment-Timestamp` and `X-Payment-Signature`. Timestamps outside `PAYMENT_WEBHOOK_TOLERANCE_SECONDS` (default 300) are rejected; event IDs are persisted for idempotent retries, and the order amount and method are verified before marking a payment. This is not a real gateway integration. Choose and configure a payment provider before accepting real payments. Never store full card numbers or CVV values in this application.
+Local development defaults to `PAYMENT_MODE=simulator`; simulated receipts never represent a real charge. For live Razorpay checkout, set `PAYMENT_MODE=razorpay`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, and `RAZORPAY_WEBHOOK_SECRET`. The backend creates provider orders, validates checkout signatures, fetches the provider payment to confirm capture, and verifies signed, idempotent `payment.captured`/`payment.failed` webhooks at `POST /api/payments/razorpay/webhook`. Configure that exact webhook URL in the Razorpay dashboard and keep the key secret/webhook secret only in the backend environment. Never store full card numbers or CVV values in this application. Test using Razorpay test credentials before changing to live keys.
+
+The checkout configuration endpoint returns the server's GST rate and shipping thresholds; the order API recalculates both and decrements product inventory in the same database transaction. `GST_RATE_PERCENT` defaults to zero because rates depend on product classification and applicable tax rules. Set rates only after confirming your tax treatment; this single-rate setting is not a substitute for item-level GST accounting.
 
 ## Refresh the Shop catalog
 
@@ -182,9 +186,10 @@ The production files are a self-hosted Docker template, not an automatic cloud
 deployment. Copy `backend\.env.production.example` to
 `backend\.env.production`, replace every placeholder, set the exact public
 frontend origin, and URL-encode special characters in the MySQL password inside
-`DATABASE_URL`. Generate separate random values for `SECRET_KEY` and
-`PAYMENT_WEBHOOK_SECRET`. Production startup rejects SQLite, short secrets,
-and wildcard CORS origins.
+`DATABASE_URL`. Generate a random `SECRET_KEY`, set production Razorpay
+credentials and a separate webhook secret, and verify your GST/shipping values.
+Production startup rejects SQLite, placeholder/weak Razorpay credentials,
+simulator payment mode, and wildcard CORS origins.
 
 From `medikart\backend`, start the production stack with:
 
@@ -194,12 +199,13 @@ docker compose --env-file .env.production -f docker-compose.production.yml up -d
 ```
 
 The API port is bound to localhost; put it behind a TLS-enabled reverse proxy
-and forward requests to `127.0.0.1:8000`. Configure payment-provider webhooks
-only after selecting and implementing that provider. Back up the MySQL volume
-and uploads volume independently and test restoring them. The current startup
-creates new tables and upgrades the legacy address columns, but it does not
-replace a versioned migration process for arbitrary schema changes. No cloud
-account, domain, or production secrets are included in this repository.
+and forward requests to `127.0.0.1:8000`. Configure the Razorpay webhook URL as
+`https://<your-api-domain>/api/payments/razorpay/webhook`. Startup applies the
+tracked, idempotent schema upgrades and creates missing tables; review any new
+schema changes and backups before applying them to an existing production
+database. Back up the MySQL volume and uploads volume independently and test
+restoring them. No cloud account, domain, provider keys, or production secrets
+are included, so a live deployment still requires those resources.
 
 ## Tests
 

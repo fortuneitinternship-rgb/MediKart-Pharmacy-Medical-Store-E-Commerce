@@ -8,12 +8,32 @@ import {
     createCheckoutOrder,
     validateCheckoutCoupon,
     processCheckoutPayment,
+    getCheckoutConfig,
+    createRazorpayOrder,
+    verifyRazorpayPayment,
 } from "../../api/checkoutApi";
 import { removeCartItem, updateCartItem, } from "../../api/cartApi";
 import { getApiErrorMessage } from "../../services/api";
 import { getProductImage, handleProductImageError, } from "../../utils/productImage";
 
 import "./Checkout.css";
+
+const loadRazorpay = () => {
+    if (window.Razorpay) {
+        return Promise.resolve();
+    }
+
+    return new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = "https://checkout.razorpay.com/v1/checkout.js";
+        script.async = true;
+        script.onload = () => resolve();
+        script.onerror = () => reject(
+            new Error("Unable to load the secure payment window.")
+        );
+        document.body.appendChild(script);
+    });
+};
 
 const Checkout = () => {
     const navigate = useNavigate();
@@ -85,6 +105,21 @@ const Checkout = () => {
     const [couponMessage, setCouponMessage] = useState("");
     const [couponError, setCouponError] = useState("");
     const [couponLoading, setCouponLoading] = useState(false);
+    const [taxRatePercent, setTaxRatePercent] = useState(0);
+    const [paymentConfig, setPaymentConfig] = useState({
+        mode: "simulator",
+        razorpay_enabled: false,
+    });
+    const [pricingReady, setPricingReady] = useState(false);
+    const [pricingError, setPricingError] = useState("");
+    const [deliveryConfig, setDeliveryConfig] = useState({
+        free_delivery_threshold: 499,
+        standard_delivery_charge: 10,
+        express_delivery_minimum: 299,
+        express_delivery_charge: 49,
+        same_day_delivery_minimum: 999,
+        same_day_delivery_charge: 99,
+    });
 
     // NEW:
     // Address mode = map or manual
@@ -98,6 +133,33 @@ const Checkout = () => {
     // Location loading
     const [locationLoading, setLocationLoading] = useState(false);
     const [selectedLocation, setSelectedLocation] = useState(null);
+
+    useEffect(() => {
+        let cancelled = false;
+        getCheckoutConfig()
+            .then((config) => {
+                if (!cancelled) {
+                    setTaxRatePercent(Number(config.tax_rate_percent) || 0);
+                    setPaymentConfig({
+                        mode: config.payment_mode || "simulator",
+                        razorpay_enabled: Boolean(config.razorpay_enabled),
+                    });
+                    setDeliveryConfig((current) => ({ ...current, ...config }));
+                    setPricingReady(true);
+                }
+            })
+            .catch((error) => {
+                console.error("Unable to load checkout pricing:", error);
+                if (!cancelled) {
+                    setPricingError(
+                        "Pricing could not be loaded. Please retry before placing the order."
+                    );
+                }
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     // ======================= LOAD CART =======================
 
@@ -233,6 +295,10 @@ const Checkout = () => {
         productTotal,
         discount + couponDiscount
     );
+    const taxableAmount = Math.max(0, productTotal - totalDiscount);
+    const taxAmount = Math.round(
+        taxableAmount * taxRatePercent
+    ) / 100;
 
     useEffect(() => {
         if (
@@ -250,7 +316,9 @@ const Checkout = () => {
     // ======================= DELIVERY CHARGES =======================
 
     const baseDelivery =
-        productTotal >= 499 ? 0 : 10;
+        productTotal >= deliveryConfig.free_delivery_threshold
+            ? 0
+            : deliveryConfig.standard_delivery_charge;
 
     const normalDeliveryCharge =
         baseDelivery;
@@ -258,10 +326,10 @@ const Checkout = () => {
     // ======================= DELIVERY ELIGIBILITY =======================
 
     const expressAvailable =
-        productTotal >= 299;
+        productTotal >= deliveryConfig.express_delivery_minimum;
 
     const todayAvailable =
-        productTotal >= 999;
+        productTotal >= deliveryConfig.same_day_delivery_minimum;
 
     // ======================= CURRENT DELIVERY CHARGE =======================
 
@@ -273,11 +341,11 @@ const Checkout = () => {
     }
 
     if (deliveryType === "express") {
-        deliveryCharge = 49;
+        deliveryCharge = deliveryConfig.express_delivery_charge;
     }
 
     if (deliveryType === "today") {
-        deliveryCharge = 99;
+        deliveryCharge = deliveryConfig.same_day_delivery_charge;
     }
 
     // ======================= PLATFORM FEE =======================
@@ -289,6 +357,7 @@ const Checkout = () => {
     const totalAmount =
         productTotal -
         totalDiscount +
+        taxAmount +
         deliveryCharge +
         platformFee;
 
@@ -710,10 +779,66 @@ const Checkout = () => {
         setPaymentRetrying(true);
         setPaymentError("");
         try {
-            const receipt = await processCheckoutPayment({
-                order_id: String(id),
-                method,
-            });
+            let receipt;
+            if (method === "COD") {
+                receipt = await processCheckoutPayment({
+                    order_id: String(id),
+                    method,
+                });
+            } else {
+                if (paymentConfig.mode === "simulator") {
+                    receipt = await processCheckoutPayment({
+                        order_id: String(id),
+                        method,
+                    });
+                } else {
+                    if (!paymentConfig.razorpay_enabled) {
+                        throw new Error(
+                            "Online payments are not configured. Choose Cash on Delivery or contact support."
+                        );
+                    }
+
+                    await loadRazorpay();
+                    const providerOrder = await createRazorpayOrder(id);
+                    receipt = await new Promise((resolve, reject) => {
+                        const checkout = new window.Razorpay({
+                            key: providerOrder.key_id,
+                            amount: providerOrder.amount,
+                            currency: providerOrder.currency,
+                            name: "MEDIKART",
+                            description: `Order ${providerOrder.order_id}`,
+                            order_id: providerOrder.razorpay_order_id,
+                            prefill: providerOrder.customer,
+                            theme: { color: "#0f766e" },
+                            handler: async (response) => {
+                                try {
+                                    resolve(await verifyRazorpayPayment({
+                                        razorpay_order_id: response.razorpay_order_id,
+                                        razorpay_payment_id: response.razorpay_payment_id,
+                                        razorpay_signature: response.razorpay_signature,
+                                    }));
+                                } catch (verificationError) {
+                                    reject(verificationError);
+                                }
+                            },
+                            modal: {
+                                ondismiss: () => reject(
+                                    new Error("Payment was cancelled. You can retry it from this page.")
+                                ),
+                            },
+                        });
+                        checkout.on("payment.failed", (event) => {
+                            reject(
+                                new Error(
+                                    event.error?.description ||
+                                    "The payment provider could not complete this payment."
+                                )
+                            );
+                        });
+                        checkout.open();
+                    });
+                }
+            }
             setPaymentReceipt(receipt);
         } catch (error) {
             setPaymentReceipt(null);
@@ -2503,14 +2628,14 @@ const Checkout = () => {
                                         for
                                         orders
                                         above
-                                        ₹299
+                                        ₹{deliveryConfig.express_delivery_minimum}
                                     </small>
                                 )}
 
                             </div>
 
                             <div className="delivery-price">
-                                ₹49
+                                ₹{deliveryConfig.express_delivery_charge}
                             </div>
 
                         </label>
@@ -2582,14 +2707,14 @@ const Checkout = () => {
                                         for
                                         orders
                                         above
-                                        ₹999
+                                        ₹{deliveryConfig.same_day_delivery_minimum}
                                     </small>
                                 )}
 
                             </div>
 
                             <div className="delivery-price">
-                                ₹99
+                                ₹{deliveryConfig.same_day_delivery_charge}
                             </div>
 
                         </label>
@@ -2829,8 +2954,10 @@ const Checkout = () => {
                     </div>
 
                     <p className="payment-demo-note">
-                        Card and net-banking payments use the development payment
-                        simulation. Do not enter real payment details.
+                        {paymentConfig.mode === "simulator"
+                            ? "Development mode simulates online payments; no real charge is made."
+                            : "Online payments open the configured secure payment provider."}{" "}
+                        Never enter card details directly on this page.
                     </p>
 
                     {/* DELIVERY ESTIMATE */}
@@ -2875,6 +3002,9 @@ const Checkout = () => {
                     {/* PAYMENT SUMMARY */}
 
                     <div className="payment-summary">
+                        {pricingError && (
+                            <p role="alert">{pricingError}</p>
+                        )}
 
                         <div>
 
@@ -2917,6 +3047,13 @@ const Checkout = () => {
                                 <strong className="green-text">
                                     - ₹{couponDiscount.toFixed(2)}
                                 </strong>
+                            </div>
+                        )}
+
+                        {taxAmount > 0 && (
+                            <div data-testid="tax-summary">
+                                <span>GST ({taxRatePercent}%)</span>
+                                <strong>₹{taxAmount.toFixed(2)}</strong>
                             </div>
                         )}
 
@@ -2966,7 +3103,7 @@ const Checkout = () => {
                         <button
                             className="place-order-btn"
                             data-testid="place-order"
-                            disabled={placingOrder}
+                            disabled={placingOrder || !pricingReady}
                             onClick={async () => {
                                 if (placingOrder) return;
 
@@ -3023,8 +3160,9 @@ const Checkout = () => {
                     </div>
 
                     <h1>
-                        Order Placed
-                        Successfully!
+                        {paymentMethod !== "COD" && !paymentReceipt?.status
+                            ? "Order Created — Payment Pending"
+                            : "Order Placed Successfully!"}
                     </h1>
 
                     <p>
@@ -3163,7 +3301,11 @@ const Checkout = () => {
                             {paymentReceipt
                                 ? paymentReceipt.status === "Pending"
                                     ? "Payment is due when your order is delivered."
-                                    : "Development simulation only; no real payment was collected."
+                                    : paymentReceipt.status === "Paid"
+                                        ? "Payment was confirmed by the payment provider."
+                                        : paymentReceipt.status === "Simulated"
+                                            ? "Development simulation only; no real payment was collected."
+                                            : "Payment was not completed."
                                 : paymentError || "Payment confirmation is pending."}
                         </p>
                         <div>

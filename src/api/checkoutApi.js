@@ -55,6 +55,11 @@ export async function createCheckoutOrder(orderData) {
   return response.data;
 }
 
+export async function getCheckoutConfig() {
+  const response = await checkoutApi.get("/config");
+  return response.data;
+}
+
 export async function validateCheckoutCoupon(code, orderAmount) {
   const response = await api.post("/api/coupons/validate", {
     code,
@@ -65,6 +70,23 @@ export async function validateCheckoutCoupon(code, orderAmount) {
 
 export async function processCheckoutPayment(paymentData) {
   const response = await api.post("/api/payments/process", paymentData);
+  return response.data;
+}
+
+export async function getPaymentConfig() {
+  const response = await api.get("/api/payments/config");
+  return response.data;
+}
+
+export async function createRazorpayOrder(orderId) {
+  const response = await api.post("/api/payments/razorpay/order", {
+    order_id: String(orderId),
+  });
+  return response.data;
+}
+
+export async function verifyRazorpayPayment(paymentData) {
+  const response = await api.post("/api/payments/razorpay/verify", paymentData);
   return response.data;
 }
 

@@ -10,10 +10,13 @@ import { MemoryRouter } from "react-router-dom";
 import Checkout from "./Checkout";
 import {
   createCheckoutOrder,
+  createRazorpayOrder,
+  getCheckoutConfig,
   getCheckoutCart,
   processCheckoutPayment,
   saveCheckoutAddress,
   validateCheckoutCoupon,
+  verifyRazorpayPayment,
 } from "../../api/checkoutApi";
 import {
   removeCartItem,
@@ -34,10 +37,13 @@ jest.mock("react-router-dom", () => {
 
 jest.mock("../../api/checkoutApi", () => ({
   createCheckoutOrder: jest.fn(),
+  createRazorpayOrder: jest.fn(),
+  getCheckoutConfig: jest.fn(),
   getCheckoutCart: jest.fn(),
   processCheckoutPayment: jest.fn(),
   saveCheckoutAddress: jest.fn(),
   validateCheckoutCoupon: jest.fn(),
+  verifyRazorpayPayment: jest.fn(),
 }));
 
 jest.mock("../../api/cartApi", () => ({
@@ -51,6 +57,17 @@ describe("Checkout Component", () => {
     localStorage.clear();
 
     getCheckoutCart.mockResolvedValue({ items: [] });
+    getCheckoutConfig.mockResolvedValue({
+      tax_rate_percent: 0,
+      payment_mode: "simulator",
+      razorpay_enabled: false,
+      free_delivery_threshold: 499,
+      standard_delivery_charge: 10,
+      express_delivery_minimum: 299,
+      express_delivery_charge: 49,
+      same_day_delivery_minimum: 999,
+      same_day_delivery_charge: 99,
+    });
     saveCheckoutAddress.mockResolvedValue({});
     createCheckoutOrder.mockResolvedValue({
       order: { order_id: "MK202501010001" },

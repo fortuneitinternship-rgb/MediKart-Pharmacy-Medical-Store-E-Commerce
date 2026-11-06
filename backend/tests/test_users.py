@@ -20,6 +20,7 @@ os.environ["SECRET_KEY"] = "test-profile-secret"
 from fastapi.testclient import TestClient
 
 from app.api.routers import login as login_router
+from app.api.routers import payments as payments_router
 from app.core.security import create_access_token
 from app.core.config import settings
 from app.database.database import (
@@ -29,6 +30,7 @@ from app.database.database import (
     create_database_engine,
     engine,
 )
+from app.database.migrations import upgrade_application_schema
 from app.main import app
 from app.models.address import Address
 from app.models.cart_item import CartItem
@@ -558,6 +560,117 @@ def test_coupon_validation_and_checkout_discount(client, users):
     assert exhausted.status_code == 422
 
 
+def test_checkout_calculates_configured_tax_and_reduces_stock(client, users, monkeypatch):
+    monkeypatch.setattr(settings, "GST_RATE_PERCENT", 5)
+    with SessionLocal() as db:
+        category = Category(name="Tax Checkout")
+        db.add(category)
+        db.flush()
+        product = Product(
+            name="Tax Checkout Product",
+            category=category,
+            price=200,
+            discount_price=200,
+            stock=3,
+        )
+        db.add(product)
+        db.commit()
+        product_id = product.id
+
+    response = client.post(
+        "/api/checkout/orders",
+        headers=auth(users["first_token"]),
+        json={
+            "items": [{"product_id": product_id, "quantity": 2}],
+            "shipping_address": {
+                "name": "First User",
+                "phone": "4155550100",
+                "address": "123 Test Street",
+                "city": "Oakland",
+                "state": "CA",
+                "pincode": "094601",
+            },
+            "payment_method": "COD",
+            "delivery_type": "normal",
+            "remove_from_cart": False,
+        },
+    )
+
+    assert response.status_code == 201
+    order = response.json()["order"]
+    assert order["tax_amount"] == 18
+    assert order["total_amount"] == 388
+    with SessionLocal() as db:
+        assert db.get(Product, product_id).stock == 1
+
+
+def test_checkout_rejects_quantity_above_stock(client, users):
+    with SessionLocal() as db:
+        category = Category(name="Stock Checkout")
+        db.add(category)
+        db.flush()
+        product = Product(
+            name="Limited Stock Product",
+            category=category,
+            price=100,
+            stock=1,
+        )
+        db.add(product)
+        db.commit()
+        product_id = product.id
+
+    response = client.post(
+        "/api/checkout/orders",
+        headers=auth(users["first_token"]),
+        json={
+            "items": [{"product_id": product_id, "quantity": 2}],
+            "shipping_address": {
+                "name": "First User",
+                "phone": "4155550100",
+                "address": "123 Test Street",
+                "city": "Oakland",
+                "state": "CA",
+                "pincode": "094601",
+            },
+            "payment_method": "COD",
+            "delivery_type": "normal",
+            "remove_from_cart": False,
+        },
+    )
+
+    assert response.status_code == 409
+    assert "Only 1 unit" in response.json()["detail"]
+
+
+def test_checkout_config_exposes_tax_and_shipping_rules(client):
+    response = client.get("/api/checkout/config")
+
+    assert response.status_code == 200
+    assert response.json()["tax_rate_percent"] == settings.GST_RATE_PERCENT
+    assert response.json()["payment_mode"] == settings.PAYMENT_MODE
+    assert response.json()["razorpay_enabled"] == bool(
+        settings.RAZORPAY_KEY_ID and settings.RAZORPAY_KEY_SECRET
+    )
+    assert response.json()["free_delivery_threshold"] == (
+        settings.FREE_DELIVERY_THRESHOLD
+    )
+    assert response.json()["express_delivery_charge"] == (
+        settings.EXPRESS_DELIVERY_CHARGE
+    )
+
+
+def test_database_schema_upgrade_is_recorded_and_idempotent(client):
+    upgrade_application_schema(engine)
+    with engine.connect() as connection:
+        versions = connection.execute(
+            text("SELECT version FROM medikart_schema_version")
+        ).scalars().all()
+        columns = {column["name"] for column in inspect(engine).get_columns("orders")}
+
+    assert "20261106_payment_tax_review_stock" in versions
+    assert "tax_amount" in columns
+
+
 def test_checkout_payment_receipt_is_owned_and_cod_is_not_marked_paid(client, users):
     with SessionLocal() as db:
         category = Category(name="Payment Checkout")
@@ -671,6 +784,150 @@ def test_card_payment_receipt_returns_simulated_transaction(client, users):
     assert receipt.json()["status"] == "Simulated"
     assert receipt.json()["transaction_id"].startswith("TXN-")
     assert receipt.json()["amount"] == 100
+
+
+def test_razorpay_order_uses_server_calculated_amount(client, users, monkeypatch):
+    monkeypatch.setattr(settings, "PAYMENT_MODE", "razorpay")
+    monkeypatch.setattr(settings, "RAZORPAY_KEY_ID", "rzp_test_key")
+    monkeypatch.setattr(settings, "RAZORPAY_KEY_SECRET", "test-razorpay-secret")
+    with SessionLocal() as db:
+        db.add(
+            Order(
+                order_id="MK-RAZORPAY-ORDER",
+                user_id=users["first_id"],
+                customer_name="First User",
+                phone="4155550100",
+                address="123 Test Street",
+                city="Oakland",
+                state="California",
+                pincode="94601",
+                payment_method="CARD",
+                delivery_type="normal",
+                delivery_distance="short",
+                total_amount=100,
+                status="Order Confirmed",
+            )
+        )
+        db.commit()
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"id": "order_provider_123"}
+
+    class FakeClient:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def post(self, url, *, auth, json):
+            assert url.endswith("/v1/orders")
+            assert auth == ("rzp_test_key", "test-razorpay-secret")
+            assert json["amount"] == 10000
+            return FakeResponse()
+
+    monkeypatch.setattr(
+        payments_router.httpx,
+        "Client",
+        lambda timeout: FakeClient(),
+    )
+    response = client.post(
+        "/api/payments/razorpay/order",
+        headers=auth(users["first_token"]),
+        json={"order_id": "MK-RAZORPAY-ORDER"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["razorpay_order_id"] == "order_provider_123"
+    assert response.json()["amount"] == 10000
+    with SessionLocal() as db:
+        payment = db.query(Payment).one()
+        assert payment.provider_order_id == "order_provider_123"
+        assert payment.status == "Pending"
+
+
+def test_razorpay_webhook_verifies_signature_and_is_idempotent(
+    client, users, monkeypatch
+):
+    secret = "razorpay-webhook-secret-for-tests"
+    monkeypatch.setattr(settings, "RAZORPAY_WEBHOOK_SECRET", secret)
+    with SessionLocal() as db:
+        order = Order(
+            order_id="MK-RAZORPAY-WEBHOOK",
+            user_id=users["first_id"],
+            customer_name="First User",
+            phone="4155550100",
+            address="123 Test Street",
+            city="Oakland",
+            state="California",
+            pincode="94601",
+            payment_method="CARD",
+            delivery_type="normal",
+            delivery_distance="short",
+            total_amount=100,
+            status="Order Confirmed",
+        )
+        db.add(order)
+        db.flush()
+        db.add(
+            Payment(
+                order_id=order.id,
+                provider_order_id="order_provider_webhook",
+                amount=100,
+                method="CARD",
+                status="Pending",
+            )
+        )
+        db.commit()
+
+    body = json.dumps(
+        {
+            "event": "payment.captured",
+            "payload": {
+                "payment": {
+                    "entity": {
+                        "id": "pay_provider_webhook",
+                        "order_id": "order_provider_webhook",
+                        "amount": 10000,
+                        "currency": "INR",
+                        "method": "card",
+                        "status": "captured",
+                    }
+                }
+            },
+        },
+        separators=(",", ":"),
+    ).encode()
+    signature = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+    headers = {
+        "X-Razorpay-Signature": signature,
+        "X-Razorpay-Event-Id": "evt_payment_captured_001",
+        "Content-Type": "application/json",
+    }
+
+    response = client.post(
+        "/api/payments/razorpay/webhook",
+        content=body,
+        headers=headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["duplicate"] is False
+    duplicate = client.post(
+        "/api/payments/razorpay/webhook",
+        content=body,
+        headers=headers,
+    )
+    assert duplicate.status_code == 200
+    assert duplicate.json()["duplicate"] is True
+    with SessionLocal() as db:
+        payment = db.query(Payment).one()
+        assert payment.status == "Paid"
+        assert payment.transaction_id == "pay_provider_webhook"
+        assert db.query(PaymentWebhookEvent).count() == 1
 
 
 def test_signed_payment_webhook_verifies_and_deduplicates_events(
@@ -1663,7 +1920,7 @@ def test_order_create_list_and_cancel_persist(client, users):
         assert stored.cancelled_at is not None
 
 
-def test_contact_and_review_submissions_persist(client):
+def test_contact_and_review_submissions_persist(client, users):
     message = client.post(
         "/api/contact/messages",
         json={
@@ -1674,22 +1931,59 @@ def test_contact_and_review_submissions_persist(client):
         },
     )
     assert message.status_code == 201
+    anonymous_review = client.post(
+        "/api/reviews",
+        json={
+            "product": "Test Medicine",
+            "rating": 5,
+            "review": "An anonymous review should not be accepted.",
+        },
+    )
+    assert anonymous_review.status_code == 401
+    anonymous_review = client.post(
+        "/api/reviews",
+        json={
+            "product": "Test Medicine",
+            "rating": 5,
+            "review": "An anonymous review should not be accepted.",
+        },
+    )
+    assert anonymous_review.status_code == 401
+
+    with SessionLocal() as db:
+        category = Category(name="Review Test")
+        db.add(category)
+        db.flush()
+        db.add(
+            Product(
+                name="Test Medicine",
+                category=category,
+                price=100,
+                stock=10,
+            )
+        )
+        db.commit()
 
     review = client.post(
         "/api/reviews",
+        headers=auth(users["first_token"]),
         json={
-            "name": "Test Customer",
             "product": "Test Medicine",
             "rating": 5,
             "review": "The product was delivered as expected.",
         },
     )
     assert review.status_code == 201
+    assert review.json()["name"] == "First User"
     assert client.get("/api/reviews").json()[0]["id"] == review.json()["id"]
 
     with SessionLocal() as db:
         assert db.query(ContactMessage).one().email == "customer@example.com"
         assert db.query(ProductReview).one().rating == 5
+        assert db.query(ProductReview).one().user_id == users["first_id"]
+        product = db.query(Product).filter_by(name="Test Medicine").one()
+        assert product.rating == 5
+        assert product.reviews == 1
 
 
 def test_health_records_and_prescriptions_are_user_owned(client, users):

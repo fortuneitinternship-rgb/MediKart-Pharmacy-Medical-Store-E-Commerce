@@ -74,6 +74,7 @@ class OrderResponse(BaseModel):
     delivery_charge: float
     product_amount: float
     discount: float
+    tax_amount: float = 0
     platform_fee: float
     total_amount: float
 

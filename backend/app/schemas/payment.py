@@ -1,9 +1,10 @@
 from pydantic import BaseModel
+from typing import Literal
 
 
 class PaymentCreate(BaseModel):
     order_id: str
-    method: str
+    method: Literal["COD", "CARD", "NETBANKING"]
 
 
 class PaymentResponse(BaseModel):

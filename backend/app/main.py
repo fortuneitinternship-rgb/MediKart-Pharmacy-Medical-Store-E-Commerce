@@ -1,15 +1,23 @@
 
 # backend/app/main.py
 
-from fastapi import FastAPI, HTTPException
+import logging
+
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import settings
 from app.database.database import Base, engine
-from app.database.migrations import upgrade_legacy_address_schema
+from app.database.migrations import (
+    upgrade_application_schema,
+    upgrade_legacy_address_schema,
+)
 
 # Register models before creating database tables.
 import app.database.base  # noqa: F401
@@ -53,6 +61,36 @@ app = FastAPI(
     ),
     version="1.0.0",
 )
+logger = logging.getLogger("medikart.api")
+
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_error_handler(
+    request: Request,
+    error: RequestValidationError,
+):
+    return JSONResponse(
+        status_code=422,
+        content={"detail": jsonable_encoder(error.errors())},
+    )
+
+
+@app.exception_handler(SQLAlchemyError)
+async def database_error_handler(request: Request, error: SQLAlchemyError):
+    logger.exception("Database request failed: %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "A database error prevented the request from completing."},
+    )
+
+
+@app.exception_handler(Exception)
+async def unexpected_error_handler(request: Request, error: Exception):
+    logger.exception("Unhandled API error: %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "An unexpected server error occurred."},
+    )
 
 
 # ============================================================
@@ -75,6 +113,7 @@ def initialize_database():
     upgrade_legacy_address_schema(engine)
     # Create missing tables registered with SQLAlchemy.
     Base.metadata.create_all(bind=engine)
+    upgrade_application_schema(engine)
     settings.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 

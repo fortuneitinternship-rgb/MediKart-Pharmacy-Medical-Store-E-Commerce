@@ -18,6 +18,17 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "change-this-secret-key-before-deploying"
     PAYMENT_WEBHOOK_SECRET: str = ""
     PAYMENT_WEBHOOK_TOLERANCE_SECONDS: int = Field(default=300, ge=1, le=3600)
+    PAYMENT_MODE: Literal["razorpay", "simulator"] = "simulator"
+    RAZORPAY_KEY_ID: str = ""
+    RAZORPAY_KEY_SECRET: str = ""
+    RAZORPAY_WEBHOOK_SECRET: str = ""
+    GST_RATE_PERCENT: float = Field(default=0, ge=0, le=100)
+    FREE_DELIVERY_THRESHOLD: float = Field(default=499, ge=0)
+    STANDARD_DELIVERY_CHARGE: float = Field(default=10, ge=0)
+    EXPRESS_DELIVERY_MINIMUM: float = Field(default=299, ge=0)
+    EXPRESS_DELIVERY_CHARGE: float = Field(default=49, ge=0)
+    SAME_DAY_DELIVERY_MINIMUM: float = Field(default=999, ge=0)
+    SAME_DAY_DELIVERY_CHARGE: float = Field(default=99, ge=0)
 
     ALGORITHM: str = "HS256"
 
@@ -58,10 +69,20 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "Production requires a SECRET_KEY with at least 32 characters."
                 )
-            if len(self.PAYMENT_WEBHOOK_SECRET) < 32:
-                raise ValueError(
-                    "Production requires a PAYMENT_WEBHOOK_SECRET with at least 32 characters."
-                )
+            if self.PAYMENT_MODE != "razorpay":
+                raise ValueError("Production requires PAYMENT_MODE=razorpay.")
+            if (
+                not self.RAZORPAY_KEY_ID
+                or "replace" in self.RAZORPAY_KEY_ID.lower()
+                or len(self.RAZORPAY_KEY_SECRET) < 16
+                or "replace" in self.RAZORPAY_KEY_SECRET.lower()
+            ):
+                raise ValueError("Production requires Razorpay API credentials.")
+            if (
+                len(self.RAZORPAY_WEBHOOK_SECRET) < 16
+                or "replace" in self.RAZORPAY_WEBHOOK_SECRET.lower()
+            ):
+                raise ValueError("Production requires a Razorpay webhook secret.")
             if self.DATABASE_URL.startswith("sqlite"):
                 raise ValueError("Production requires a persistent MySQL or PostgreSQL DATABASE_URL.")
             if not self.FRONTEND_ORIGINS.strip() or "*" in self.FRONTEND_ORIGINS:

@@ -22,6 +22,7 @@ import {
 jest.mock("../../api/loginApi", () => ({
     loginUser: jest.fn(),
     getCurrentUser: jest.fn(),
+    logoutUser: jest.fn(),
 }));
 
 
