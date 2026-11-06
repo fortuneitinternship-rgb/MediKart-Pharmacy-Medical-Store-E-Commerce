@@ -1,0 +1,67 @@
+from sqlalchemy import (
+    Boolean,
+    Column,
+    Integer,
+    String,
+    Float,
+    Text,
+    DateTime,
+    ForeignKey,
+)
+from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
+
+from app.database.database import Base
+
+
+class Order(Base):
+    __tablename__ = "orders"
+
+    id = Column(Integer, primary_key=True, index=True)
+    order_id = Column(String(50), unique=True, nullable=False, index=True)
+
+    # Link each order to a user; guest orders can have no user.
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    customer_name = Column(String(100), nullable=False)
+    phone = Column(String(15), nullable=False)
+    address = Column(Text, nullable=False)
+    city = Column(String(100), nullable=False)
+    state = Column(String(100), nullable=False)
+    pincode = Column(String(10), nullable=False)
+
+    payment_method = Column(String(30), nullable=False)
+    delivery_type = Column(String(30), nullable=False)
+    delivery_distance = Column(String(30), nullable=False)
+    delivery_time = Column(String(50), nullable=True)
+
+    delivery_charge = Column(Float, default=0)
+    product_amount = Column(Float, default=0)
+    discount = Column(Float, default=0)
+    tax_amount = Column(Float, default=0, server_default="0", nullable=False)
+    platform_fee = Column(Float, default=0)
+    total_amount = Column(Float, default=0)
+
+    status = Column(String(50), default="Order Confirmed")
+    stock_reserved = Column(
+        Boolean,
+        default=False,
+        server_default="false",
+        nullable=False,
+    )
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # User relationship
+    user = relationship("User", back_populates="orders")
+
+    # Payment relationship
+    payment = relationship(
+        "Payment",
+        back_populates="order",
+        uselist=False,
+    )

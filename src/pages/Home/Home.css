@@ -1,0 +1,13 @@
+.home {
+  padding-top: 80px; /* Same as navbar height */
+}
+@media (max-width: 768px) {
+  body {
+    padding-top: 0px;
+    padding-right: 0px;
+  }
+
+  .navbar {
+    height: 70px;
+  }
+}

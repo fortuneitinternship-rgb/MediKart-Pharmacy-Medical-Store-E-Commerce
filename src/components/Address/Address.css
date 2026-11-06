@@ -1,0 +1,360 @@
+* {
+  box-sizing: border-box;
+}
+
+.addresses-page {
+  width: 100%;
+  max-width: 600px;
+  min-height: 100vh;
+
+  margin: 0 auto;
+
+  background: #fff;
+
+  padding-bottom: 30px;
+
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+
+/* =========================================
+   HEADER
+========================================= */
+
+.address-header {
+  height: 60px;
+
+  display: flex;
+  align-items: center;
+
+  gap: 15px;
+
+  padding: 0 16px;
+
+  border-bottom: 1px solid #eee;
+
+  background: #fff;
+}
+
+.address-header h2 {
+  margin: 0;
+
+  font-size: 18px;
+
+  font-weight: 600;
+}
+
+.back-button {
+  width: 35px;
+  height: 35px;
+
+  border: none;
+
+  background: transparent;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 16px;
+
+  cursor: pointer;
+}
+
+
+/* =========================================
+   SEARCH
+========================================= */
+
+.address-search {
+  margin: 15px;
+
+  height: 48px;
+
+  display: flex;
+  align-items: center;
+
+  border: 1px solid #ddd;
+
+  border-radius: 6px;
+
+  overflow: hidden;
+
+  background: #fff;
+}
+
+.search-icon {
+  margin-left: 13px;
+
+  color: #888;
+
+  font-size: 15px;
+}
+
+.address-search input {
+  flex: 1;
+
+  height: 100%;
+
+  border: none;
+
+  outline: none;
+
+  padding: 0 10px;
+
+  font-size: 13px;
+
+  color: #333;
+}
+
+.address-search input::placeholder {
+  color: #999;
+}
+
+.address-search button {
+  height: 100%;
+
+  padding: 0 15px;
+
+  border: none;
+
+  background: #0a8f5b;
+
+  color: white;
+
+  font-size: 12px;
+
+  cursor: pointer;
+}
+
+.address-search button:disabled {
+  opacity: 0.6;
+}
+
+
+/* =========================================
+   CURRENT LOCATION
+========================================= */
+
+.current-location-btn {
+  margin: 0 15px 15px;
+
+  width: calc(100% - 30px);
+
+  height: 45px;
+
+  border: 1px solid #0a8f5b;
+
+  border-radius: 5px;
+
+  background: #fff;
+
+  color: #0a8f5b;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  gap: 9px;
+
+  font-size: 13px;
+
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+.current-location-btn:hover {
+  background: #f1faf6;
+}
+
+
+/* =========================================
+   MAP
+========================================= */
+
+.map-wrapper {
+  width: 100%;
+
+  height: 400px;
+
+  overflow: hidden;
+
+  border-top: 1px solid #eee;
+
+  border-bottom: 1px solid #eee;
+}
+
+.map {
+  width: 100%;
+  height: 100%;
+}
+
+
+/* =========================================
+   SELECTED LOCATION
+========================================= */
+
+.selected-location {
+  margin: 16px;
+
+  padding: 15px;
+
+  border: 1px solid #eee;
+
+  border-radius: 7px;
+
+  background: #fff;
+}
+
+.location-title {
+  display: flex;
+
+  align-items: center;
+
+  gap: 8px;
+
+  font-size: 14px;
+
+  font-weight: 600;
+
+  color: #222;
+}
+
+.location-title svg {
+  color: #0a8f5b;
+}
+
+.selected-location p {
+  margin: 10px 0 0;
+
+  color: #666;
+
+  font-size: 12px;
+
+  line-height: 1.6;
+}
+
+
+/* =========================================
+   SAVE BUTTON
+========================================= */
+
+.save-address-btn {
+  width: calc(100% - 30px);
+
+  height: 48px;
+
+  margin: 0 15px;
+
+  border: none;
+
+  border-radius: 5px;
+
+  background: #0a8f5b;
+
+  color: #fff;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  gap: 8px;
+
+  font-size: 14px;
+
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+.save-address-btn:hover {
+  background: #08784d;
+}
+
+
+/* =========================================
+   SAVED ADDRESS
+========================================= */
+
+.saved-address-card {
+  margin: 20px 15px 0;
+
+  padding: 15px;
+
+  border-radius: 7px;
+
+  background: #f4faf7;
+
+  border: 1px solid #d7eee3;
+}
+
+.saved-title {
+  display: flex;
+
+  align-items: center;
+
+  gap: 8px;
+
+  color: #0a8f5b;
+
+  font-size: 14px;
+
+  font-weight: 600;
+}
+
+.saved-address-card p {
+  margin: 10px 0;
+
+  color: #444;
+
+  font-size: 12px;
+
+  line-height: 1.5;
+}
+
+.saved-address-card small {
+  color: #888;
+
+  font-size: 9px;
+}
+
+
+/* =========================================
+   DESKTOP
+========================================= */
+
+@media (min-width: 768px) {
+
+  .addresses-page {
+    max-width: 1000px;
+
+    padding-bottom: 50px;
+  }
+
+  .map-wrapper {
+    height: 500px;
+  }
+
+  .address-header {
+    padding: 0 25px;
+  }
+
+  .address-search,
+  .current-location-btn,
+  .selected-location,
+  .save-address-btn,
+  .saved-address-card {
+    margin-left: 25px;
+    margin-right: 25px;
+  }
+
+  .current-location-btn,
+  .save-address-btn {
+    width: calc(100% - 50px);
+  }
+}

@@ -1,0 +1,88 @@
+.search-container {
+  position: relative;
+  width: 100%;
+  max-width: 600px;
+  margin: auto;
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  padding: 10px 15px;
+  background: #fff;
+}
+
+.search-box input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 16px;
+  margin-left: 10px;
+}
+
+.search-icon {
+  color: gray;
+}
+
+.clear-btn {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: red;
+  font-size: 16px;
+}
+
+/* History Dropdown */
+
+.history-dropdown {
+  position: absolute;
+  top: 105%;
+  left: 0;
+  width: 100%;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 5px 15px rgba(0,0,0,.1);
+  z-index: 999;
+  overflow: hidden;
+}
+
+.history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: #f8f8f8;
+  font-weight: 600;
+}
+
+.history-header button {
+  border: none;
+  background: transparent;
+  color: red;
+  cursor: pointer;
+}
+
+.history-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 15px;
+  cursor: pointer;
+}
+
+.history-item:hover {
+  background: #f3f3f3;
+}
+
+.history-icon {
+  color: gray;
+}
+
+@media (max-width:768px) {
+  .search-container {
+    width: 95%;
+  }
+}

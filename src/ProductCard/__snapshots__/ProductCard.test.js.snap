@@ -1,0 +1,93 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`ProductCard Component matches snapshot 1`] = `
+<div>
+  <div
+    class="product-card"
+  >
+    <div
+      class="image-box"
+    >
+      <img
+        alt="Test Product"
+        src="test-image.jpg"
+      />
+    </div>
+    <div
+      class="product-info"
+    >
+      <h3>
+        Test Product
+      </h3>
+      <p
+        class="brand"
+      >
+        Test Brand
+      </p>
+      <p
+        class="category"
+      >
+        Test Category
+      </p>
+      <div
+        class="rating"
+      >
+        <span
+          data-testid="star-icon"
+        >
+          ⭐
+        </span>
+        <span>
+          4.5
+        </span>
+      </div>
+      <h2
+        class="price"
+      >
+        ₹
+        999
+      </h2>
+      <p
+        class="stock in"
+      >
+        ✔ In Stock
+      </p>
+    </div>
+    <div
+      class="buttons"
+    >
+      <button
+        class="cart-btn"
+      >
+        <span
+          data-testid="cart-icon"
+        >
+          🛒
+        </span>
+        Add to Cart
+      </button>
+      <button
+        class="wish-btn"
+      >
+        <span
+          data-testid="heart-icon"
+        >
+          ❤️
+        </span>
+        Wishlist
+      </button>
+      <a
+        class="details-btn"
+        href="/product/1"
+      >
+        <span
+          data-testid="eye-icon"
+        >
+          👁️
+        </span>
+        View Details
+      </a>
+    </div>
+  </div>
+</div>
+`;
