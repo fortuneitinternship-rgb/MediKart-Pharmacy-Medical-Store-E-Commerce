@@ -81,7 +81,7 @@ Frontend paths below are relative to `medikart\src`.
 
 The shared `services/api.js` client uses `REACT_APP_API_URL` (default `http://127.0.0.1:8000`) and attaches the signed-in user's bearer token. Cart and wishlist imports use persistent migration IDs so retries do not duplicate items. Product image uploads are stored under `UPLOAD_DIR` (default `backend\uploads`) and served from `/uploads`. Checkout validates coupons on the server and records their usage with the order.
 
-`/api/payments/process` is still a local simulator and never represents a real charge. A payment provider (for example, Razorpay or Stripe) and its test credentials must be selected/configured before real gateway checkout or provider-specific webhook verification can be implemented. Never store full card numbers or CVV values in this application.
+`/api/payments/process` remains a local simulator and never represents a real charge. `POST /api/payments/webhook` supports locally signed test events: set `PAYMENT_WEBHOOK_SECRET` to a random secret and sign the exact request bytes as `HMAC-SHA256(secret, "<unix-timestamp>.<raw-json-body>")`. Send the timestamp and hexadecimal digest in `X-Payment-Timestamp` and `X-Payment-Signature`. Timestamps outside `PAYMENT_WEBHOOK_TOLERANCE_SECONDS` (default 300) are rejected; event IDs are persisted for idempotent retries, and the order amount and method are verified before marking a payment. This is not a real gateway integration. Choose and configure a payment provider before accepting real payments. Never store full card numbers or CVV values in this application.
 
 ## Refresh the Shop catalog
 
@@ -156,7 +156,7 @@ py -3.12 -m venv environment
 .\environment\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
-python -m pytest -q tests\test_users.py
+python -m pytest -q
 ```
 
 `py -3.12` requires the Python 3.12 Windows runtime to be installed and registered with the Python Launcher. The bcrypt/passlib compatibility warning is addressed by pinning `bcrypt==4.0.1`.
@@ -173,14 +173,40 @@ docker compose up --build
 
 The API is available at http://127.0.0.1:8000 and the OpenAPI UI at
 http://127.0.0.1:8000/docs. MySQL data persists in the
-`medikart_mysql_data` Docker volume. This Compose file is for local deployment;
-production still requires hardened secrets, HTTPS, backups, monitoring, and a
-chosen hosting provider. Payment processing remains a local simulator and
-does not charge cards or bank accounts.
+`medikart_mysql_data` volume, and uploaded product images persist in the
+`medikart_uploads` volume across container recreation.
+
+## Production configuration template
+
+The production files are a self-hosted Docker template, not an automatic cloud
+deployment. Copy `backend\.env.production.example` to
+`backend\.env.production`, replace every placeholder, set the exact public
+frontend origin, and URL-encode special characters in the MySQL password inside
+`DATABASE_URL`. Generate separate random values for `SECRET_KEY` and
+`PAYMENT_WEBHOOK_SECRET`. Production startup rejects SQLite, short secrets,
+and wildcard CORS origins.
+
+From `medikart\backend`, start the production stack with:
+
+```powershell
+Copy-Item .env.production.example .env.production
+docker compose --env-file .env.production -f docker-compose.production.yml up -d --build
+```
+
+The API port is bound to localhost; put it behind a TLS-enabled reverse proxy
+and forward requests to `127.0.0.1:8000`. Configure payment-provider webhooks
+only after selecting and implementing that provider. Back up the MySQL volume
+and uploads volume independently and test restoring them. The current startup
+creates new tables and upgrades the legacy address columns, but it does not
+replace a versioned migration process for arbitrary schema changes. No cloud
+account, domain, or production secrets are included in this repository.
 
 ## Tests
 
 ```powershell
 cd .\medikart\backend
-.\venv\Scripts\python.exe -m pytest -q tests\test_users.py
+.\venv\Scripts\python.exe -m pytest -q
 ```
+
+The backend tests also run on pushes and pull requests with the GitHub Actions
+workflow at `.github\workflows\backend-tests.yml`.

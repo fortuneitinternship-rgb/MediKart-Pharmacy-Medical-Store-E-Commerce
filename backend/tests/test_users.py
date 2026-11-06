@@ -1,5 +1,9 @@
+import hashlib
+import hmac
+import json
 import os
 import tempfile
+import time
 from datetime import date, datetime
 from pathlib import Path
 
@@ -33,6 +37,8 @@ from app.models.coupon import Coupon
 from app.models.opt import EmailOTP
 from app.models.order import Order
 from app.models.order_item import OrderItem
+from app.models.payment import Payment
+from app.models.payment_webhook_event import PaymentWebhookEvent
 from app.models.product import Product
 from app.models.return_request import ReturnRequest
 from app.models.submission import (
@@ -276,6 +282,18 @@ def test_cors_allows_create_react_fallback_port(client):
 
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "http://localhost:3001"
+
+
+def test_health_endpoint_checks_api_and_database(client):
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.json()["status"] == "healthy"
+    assert "database" in response.json()["message"].lower()
+
+
+def test_blog_and_career_routers_are_registered_in_application(client):
+    assert client.get("/api/blog").status_code == 200
+    assert client.get("/api/careers/jobs").status_code == 200
 
 
 def test_cart_add_list_update_remove_and_clear_persist(client, users):
@@ -653,6 +671,142 @@ def test_card_payment_receipt_returns_simulated_transaction(client, users):
     assert receipt.json()["status"] == "Simulated"
     assert receipt.json()["transaction_id"].startswith("TXN-")
     assert receipt.json()["amount"] == 100
+
+
+def test_signed_payment_webhook_verifies_and_deduplicates_events(
+    client, users, monkeypatch
+):
+    secret = "local-webhook-test-secret-with-32-chars"
+    monkeypatch.setattr(settings, "PAYMENT_WEBHOOK_SECRET", secret)
+    with SessionLocal() as db:
+        db.add(
+            Order(
+                order_id="MK-WEBHOOK-001",
+                user_id=users["first_id"],
+                customer_name="First User",
+                phone="4155550100",
+                address="123 Test Street",
+                city="Oakland",
+                state="California",
+                pincode="94601",
+                payment_method="CARD",
+                delivery_type="normal",
+                delivery_distance="short",
+                total_amount=100,
+                status="Order Confirmed",
+            )
+        )
+        db.commit()
+
+    payload = {
+        "event_id": "event-webhook-001",
+        "order_id": "MK-WEBHOOK-001",
+        "transaction_id": "gateway-txn-001",
+        "amount": "100.00",
+        "method": "CARD",
+        "status": "succeeded",
+    }
+    body = json.dumps(payload, separators=(",", ":")).encode()
+    timestamp = str(int(time.time()))
+    signature = hmac.new(
+        secret.encode(),
+        timestamp.encode() + b"." + body,
+        hashlib.sha256,
+    ).hexdigest()
+    headers = {
+        "Content-Type": "application/json",
+        "X-Payment-Timestamp": timestamp,
+        "X-Payment-Signature": signature,
+    }
+
+    confirmed = client.post(
+        "/api/payments/webhook",
+        content=body,
+        headers=headers,
+    )
+    assert confirmed.status_code == 200, confirmed.json()
+    assert confirmed.json()["status"] == "Paid"
+    assert confirmed.json()["duplicate"] is False
+
+    duplicate = client.post(
+        "/api/payments/webhook",
+        content=body,
+        headers=headers,
+    )
+    assert duplicate.status_code == 200
+    assert duplicate.json()["duplicate"] is True
+
+    with SessionLocal() as db:
+        payment = (
+            db.query(Payment)
+            .join(Order)
+            .filter(Order.order_id == "MK-WEBHOOK-001")
+            .one()
+        )
+        assert payment.transaction_id == "gateway-txn-001"
+        assert payment.status == "Paid"
+        assert db.get(PaymentWebhookEvent, "event-webhook-001") is not None
+
+
+def test_payment_webhook_rejects_bad_signatures_and_amounts(
+    client, users, monkeypatch
+):
+    secret = "local-webhook-test-secret-with-32-chars"
+    monkeypatch.setattr(settings, "PAYMENT_WEBHOOK_SECRET", secret)
+    with SessionLocal() as db:
+        db.add(
+            Order(
+                order_id="MK-WEBHOOK-002",
+                user_id=users["first_id"],
+                customer_name="First User",
+                phone="4155550100",
+                address="123 Test Street",
+                city="Oakland",
+                state="California",
+                pincode="94601",
+                payment_method="CARD",
+                delivery_type="normal",
+                delivery_distance="short",
+                total_amount=100,
+                status="Order Confirmed",
+            )
+        )
+        db.commit()
+
+    payload = {
+        "event_id": "event-webhook-002",
+        "order_id": "MK-WEBHOOK-002",
+        "transaction_id": "gateway-txn-002",
+        "amount": "99.00",
+        "method": "CARD",
+        "status": "succeeded",
+    }
+    body = json.dumps(payload, separators=(",", ":")).encode()
+    timestamp = str(int(time.time()))
+    signature = hmac.new(
+        secret.encode(),
+        timestamp.encode() + b"." + body,
+        hashlib.sha256,
+    ).hexdigest()
+    headers = {
+        "Content-Type": "application/json",
+        "X-Payment-Timestamp": timestamp,
+        "X-Payment-Signature": "invalid",
+    }
+    rejected_signature = client.post(
+        "/api/payments/webhook",
+        content=body,
+        headers=headers,
+    )
+    assert rejected_signature.status_code == 401
+
+    headers["X-Payment-Signature"] = signature
+    rejected_amount = client.post(
+        "/api/payments/webhook",
+        content=body,
+        headers=headers,
+    )
+    assert rejected_amount.status_code == 409
 
 
 def test_admin_can_create_update_list_and_deactivate_coupons(client, users):
@@ -1199,6 +1353,47 @@ def test_catalog_seed_is_repeatable_and_shop_api_returns_product_details(
     assert product["pack_size"] == "10 tablets"
     assert product["discount_price"] == 99
     assert product["reviews"] == 12
+
+
+def test_new_arrivals_returns_most_recent_active_products(client, users):
+    with SessionLocal() as db:
+        category = Category(name="New Arrivals Test")
+        db.add(category)
+        db.flush()
+        db.add_all(
+            [
+                Product(
+                    name="Older Product",
+                    category=category,
+                    price=10,
+                    stock=10,
+                    is_active=True,
+                    created_at=datetime(2026, 1, 1),
+                ),
+                Product(
+                    name="Newest Product",
+                    category=category,
+                    price=20,
+                    stock=10,
+                    is_active=True,
+                    created_at=datetime(2026, 1, 2),
+                ),
+                Product(
+                    name="Inactive Product",
+                    category=category,
+                    price=30,
+                    stock=10,
+                    is_active=False,
+                    created_at=datetime(2026, 1, 3),
+                ),
+            ]
+        )
+        db.commit()
+
+    response = client.get("/api/products/new-arrivals?limit=1")
+    assert response.status_code == 200
+    assert [item["name"] for item in response.json()] == ["Newest Product"]
+    assert client.get("/api/products/new-arrivals?limit=0").status_code == 422
 
 
 @pytest.mark.parametrize(

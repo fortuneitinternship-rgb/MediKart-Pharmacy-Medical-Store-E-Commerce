@@ -446,7 +446,8 @@ def get_new_arrivals(
             Product.is_active == True
         )
         .order_by(
-            Product.created_at.desc()
+            Product.created_at.desc(),
+            Product.id.desc(),
         )
         .limit(limit)
         .all()

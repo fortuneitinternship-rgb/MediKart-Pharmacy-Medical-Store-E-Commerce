@@ -1,9 +1,11 @@
 
 # backend/app/main.py
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import settings
 from app.database.database import Base, engine
@@ -17,6 +19,8 @@ from app.api.routers import (
     admin,
     addresses,
     auth,
+    blog,
+    careers,
     cart,
     compare,
     coupons,
@@ -81,6 +85,8 @@ def initialize_database():
 app.include_router(auth.router)
 app.include_router(otp_router)
 app.include_router(addresses.router)
+app.include_router(blog.router)
+app.include_router(careers.router)
 app.include_router(newsletter.router)
 app.include_router(cart.router)
 app.include_router(compare.router)
@@ -124,9 +130,18 @@ def root():
 
 @app.get("/health", tags=["Health"])
 def health():
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+    except SQLAlchemyError as error:
+        raise HTTPException(
+            status_code=503,
+            detail="Database is unavailable",
+        ) from error
+
     return {
         "status": "healthy",
-        "message": "MEDIKART API is working correctly",
+        "message": "MEDIKART API and database are working correctly",
     }
 
 
