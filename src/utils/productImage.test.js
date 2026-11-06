@@ -1,5 +1,6 @@
 import {
   fallbackProductImage,
+  getUniqueProductsByImage,
   getProductImage,
   handleProductImageError,
 } from "./productImage";
@@ -113,7 +114,57 @@ describe("getProductImage", () => {
   test("preserves remote image URLs", () => {
     const imageUrl = "https://cdn.example.com/product.png";
 
-    expect(getProductImage(imageUrl, "Crocin Advance")).toBe(imageUrl);
+    expect(getProductImage(imageUrl, "Unknown Product")).toBe(imageUrl);
+  });
+
+  test.each([
+    ["Paracetamol 650 mg", "Medicines", "Dolo 650 Tablet"],
+    ["Vitamin C 500 mg Tablets", "Vitamins", "Limcee Vitamin C"],
+    ["Multivitamin Daily Tablets", "Vitamins", "Supradyn Daily"],
+    ["Omega-3 Fish Oil", "Vitamins", "Omega-3 Fish Oil"],
+  ])(
+    "uses the right catalog image for %s instead of the stale database image",
+    (name, category, catalogName) => {
+      const expectedImage = products.find(
+        (product) => product.name === catalogName
+      ).image;
+
+      expect(
+        getProductImage(
+          "/uploads/products/reused-paracetamol-image.png",
+          name,
+          category
+        )
+      ).toBe(expectedImage);
+    }
+  );
+
+  test("removes repeated product names and images from a product grid", () => {
+    const gridProducts = getUniqueProductsByImage([
+      {
+        id: 1,
+        name: "Paracetamol 650 mg",
+        category: "Medicines",
+        image: "/uploads/reused.png",
+      },
+      {
+        id: 2,
+        name: "Vitamin C 500 mg Tablets",
+        category: "Vitamins",
+        image: "/uploads/reused.png",
+      },
+      {
+        id: 3,
+        name: "Dolo 650 Tablet",
+        category: "Medicines",
+        image: "/uploads/wrong.png",
+      },
+    ]);
+
+    expect(gridProducts.map((product) => product.name)).toEqual([
+      "Paracetamol 650 mg",
+      "Vitamin C 500 mg Tablets",
+    ]);
   });
 
   test("resolves backend media paths against the API origin", () => {

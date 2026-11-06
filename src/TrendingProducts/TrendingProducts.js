@@ -1,28 +1,23 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "react-toastify";
 import "./TrendingProducts.css";
 
 import { addProductToCart } from "../api/cartApi";
-import { getTrendingProducts } from "../api/productApi";
+import products from "../data/products";
 import {
+  getUniqueProductsByImage,
   getProductImage,
   handleProductImageError,
 } from "../utils/productImage";
 
+const TRENDING_PRODUCT_IDS = new Set([253, 354, 16, 120]);
+const trendingCatalogProducts = getUniqueProductsByImage(
+  products.filter((product) => TRENDING_PRODUCT_IDS.has(product.id))
+);
+
 function TrendingProducts() {
   const [addedItems, setAddedItems] = useState({});
-  const [trendingProducts, setTrendingProducts] = useState([]);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    getTrendingProducts()
-      .then(setTrendingProducts)
-      .catch((loadError) => {
-        console.error("Unable to load trending products:", loadError);
-        setError("Trending products could not be loaded.");
-      });
-  }, []);
 
   const handleAddToCart = async (product) => {
     try {
@@ -64,10 +59,8 @@ function TrendingProducts() {
           </p>
         </div>
 
-        {error && <p role="alert">{error}</p>}
-
         <div className="trending-grid">
-          {trendingProducts.map((product) => (
+          {trendingCatalogProducts.map((product) => (
             <div className="product-card" key={product.id}>
               <img
                 src={getProductImage(

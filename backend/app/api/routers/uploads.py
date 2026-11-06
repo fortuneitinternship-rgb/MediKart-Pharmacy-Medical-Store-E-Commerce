@@ -1,3 +1,4 @@
+import hashlib
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
@@ -68,6 +69,15 @@ async def upload_product_image(
 
     product_directory = settings.UPLOAD_DIR / "products"
     product_directory.mkdir(parents=True, exist_ok=True)
+    image_digest = hashlib.sha256(content).digest()
+    for existing_file in product_directory.iterdir():
+        if existing_file.is_file():
+            if hashlib.sha256(existing_file.read_bytes()).digest() == image_digest:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="This image has already been uploaded to the product catalog.",
+                )
+
     image_count = (
         db.query(func.count(ProductImage.id))
         .filter(ProductImage.product_id == product_id)

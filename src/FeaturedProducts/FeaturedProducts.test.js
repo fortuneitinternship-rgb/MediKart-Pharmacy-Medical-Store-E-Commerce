@@ -41,6 +41,7 @@ jest.mock("react-toastify", () => ({
 
 // Mock image utilities
 jest.mock("../utils/productImage", () => ({
+    getUniqueProductsByImage: jest.fn((items) => items),
     getProductImage: jest.fn(),
     handleProductImageError: jest.fn(),
 }));

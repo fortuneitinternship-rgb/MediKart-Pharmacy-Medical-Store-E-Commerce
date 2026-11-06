@@ -1282,6 +1282,13 @@ def test_admin_product_image_upload_validates_and_persists_file(
     with SessionLocal() as db:
         assert db.get(Product, product_id).image == image_url
 
+    duplicate_image = client.post(
+        f"/api/uploads/products/{product_id}",
+        headers=auth(create_access_token({"sub": str(users["second_id"])})),
+        files={"file": ("same-product.png", image_bytes, "image/png")},
+    )
+    assert duplicate_image.status_code == 409
+
     rejected = client.post(
         f"/api/uploads/products/{product_id}",
         headers=auth(create_access_token({"sub": str(users["second_id"])})),
@@ -1828,6 +1835,7 @@ def test_admin_product_create_update_and_delete(client, users):
         "price": 14.5,
         "stock": 8,
         "rating": 4.5,
+        "image": "/catalog/test-product.png",
     }
 
     assert client.post("/api/products", json=product_data).status_code == 401
@@ -1835,6 +1843,32 @@ def test_admin_product_create_update_and_delete(client, users):
     assert created.status_code == 201
     assert created.json()["category"] == "Test Category"
     product_id = created.json()["id"]
+
+    duplicate_name = client.post(
+        "/api/products",
+        headers=headers,
+        json={**product_data, "name": "  database   product ", "category": "Another"},
+    )
+    assert duplicate_name.status_code == 409
+    assert "already exists" in duplicate_name.json()["detail"]
+
+    duplicate_image = client.post(
+        "/api/products",
+        headers=headers,
+        json={
+            **product_data,
+            "name": "Different Product",
+            "image": created.json()["image"],
+        },
+    )
+    assert duplicate_image.status_code == 409
+
+    duplicate_update = client.put(
+        f"/api/products/{product_id}",
+        headers=headers,
+        json={"name": "Different Product"},
+    )
+    assert duplicate_update.status_code == 409
 
     listed = client.get("/api/products")
     assert listed.status_code == 200

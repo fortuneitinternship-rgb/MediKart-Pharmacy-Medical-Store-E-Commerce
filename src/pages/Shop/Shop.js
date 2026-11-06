@@ -6,6 +6,7 @@ import { toast } from "react-toastify";
 import ProductCard from "../../components/ProductCard/ProductCard";
 import FilterPanel from "../../components/FilterPanel/FilterPanel";
 import { getProducts } from "../../api/productApi";
+import { getUniqueProductsByImage } from "../../utils/productImage";
 import "./Shop.css";
 
 /* ============================================================
@@ -112,7 +113,7 @@ const Shop = () => {
     setLoading(true);
     setLoadError("");
     getProducts()
-      .then(setProducts)
+      .then((items) => setProducts(getUniqueProductsByImage(items)))
       .catch((error) => {
         console.error("Unable to load products:", error);
         setLoadError("Products could not be loaded from the database.");

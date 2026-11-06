@@ -36,6 +36,19 @@ describe("MEDIKART Products", () => {
     expect(uniqueIds.size).toBe(ids.length);
   });
 
+  test("product names and images should not be duplicated", () => {
+    const names = products.map((product) =>
+      product.name.trim().replace(/\s+/g, " ").toLocaleLowerCase()
+    );
+    const images = products
+      .map((product) => product.image)
+      .filter(Boolean)
+      .map((image) => String(image).trim().toLocaleLowerCase());
+
+    expect(new Set(names).size).toBe(names.length);
+    expect(new Set(images).size).toBe(images.length);
+  });
+
   test("products should have valid prices", () => {
     products.forEach((product) => {
       expect(product.price).toBeGreaterThanOrEqual(0);

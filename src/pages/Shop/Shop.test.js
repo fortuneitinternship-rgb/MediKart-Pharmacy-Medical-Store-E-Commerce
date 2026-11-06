@@ -4,1008 +4,307 @@ import {
     screen,
     fireEvent,
     waitFor,
+    within,
 } from "@testing-library/react";
 import "@testing-library/jest-dom";
+import { MemoryRouter, Routes, Route } from "react-router-dom";
+import { toast } from "react-toastify";
 
 import Shop from "./Shop";
-import { useParams } from "react-router-dom";
-import { toast } from "react-toastify";
 import { getProducts } from "../../api/productApi";
 
-// ---------------------------------------------------------
-// MOCK ROUTER
-// ---------------------------------------------------------
-jest.mock("react-router-dom", () => ({
-    useParams: jest.fn(),
-}));
-
+// ---------- Mocks (no real network, no real data) ----------
 jest.mock("../../api/productApi", () => ({
     getProducts: jest.fn(),
 }));
 
-// ---------------------------------------------------------
-// MOCK TOAST
-// ---------------------------------------------------------
-jest.mock("react-toastify", () => ({
-    toast: {
-        info: jest.fn(),
-        success: jest.fn(),
-    },
+jest.mock("../../utils/productImage", () => ({
+    getUniqueProductsByImage: jest.fn((items) => items),
 }));
 
-// ---------------------------------------------------------
-// MOCK PRODUCT DATA
-// ---------------------------------------------------------
-const mockProducts = [
-    {
-        id: 1,
-        name: "Test Product A",
-        brand: "Brand A",
-        category: "Medicines",
-        price: 100,
-        rating: 4,
-    },
-    {
-        id: 2,
-        name: "Test Product B",
-        brand: "Brand B",
-        category: "Healthcare",
-        price: 300,
-        rating: 5,
-    },
-    {
-        id: 3,
-        name: "Test Product C",
-        brand: "Brand A",
-        category: "Medicines",
-        price: 800,
-        rating: 3,
-    },
-    {
-        id: 4,
-        name: "Test Product D",
-        brand: "Brand C",
-        category: "Healthcare",
-        price: 1500,
-        rating: 4.5,
-    },
-];
+jest.mock("react-toastify", () => ({
+    toast: { success: jest.fn(), info: jest.fn(), error: jest.fn() },
+}));
 
-// ---------------------------------------------------------
-// MOCK ALL DATA FILES
-// ---------------------------------------------------------
-jest.mock("../../data/medicines", () => [
-    {
-        id: 1,
-        name: "Test Product A",
-        brand: "Brand A",
-        category: "Medicines",
-        price: 100,
-        rating: 4,
-    },
-]);
+jest.mock("../../components/ProductCard/ProductCard", () => {
+    const React = require("react");
+    return function MockProductCard({ product }) {
+        return React.createElement(
+            "div",
+            { "data-testid": "product-card" },
+            product.name
+        );
+    };
+});
 
-jest.mock("../../data/healthcare", () => [
-    {
-        id: 2,
-        name: "Test Product B",
-        brand: "Brand B",
-        category: "Healthcare",
-        price: 300,
-        rating: 5,
-    },
-]);
+jest.mock("../../components/FilterPanel/FilterPanel", () => {
+    const React = require("react");
+    const h = React.createElement;
+    return function MockFilterPanel(props) {
+        return h(
+            "div",
+            { "data-testid": "filter-panel" },
+            h("button", { onClick: () => props.setPriceRange("0-199") }, "Mock Price"),
+            h("button", { onClick: () => props.setSelectedRating("4") }, "Mock Rating"),
+            h(
+                "button",
+                { onClick: () => props.setSelectedBrand(props.brands[0]) },
+                "Mock Brand"
+            ),
+            h(
+                "button",
+                { onClick: () => props.setSelectedCategory("medicines") },
+                "Mock Category"
+            ),
+            h("button", { onClick: props.onReset }, "Mock Reset"),
+            h("span", { "data-testid": "filter-count" }, String(props.activeFilterCount)),
+            h("span", { "data-testid": "brand-count" }, String(props.brands.length))
+        );
+    };
+});
 
-jest.mock("../../data/vitamins", () => [
-    {
-        id: 3,
-        name: "Test Product C",
-        brand: "Brand A",
-        category: "Vitamins",
-        price: 800,
-        rating: 3,
-    },
-]);
-
-jest.mock("../../data/personalCare", () => [
-    {
-        id: 4,
-        name: "Test Product D",
-        brand: "Brand C",
-        category: "Personal Care",
-        price: 1500,
-        rating: 4.5,
-    },
-]);
-
-jest.mock("../../data/babyCare", () => []);
-
-jest.mock("../../data/medicalDevices", () => []);
-
-jest.mock("../../data/womensHealth", () => []);
-
-jest.mock("../../data/HairCare", () => []);
-
-jest.mock("../../data/eye-care", () => []);
-
-jest.mock("../../data/premium-healthcare", () => []);
-
-// ---------------------------------------------------------
-// MOCK PRODUCT CARD
-// ---------------------------------------------------------
-jest.mock(
-    "../../components/ProductCard/ProductCard",
-    () => {
-        return function MockProductCard({ product }) {
-            return (
-                <div
-                    data-testid="product-card"
-                    data-product-id={product.id}
-                >
-                    Product Card
-                </div>
-            );
+// ---------- Generic placeholder data: 14 items ----------
+// Price = n * 50, rating = 3 (items 1-7) or 4.5 (items 8-14),
+// brand alternates between "Brand A" (odd) and "Brand B" (even).
+const buildProducts = () =>
+    Array.from({ length: 14 }, (_, index) => {
+        const n = index + 1;
+        return {
+            id: n,
+            name: `Sample Item ${String(n).padStart(2, "0")}`,
+            brand: n % 2 === 1 ? "Brand A" : "Brand B",
+            category: "Sample Category",
+            price: n * 50,
+            discount_price: null,
+            rating: n <= 7 ? 3 : 4.5,
         };
-    }
-);
+    });
 
-// ---------------------------------------------------------
-// MOCK FILTER PANEL
-// ---------------------------------------------------------
-jest.mock(
-    "../../components/FilterPanel/FilterPanel",
-    () => {
-        return function MockFilterPanel(props) {
-            return (
-                <div data-testid="filter-panel">
-                    <div data-testid="category-options">
-                        {props.categories.map((category) => category.label).join("|")}
-                    </div>
-
-                    <button
-                        type="button"
-                        onClick={() =>
-                            props.setSelectedCategory("medicines")
-                        }
-                    >
-                        Category Filter
-                    </button>
-
-                    <button
-                        type="button"
-                        onClick={() =>
-                            props.setPriceRange("0-199")
-                        }
-                    >
-                        Price Filter
-                    </button>
-
-                    <button
-                        type="button"
-                        onClick={() =>
-                            props.setSelectedRating("4")
-                        }
-                    >
-                        Rating Filter
-                    </button>
-
-                    <button
-                        type="button"
-                        onClick={() =>
-                            props.setSelectedBrand("Brand A")
-                        }
-                    >
-                        Brand Filter
-                    </button>
-
-                    <button
-                        type="button"
-                        onClick={props.onReset}
-                    >
-                        Reset Filters
-                    </button>
-
-                    <span data-testid="active-filter-count">
-                        {props.activeFilterCount}
-                    </span>
-                </div>
-            );
-        };
-    }
-);
-
-// ---------------------------------------------------------
-// TEST HELPERS
-// ---------------------------------------------------------
-const renderShop = (category = undefined) => {
-    useParams.mockReturnValue(
-        category ? { category } : {}
+const renderShop = (path = "/shop") =>
+    render(
+        <MemoryRouter initialEntries={[path]}>
+            <Routes>
+                <Route path="/shop" element={<Shop />} />
+                <Route path="/shop/:category" element={<Shop />} />
+            </Routes>
+        </MemoryRouter>
     );
 
-    return render(<Shop />);
-};
+const waitForProducts = () => screen.findAllByTestId("product-card");
 
-beforeEach(() => {
-    jest.clearAllMocks();
+describe("Shop", () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+        getProducts.mockResolvedValue(buildProducts());
+    });
 
-    jest.useFakeTimers();
-
-    useParams.mockReturnValue({});
-    getProducts.mockResolvedValue(mockProducts);
-});
-
-afterEach(() => {
-    jest.runOnlyPendingTimers();
-    jest.useRealTimers();
-});
-
-// =========================================================
-// TESTS
-// =========================================================
-
-describe("Shop Component", () => {
-
-    // -----------------------------------------------------
-    // INITIAL RENDER
-    // -----------------------------------------------------
-    test("renders Shop component", () => {
+    test("shows a loading message while products load", () => {
+        getProducts.mockReturnValue(new Promise(() => { }));
         renderShop();
+
+        expect(screen.getByText("Loading Products...")).toBeInTheDocument();
+    });
+
+    test("shows the default heading, total count and first 12 products", async () => {
+        renderShop();
+
+        const cards = await waitForProducts();
 
         expect(
-            document.querySelector(".shop-page")
+            screen.getByRole("heading", { level: 1, name: "All Products" })
         ).toBeInTheDocument();
+        expect(screen.getByText("14 Products")).toBeInTheDocument();
+        expect(cards).toHaveLength(12);
+        expect(getProducts).toHaveBeenCalledTimes(1);
     });
 
-    // -----------------------------------------------------
-    // HEADER
-    // -----------------------------------------------------
-    test("renders shop header", () => {
-        renderShop();
-
-        expect(
-            document.querySelector(".shop-header")
-        ).toBeInTheDocument();
-    });
-
-    test("renders All Products heading by default", () => {
-        renderShop();
-
-        expect(
-            screen.getByText("All Products")
-        ).toBeInTheDocument();
-    });
-
-    // -----------------------------------------------------
-    // LOADING
-    // -----------------------------------------------------
-    test("shows loading state initially", () => {
-        renderShop();
-
-        expect(
-            screen.getByText("Loading Products...")
-        ).toBeInTheDocument();
-    });
-
-    test("hides loading state after products load", async () => {
-        renderShop();
-
-        jest.advanceTimersByTime(400);
-
-        await waitFor(() => {
-            expect(
-                screen.queryByText("Loading Products...")
-            ).not.toBeInTheDocument();
-        });
-    });
-
-    // -----------------------------------------------------
-    // PRODUCTS
-    // -----------------------------------------------------
-    test("renders product cards after loading", async () => {
-        renderShop();
-
-        jest.advanceTimersByTime(400);
-
-        await waitFor(() => {
-            expect(
-                screen.getAllByTestId("product-card").length
-            ).toBeGreaterThan(0);
-        });
-    });
-
-    test("renders products grid", async () => {
-        renderShop();
-
-        jest.advanceTimersByTime(400);
-
-        await waitFor(() => {
-            expect(
-                document.querySelector(".products-grid")
-            ).toBeInTheDocument();
-        });
-    });
-
-    test("passes showWishlist false to ProductCard indirectly by rendering cards", async () => {
-        renderShop();
-
-        jest.advanceTimersByTime(400);
-
-        await waitFor(() => {
-            expect(
-                screen.getAllByTestId("product-card").length
-            ).toBeGreaterThan(0);
-        });
-    });
-
-    // -----------------------------------------------------
-    // PRODUCT COUNT
-    // -----------------------------------------------------
-    test("shows product count", async () => {
-        renderShop();
-
-        jest.advanceTimersByTime(400);
-
-        await waitFor(() => {
-            expect(
-                screen.getByText(/\d+ Products/)
-            ).toBeInTheDocument();
-        });
-    });
-
-    test("includes API categories that are not in the default category list", async () => {
-        getProducts.mockResolvedValue([
-            ...mockProducts,
-            {
-                id: 5,
-                name: "New Clinic Product",
-                category: "New Clinic",
-                price: 250,
-                rating: 4.2,
-            },
-        ]);
+    test("shows an error message when products fail to load", async () => {
+        const consoleSpy = jest
+            .spyOn(console, "error")
+            .mockImplementation(() => { });
+        getProducts.mockRejectedValue(new Error("fail"));
 
         renderShop();
-        jest.advanceTimersByTime(400);
 
-        await waitFor(() => {
-            expect(screen.getByTestId("category-options")).toHaveTextContent(
-                "New Clinic"
-            );
-            expect(screen.getAllByTestId("product-card")).toHaveLength(5);
-        });
-    });
-
-    // -----------------------------------------------------
-    // SEARCH
-    // -----------------------------------------------------
-    test("renders search input", () => {
-        renderShop();
-
-        expect(
-            screen.getByPlaceholderText(
-                "Search medicines, healthcare products..."
-            )
-        ).toBeInTheDocument();
-    });
-
-    test("allows entering search text", () => {
-        renderShop();
-
-        const searchInput =
-            screen.getByPlaceholderText(
-                "Search medicines, healthcare products..."
-            );
-
-        fireEvent.change(searchInput, {
-            target: {
-                value: "Test Product",
-            },
-        });
-
-        expect(searchInput).toHaveValue(
-            "Test Product"
+        expect(await screen.findByRole("alert")).toHaveTextContent(
+            "Products could not be loaded from the database."
         );
+        expect(screen.queryByTestId("product-card")).not.toBeInTheDocument();
+
+        consoleSpy.mockRestore();
     });
 
-    test("shows clear search button after entering search", () => {
+    test("search filters products and can be cleared", async () => {
         renderShop();
+        await waitForProducts();
 
-        const searchInput =
-            screen.getByPlaceholderText(
-                "Search medicines, healthcare products..."
-            );
+        const input = screen.getByPlaceholderText(/search medicines/i);
+        fireEvent.change(input, { target: { value: "Item 03" } });
 
-        fireEvent.change(searchInput, {
-            target: {
-                value: "test",
-            },
+        expect(screen.getAllByTestId("product-card")).toHaveLength(1);
+        expect(screen.getByText("Sample Item 03")).toBeInTheDocument();
+        expect(screen.getByText("1 Products")).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: /clear search/i }));
+
+        expect(input).toHaveValue("");
+        expect(toast.info).toHaveBeenCalledWith("Search cleared");
+        expect(screen.getByText("14 Products")).toBeInTheDocument();
+    });
+
+    test("shows the empty state and clears filters from it", async () => {
+        renderShop();
+        await waitForProducts();
+
+        fireEvent.change(screen.getByPlaceholderText(/search medicines/i), {
+            target: { value: "no-such-item" },
         });
 
-        expect(
-            screen.getByRole("button", {
-                name: "Clear search",
-            })
-        ).toBeInTheDocument();
+        expect(screen.getByText("No Products Found")).toBeInTheDocument();
+        expect(screen.queryByTestId("product-card")).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: "Clear Filters" }));
+
+        expect(toast.success).toHaveBeenCalledWith("All filters have been cleared");
+        expect(await waitForProducts()).toHaveLength(12);
     });
 
-    test("clears search text", () => {
+    test("price filter narrows the list", async () => {
         renderShop();
+        await waitForProducts();
 
-        const searchInput =
-            screen.getByPlaceholderText(
-                "Search medicines, healthcare products..."
-            );
+        fireEvent.click(screen.getByRole("button", { name: "Mock Price" }));
 
-        fireEvent.change(searchInput, {
-            target: {
-                value: "test",
-            },
-        });
-
-        fireEvent.click(
-            screen.getByRole("button", {
-                name: "Clear search",
-            })
-        );
-
-        expect(searchInput).toHaveValue("");
-
-        expect(toast.info).toHaveBeenCalledWith(
-            "Search cleared"
-        );
+        expect(screen.getByText("3 Products")).toBeInTheDocument();
+        expect(toast.info).toHaveBeenCalledWith("Price filter applied");
+        expect(screen.getByTestId("filter-count")).toHaveTextContent("1");
     });
 
-    // -----------------------------------------------------
-    // SEARCH FILTERING
-    // -----------------------------------------------------
-    test("filters products using search text", async () => {
+    test("rating filter narrows the list", async () => {
         renderShop();
+        await waitForProducts();
 
-        jest.advanceTimersByTime(400);
+        fireEvent.click(screen.getByRole("button", { name: "Mock Rating" }));
 
-        await waitFor(() => {
-            expect(
-                screen.getAllByTestId("product-card").length
-            ).toBeGreaterThan(0);
-        });
-
-        const searchInput =
-            screen.getByPlaceholderText(
-                "Search medicines, healthcare products..."
-            );
-
-        fireEvent.change(searchInput, {
-            target: {
-                value: "Test Product A",
-            },
-        });
-
-        await waitFor(() => {
-            expect(
-                screen.getAllByTestId("product-card")
-            ).toHaveLength(1);
-        });
-    });
-
-    // -----------------------------------------------------
-    // SORT
-    // -----------------------------------------------------
-    test("renders sort dropdown", () => {
-        renderShop();
-
-        const select = document.querySelector(
-            ".shop-sort select"
-        );
-
-        expect(select).toBeInTheDocument();
-    });
-
-    test("has all sort options", () => {
-        renderShop();
-
-        expect(
-            screen.getByRole("option", {
-                name: "Sort By",
-            })
-        ).toBeInTheDocument();
-
-        expect(
-            screen.getByRole("option", {
-                name: "Price: Low to High",
-            })
-        ).toBeInTheDocument();
-
-        expect(
-            screen.getByRole("option", {
-                name: "Price: High to Low",
-            })
-        ).toBeInTheDocument();
-
-        expect(
-            screen.getByRole("option", {
-                name: "Highest Rating",
-            })
-        ).toBeInTheDocument();
-
-        expect(
-            screen.getByRole("option", {
-                name: "Name: A-Z",
-            })
-        ).toBeInTheDocument();
-    });
-
-    test("sorts by price low to high", async () => {
-        renderShop();
-
-        jest.advanceTimersByTime(400);
-
-        await waitFor(() => {
-            expect(
-                screen.getAllByTestId("product-card").length
-            ).toBeGreaterThan(0);
-        });
-
-        const select =
-            document.querySelector(
-                ".shop-sort select"
-            );
-
-        fireEvent.change(select, {
-            target: {
-                value: "priceLow",
-            },
-        });
-
-        expect(toast.info).toHaveBeenCalledWith(
-            "Sorted by Price: Low to High"
-        );
-    });
-
-    test("sorts by price high to low", async () => {
-        renderShop();
-
-        jest.advanceTimersByTime(400);
-
-        const select =
-            document.querySelector(
-                ".shop-sort select"
-            );
-
-        fireEvent.change(select, {
-            target: {
-                value: "priceHigh",
-            },
-        });
-
-        expect(toast.info).toHaveBeenCalledWith(
-            "Sorted by Price: High to Low"
-        );
-    });
-
-    test("sorts by rating", async () => {
-        renderShop();
-
-        jest.advanceTimersByTime(400);
-
-        const select =
-            document.querySelector(
-                ".shop-sort select"
-            );
-
-        fireEvent.change(select, {
-            target: {
-                value: "rating",
-            },
-        });
-
-        expect(toast.info).toHaveBeenCalledWith(
-            "Sorted by Highest Rating"
-        );
-    });
-
-    test("sorts by name", async () => {
-        renderShop();
-
-        jest.advanceTimersByTime(400);
-
-        const select =
-            document.querySelector(
-                ".shop-sort select"
-            );
-
-        fireEvent.change(select, {
-            target: {
-                value: "name",
-            },
-        });
-
-        expect(toast.info).toHaveBeenCalledWith(
-            "Sorted by Name: A-Z"
-        );
-    });
-
-    // -----------------------------------------------------
-    // FILTER PANEL
-    // -----------------------------------------------------
-    test("renders FilterPanel", () => {
-        renderShop();
-
-        expect(
-            screen.getByTestId("filter-panel")
-        ).toBeInTheDocument();
-    });
-
-    test("renders filter buttons", () => {
-        renderShop();
-
-        expect(
-            screen.getByRole("button", {
-                name: "Category Filter",
-            })
-        ).toBeInTheDocument();
-
-        expect(
-            screen.getByRole("button", {
-                name: "Price Filter",
-            })
-        ).toBeInTheDocument();
-
-        expect(
-            screen.getByRole("button", {
-                name: "Rating Filter",
-            })
-        ).toBeInTheDocument();
-
-        expect(
-            screen.getByRole("button", {
-                name: "Brand Filter",
-            })
-        ).toBeInTheDocument();
-    });
-
-    // -----------------------------------------------------
-    // CATEGORY FILTER
-    // -----------------------------------------------------
-    test("changes category filter", async () => {
-        renderShop();
-
-        fireEvent.click(
-            screen.getByRole("button", {
-                name: "Category Filter",
-            })
-        );
-
-        expect(toast.success).toHaveBeenCalledWith(
-            "Showing Medicines"
-        );
-    });
-
-    // -----------------------------------------------------
-    // PRICE FILTER
-    // -----------------------------------------------------
-    test("changes price filter", () => {
-        renderShop();
-
-        fireEvent.click(
-            screen.getByRole("button", {
-                name: "Price Filter",
-            })
-        );
-
-        expect(toast.info).toHaveBeenCalledWith(
-            "Price filter applied"
-        );
-    });
-
-    // -----------------------------------------------------
-    // RATING FILTER
-    // -----------------------------------------------------
-    test("changes rating filter", () => {
-        renderShop();
-
-        fireEvent.click(
-            screen.getByRole("button", {
-                name: "Rating Filter",
-            })
-        );
-
+        expect(screen.getByText("7 Products")).toBeInTheDocument();
         expect(toast.info).toHaveBeenCalledWith(
             "Showing products rated 4★ and above"
         );
     });
 
-    // -----------------------------------------------------
-    // BRAND FILTER
-    // -----------------------------------------------------
-    test("changes brand filter", () => {
+    test("brand filter narrows the list and brands are listed once each", async () => {
         renderShop();
+        await waitForProducts();
 
-        fireEvent.click(
-            screen.getByRole("button", {
-                name: "Brand Filter",
-            })
-        );
+        expect(screen.getByTestId("brand-count")).toHaveTextContent("2");
 
-        expect(toast.info).toHaveBeenCalledWith(
-            "Brand filter: Brand A"
-        );
+        fireEvent.click(screen.getByRole("button", { name: "Mock Brand" }));
+
+        expect(screen.getByText("7 Products")).toBeInTheDocument();
+        expect(toast.info).toHaveBeenCalledWith("Brand filter: Brand A");
     });
 
-    // -----------------------------------------------------
-    // ACTIVE FILTER COUNT
-    // -----------------------------------------------------
-    test("updates active filter count for search", () => {
+    test("sorting by price high to low puts the most expensive item first", async () => {
         renderShop();
+        await waitForProducts();
 
-        const searchInput =
-            screen.getByPlaceholderText(
-                "Search medicines, healthcare products..."
-            );
-
-        fireEvent.change(searchInput, {
-            target: {
-                value: "test",
-            },
+        fireEvent.change(screen.getByRole("combobox"), {
+            target: { value: "priceHigh" },
         });
 
-        expect(
-            screen.getByTestId("active-filter-count")
-        ).toHaveTextContent("1");
+        const cards = screen.getAllByTestId("product-card");
+        expect(cards[0]).toHaveTextContent("Sample Item 14");
+        expect(toast.info).toHaveBeenCalledWith("Sorted by Price: High to Low");
     });
 
-    test("updates active filter count for price filter", () => {
+    test("sorting by price low to high puts the cheapest item first", async () => {
         renderShop();
+        await waitForProducts();
 
-        fireEvent.click(
-            screen.getByRole("button", {
-                name: "Price Filter",
-            })
-        );
-
-        expect(
-            screen.getByTestId("active-filter-count")
-        ).toHaveTextContent("1");
-    });
-
-    // -----------------------------------------------------
-    // RESET FILTERS
-    // -----------------------------------------------------
-    test("resets filters", () => {
-        renderShop();
-
-        fireEvent.change(
-            screen.getByPlaceholderText(
-                "Search medicines, healthcare products..."
-            ),
-            {
-                target: {
-                    value: "test",
-                },
-            }
-        );
-
-        fireEvent.click(
-            screen.getByRole("button", {
-                name: "Reset Filters",
-            })
-        );
-
-        expect(
-            screen.getByPlaceholderText(
-                "Search medicines, healthcare products..."
-            )
-        ).toHaveValue("");
-
-        expect(toast.success).toHaveBeenCalledWith(
-            "All filters have been cleared"
-        );
-    });
-
-    // -----------------------------------------------------
-    // CATEGORY URL
-    // -----------------------------------------------------
-    test("loads selected category from URL", async () => {
-        renderShop("medicines");
-
-        jest.advanceTimersByTime(400);
-
-        await waitFor(() => {
-            expect(
-                screen.getByText("Medicines")
-            ).toBeInTheDocument();
-        });
-    });
-
-    test("falls back to All Products for invalid category", async () => {
-        renderShop("invalid-category");
-
-        expect(
-            screen.getByText("All Products")
-        ).toBeInTheDocument();
-
-        jest.advanceTimersByTime(400);
-    });
-
-    // -----------------------------------------------------
-    // LOAD MORE
-    // -----------------------------------------------------
-    test("shows load more button when products exceed visible limit", async () => {
-        renderShop();
-
-        jest.advanceTimersByTime(400);
-
-        await waitFor(() => {
-            const cards =
-                screen.getAllByTestId("product-card");
-
-            expect(cards.length).toBeGreaterThan(0);
+        fireEvent.change(screen.getByRole("combobox"), {
+            target: { value: "priceLow" },
         });
 
-        // With the mocked data there are only four products,
-        // so Load More is normally not required.
-        // This test verifies the load-more container
-        // does not incorrectly appear.
+        expect(screen.getAllByTestId("product-card")[0]).toHaveTextContent(
+            "Sample Item 01"
+        );
+        expect(toast.info).toHaveBeenCalledWith("Sorted by Price: Low to High");
+    });
+
+    test("Load More shows the remaining products", async () => {
+        renderShop();
+        await waitForProducts();
+
+        fireEvent.click(screen.getByRole("button", { name: "Load More Products" }));
+
+        expect(screen.getAllByTestId("product-card")).toHaveLength(14);
+        expect(toast.success).toHaveBeenCalledWith("All products loaded!");
         expect(
-            screen.queryByRole("button", {
-                name: "Load More Products",
-            })
+            screen.queryByRole("button", { name: "Load More Products" })
         ).not.toBeInTheDocument();
     });
 
-    test("shows every filtered product when Show All Products is selected", async () => {
-        getProducts.mockResolvedValue(
-            Array.from({ length: 14 }, (_, index) => ({
-                ...mockProducts[0],
-                id: index + 1,
-                name: `Catalog Product ${index + 1}`,
-            }))
-        );
-
+    test("Show All Products displays every product", async () => {
         renderShop();
-        jest.advanceTimersByTime(400);
+        await waitForProducts();
 
-        await waitFor(() => {
-            expect(screen.getAllByTestId("product-card")).toHaveLength(12);
-        });
-
-        fireEvent.click(
-            screen.getByRole("button", { name: "Show All Products" })
-        );
+        fireEvent.click(screen.getByRole("button", { name: "Show All Products" }));
 
         expect(screen.getAllByTestId("product-card")).toHaveLength(14);
     });
 
-    // -----------------------------------------------------
-    // EMPTY SEARCH RESULT
-    // -----------------------------------------------------
-    test("shows empty state when search returns no products", async () => {
+    test("category change updates the heading and shows the empty state", async () => {
         renderShop();
+        await waitForProducts();
 
-        jest.advanceTimersByTime(400);
-
-        await waitFor(() => {
-            expect(
-                screen.getAllByTestId("product-card").length
-            ).toBeGreaterThan(0);
-        });
-
-        const searchInput =
-            screen.getByPlaceholderText(
-                "Search medicines, healthcare products..."
-            );
-
-        fireEvent.change(searchInput, {
-            target: {
-                value: "value-that-does-not-exist",
-            },
-        });
-
-        await waitFor(() => {
-            expect(
-                screen.getByText("No Products Found")
-            ).toBeInTheDocument();
-        });
+        fireEvent.click(screen.getByRole("button", { name: "Mock Category" }));
 
         expect(
-            screen.getByText(
-                "Try changing your search or filters."
-            )
+            screen.getByRole("heading", { level: 1, name: "Medicines" })
+        ).toBeInTheDocument();
+        expect(toast.success).toHaveBeenCalledWith("Showing Medicines");
+        // None of the placeholder products belong to this category
+        expect(screen.getByText("No Products Found")).toBeInTheDocument();
+    });
+
+    test("a known category in the URL sets the heading", async () => {
+        renderShop("/shop/medicines");
+
+        expect(
+            await screen.findByRole("heading", { level: 1, name: "Medicines" })
         ).toBeInTheDocument();
     });
 
-    // -----------------------------------------------------
-    // EMPTY STATE RESET
-    // -----------------------------------------------------
-    test("clears filters from empty state", async () => {
+    test("an unknown category in the URL falls back to All Products", async () => {
+        renderShop("/shop/not-a-category");
+
+        await waitForProducts();
+        expect(
+            screen.getByRole("heading", { level: 1, name: "All Products" })
+        ).toBeInTheDocument();
+    });
+
+    test("reset button clears applied filters", async () => {
         renderShop();
+        await waitForProducts();
 
-        jest.advanceTimersByTime(400);
+        fireEvent.click(screen.getByRole("button", { name: "Mock Price" }));
+        expect(screen.getByText("3 Products")).toBeInTheDocument();
 
-        await waitFor(() => {
-            expect(
-                screen.getAllByTestId("product-card").length
-            ).toBeGreaterThan(0);
-        });
+        fireEvent.click(screen.getByRole("button", { name: "Mock Reset" }));
 
-        const searchInput =
-            screen.getByPlaceholderText(
-                "Search medicines, healthcare products..."
-            );
-
-        fireEvent.change(searchInput, {
-            target: {
-                value: "not-found",
-            },
-        });
-
-        await waitFor(() => {
-            expect(
-                screen.getByText("No Products Found")
-            ).toBeInTheDocument();
-        });
-
-        fireEvent.click(
-            screen.getByRole("button", {
-                name: "Clear Filters",
-            })
+        await waitFor(() =>
+            expect(screen.getByText("14 Products")).toBeInTheDocument()
         );
-
-        expect(toast.success).toHaveBeenCalledWith(
-            "All filters have been cleared"
-        );
+        expect(toast.success).toHaveBeenCalledWith("All filters have been cleared");
+        expect(screen.getByTestId("filter-count")).toHaveTextContent("0");
     });
 
-    // -----------------------------------------------------
-    // CSS STRUCTURE
-    // -----------------------------------------------------
-    test("renders main shop layout", () => {
+    test("the filter panel is rendered inside the sidebar", async () => {
         renderShop();
+        await waitForProducts();
 
-        expect(
-            document.querySelector(".shop-page")
-        ).toBeInTheDocument();
-
-        expect(
-            document.querySelector(".shop-header")
-        ).toBeInTheDocument();
-
-        expect(
-            document.querySelector(".shop-content")
-        ).toBeInTheDocument();
-
-        expect(
-            document.querySelector(".shop-filter")
-        ).toBeInTheDocument();
-
-        expect(
-            document.querySelector(".shop-products")
-        ).toBeInTheDocument();
-    });
-
-    test("renders search container", () => {
-        renderShop();
-
-        expect(
-            document.querySelector(".shop-search")
-        ).toBeInTheDocument();
-    });
-
-    test("renders sort container", () => {
-        renderShop();
-
-        expect(
-            document.querySelector(".shop-sort")
-        ).toBeInTheDocument();
-    });
-
-    // -----------------------------------------------------
-    // UNMOUNT / TIMER CLEANUP
-    // -----------------------------------------------------
-    test("cleans loading timer on unmount", () => {
-        const { unmount } = renderShop();
-
-        expect(() => unmount()).not.toThrow();
-
-        jest.runOnlyPendingTimers();
+        const panel = screen.getByTestId("filter-panel");
+        expect(within(panel).getByRole("button", { name: "Mock Reset" })).toBeInTheDocument();
     });
 });

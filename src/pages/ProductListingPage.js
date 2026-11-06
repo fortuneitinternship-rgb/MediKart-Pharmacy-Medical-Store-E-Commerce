@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import SearchBar from "../components/SearchBar/SearchBar";
 import ProductCard from "../components/ProductCard/ProductCard";
 import { getProducts } from "../api/productApi";
+import { getUniqueProductsByImage } from "../utils/productImage";
 import "./ProductListingPage.css";
 
 const categorySlugMap = {
@@ -36,7 +37,7 @@ const ProductListing = () => {
 
   useEffect(() => {
     getProducts()
-      .then(setProducts)
+      .then((items) => setProducts(getUniqueProductsByImage(items)))
       .catch((loadError) => {
         console.error("Unable to load products:", loadError);
         setError("Products could not be loaded from the database.");

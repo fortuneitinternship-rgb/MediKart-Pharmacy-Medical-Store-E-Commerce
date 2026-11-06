@@ -101,6 +101,7 @@ def is_catalog_name_match(existing_name: str, catalog_name: str) -> bool:
 def seed_catalog(db: Session, catalog: list[dict[str, Any]]) -> dict[str, int]:
     inserted = 0
     updated = 0
+    existing_products = db.query(Product).all()
 
     for item in catalog:
         category_name = item["category"].strip()
@@ -123,21 +124,29 @@ def seed_catalog(db: Session, catalog: list[dict[str, Any]]) -> dict[str, int]:
             .first()
         )
         if product is None:
-            category_products = (
-                db.query(Product)
-                .filter(Product.category_id == category.id)
-                .all()
-            )
             product = next(
                 (
                     candidate
-                    for candidate in category_products
-                    if is_catalog_name_match(candidate.name, item["name"])
+                    for candidate in existing_products
+                    if normalize_product_name(candidate.name)
+                    == normalize_product_name(item["name"])
                 ),
                 None,
             )
 
         if product is None:
+            catalog_name = normalize_product_name(item["name"])
+            catalog_image = (item.get("image") or "").strip().casefold()
+            if any(
+                normalize_product_name(candidate.name) == catalog_name
+                or (
+                    catalog_image
+                    and candidate.image
+                    and candidate.image.strip().casefold() == catalog_image
+                )
+                for candidate in existing_products
+            ):
+                continue
             product = Product(
                 name=item["name"].strip(),
                 category=category,
@@ -156,6 +165,7 @@ def seed_catalog(db: Session, catalog: list[dict[str, Any]]) -> dict[str, int]:
                 return_policy=item.get("return_policy"),
             )
             db.add(product)
+            existing_products.append(product)
             inserted += 1
             continue
 

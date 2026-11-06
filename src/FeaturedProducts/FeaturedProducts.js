@@ -6,6 +6,7 @@ import "./FeaturedProducts.css";
 import { addProductToCart } from "../api/cartApi";
 import { getFeaturedProducts } from "../api/productApi";
 import {
+  getUniqueProductsByImage,
   getProductImage,
   handleProductImageError,
 } from "../utils/productImage";
@@ -17,7 +18,7 @@ function FeaturedProducts() {
 
   useEffect(() => {
     getFeaturedProducts()
-      .then(setProducts)
+      .then((items) => setProducts(getUniqueProductsByImage(items)))
       .catch((loadError) => {
         console.error("Unable to load featured products:", loadError);
         setError("Featured products could not be loaded.");

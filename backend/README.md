@@ -45,6 +45,8 @@ npm start
 
 The storefront, product listings, and product details are available before login. Sign in is required for account pages and checkout; guests can browse products and are prompted to sign in to access a saved cart or place an order. Checkout loads the cart from the API, saves the delivery address, creates the order through the API, and displays the returned order ID. The address step supports manual entry or browser geolocation with an OpenStreetMap preview; location access is requested only when the shopper chooses “Choose on Map.”
 
+Product creation and updates reject duplicate names (case-insensitive, whitespace-normalized) and duplicate image URLs. Product image uploads also reject identical image-file contents. The static storefront and catalog export skip repeated product names or image paths.
+
 ## API connection map
 
 Frontend paths below are relative to `medikart\src`.

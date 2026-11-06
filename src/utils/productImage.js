@@ -29,6 +29,9 @@ const normalizeProductName = (name) =>
 
 const catalogAliases = [
   { pattern: /\belectral\b/, catalogName: "Electral ORS" },
+  { pattern: /\bparacetamol\b.*650/, catalogName: "Dolo 650 Tablet" },
+  { pattern: /\bvitamin c\b.*500/, catalogName: "Limcee Vitamin C" },
+  { pattern: /\bmultivitamin\b.*daily/, catalogName: "Supradyn Daily" },
 ];
 
 const knownMismatchedAssets = {
@@ -76,8 +79,12 @@ function isGenericProductImage(imagePath) {
 export function getProductImage(image, productName, category) {
   const catalogImage = getCatalogProductImage(productName, category);
 
+  if (catalogImage) {
+    return catalogImage;
+  }
+
   if (typeof image !== "string" || !image.trim()) {
-    return catalogImage || fallbackProductImage;
+    return fallbackProductImage;
   }
 
   const imagePath = image.trim().replace(/\\/g, "/");
@@ -85,19 +92,15 @@ export function getProductImage(image, productName, category) {
   const imageName = imagePath.split("/").pop().split("?")[0].toLowerCase();
 
   if (mismatchedAssets?.has(imageName)) {
-    return catalogImage || fallbackProductImage;
+    return fallbackProductImage;
   }
 
   if (isPromotionalBanner(imagePath)) {
-    return catalogImage || fallbackProductImage;
+    return fallbackProductImage;
   }
 
-  if (
-    isGenericProductImage(imagePath) &&
-    catalogImage &&
-    !/^(https?:|data:|blob:)/i.test(imagePath)
-  ) {
-    return catalogImage;
+  if (isGenericProductImage(imagePath)) {
+    return fallbackProductImage;
   }
 
   if (/^(https?:|data:|blob:)/i.test(imagePath)) {
@@ -112,7 +115,7 @@ export function getProductImage(image, productName, category) {
     if (assetPath) {
       return imageAssetContext(assetPath);
     }
-    return catalogImage || fallbackProductImage;
+    return fallbackProductImage;
   }
 
   if (/^\/(uploads|media|static)\//i.test(imagePath)) {
@@ -131,7 +134,7 @@ export function getProductImage(image, productName, category) {
   }
 
   if (/^\/images\//i.test(imagePath)) {
-    return catalogImage || fallbackProductImage;
+    return fallbackProductImage;
   }
 
   return imagePath;
@@ -144,6 +147,30 @@ export function handleProductImageError(event, productName, category) {
   if (event.currentTarget.getAttribute("src") !== fallbackImage) {
     event.currentTarget.src = fallbackImage;
   }
+}
+
+export function getUniqueProductsByImage(productList) {
+  const seenNames = new Set();
+  const seenImages = new Set();
+
+  return productList.filter((product) => {
+    const name = normalizeProductName(product.name);
+    const image = getProductImage(
+      product.image,
+      product.name,
+      product.category
+    )
+      .split("?")[0]
+      .toLowerCase();
+
+    if (!name || seenNames.has(name) || seenImages.has(image)) {
+      return false;
+    }
+
+    seenNames.add(name);
+    seenImages.add(image);
+    return true;
+  });
 }
 
 export { fallbackProductImage };

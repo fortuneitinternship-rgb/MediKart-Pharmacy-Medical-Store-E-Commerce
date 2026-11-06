@@ -38,7 +38,7 @@ import premiumHealthcare from "../data/premium-healthcare.js";
 // COMBINE ALL PRODUCTS
 // ============================================================
 
-const products = [
+const catalogProducts = [
   ...medicines,
   ...healthcare,
   ...vitamins,
@@ -50,6 +50,28 @@ const products = [
   ...labTests,
   ...premiumHealthcare,
 ];
+
+const normalizeProductValue = (value) =>
+  String(value || "").trim().replace(/\s+/g, " ").toLocaleLowerCase();
+
+const productNames = new Set();
+const productImages = new Set();
+const products = catalogProducts.filter((product) => {
+  const name = normalizeProductValue(product.name);
+  const image = normalizeProductValue(product.image);
+  if (
+    !name ||
+    productNames.has(name) ||
+    (image && productImages.has(image))
+  ) {
+    return false;
+  }
+  productNames.add(name);
+  if (image) {
+    productImages.add(image);
+  }
+  return true;
+});
 
 // ============================================================
 // EXPORT

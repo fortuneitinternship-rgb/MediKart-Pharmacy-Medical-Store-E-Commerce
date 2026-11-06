@@ -85,7 +85,7 @@ describe("TrendingProducts", () => {
     ).toBeInTheDocument();
 
     expect(
-      screen.getByText("Johnson's Baby Premium Care Kit")
+      screen.getByText("Baby Gift Care Kit")
     ).toBeInTheDocument();
   });
 
@@ -118,7 +118,7 @@ describe("TrendingProducts", () => {
     ).toBeInTheDocument();
 
     expect(
-      screen.getByText("₹250")
+      screen.getByText("₹799")
     ).toBeInTheDocument();
   });
 
@@ -163,7 +163,7 @@ describe("TrendingProducts", () => {
 
     expect(
       screen.getByAltText(
-        "Johnson's Baby Premium Care Kit"
+        "Baby Gift Care Kit"
       )
     ).toBeInTheDocument();
   });
@@ -206,7 +206,7 @@ describe("TrendingProducts", () => {
 
     expect(links[3]).toHaveAttribute(
       "href",
-      "/product/2014"
+      "/product/120"
     );
   });
 
@@ -348,12 +348,12 @@ describe("TrendingProducts", () => {
   // BABY CARE KIT
   // ==================================================
 
-  test("adds Johnson's Baby Premium Care Kit to cart", () => {
+  test("adds Baby Gift Care Kit to cart", () => {
     renderComponent();
 
     const productName =
       screen.getByText(
-        "Johnson's Baby Premium Care Kit"
+        "Baby Gift Care Kit"
       );
 
     const productCard =
@@ -377,8 +377,8 @@ describe("TrendingProducts", () => {
     expect(cart).toHaveLength(1);
 
     expect(cart[0]).toMatchObject({
-      id: 2014,
-      name: "Johnson's Baby Premium Care Kit",
+      id: 120,
+      name: "Baby Gift Care Kit",
       brand: "Johnson & Johnson",
       category: "Premium Healthcare",
       price: 250,

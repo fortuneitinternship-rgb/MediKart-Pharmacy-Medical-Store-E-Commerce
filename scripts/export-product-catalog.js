@@ -92,21 +92,28 @@ function readCatalogFile(fileName) {
 }
 
 function normalize(value) {
-  return value.trim().toLocaleLowerCase().replace(/\s+/g, " ");
+  return String(value || "").trim().toLocaleLowerCase().replace(/\s+/g, " ");
 }
 
 const products = catalogFiles.flatMap(readCatalogFile);
 const productKeys = new Set();
+const imageKeys = new Set();
+const skippedDuplicates = [];
 const output = products.map((product) => {
   if (!product.name || !product.category || typeof product.price !== "number") {
     throw new Error(`Invalid product in catalog: ${JSON.stringify(product)}`);
   }
 
-  const key = `${normalize(product.category)}|${normalize(product.name)}`;
-  if (productKeys.has(key)) {
-    throw new Error(`Duplicate product in catalog: ${product.category}: ${product.name}`);
+  const nameKey = normalize(product.name);
+  const imageKey = normalize(product.image);
+  if (productKeys.has(nameKey) || (imageKey && imageKeys.has(imageKey))) {
+    skippedDuplicates.push(product.name);
+    return null;
   }
-  productKeys.add(key);
+  productKeys.add(nameKey);
+  if (imageKey) {
+    imageKeys.add(imageKey);
+  }
 
   const originalPrice = product.originalPrice ?? product.price;
   const stock =
@@ -132,8 +139,14 @@ const output = products.map((product) => {
     delivery: product.delivery || null,
     return_policy: product.returnPolicy || null,
   };
-});
+}).filter(Boolean);
 
 fs.mkdirSync(path.dirname(outputFile), { recursive: true });
 fs.writeFileSync(outputFile, `${JSON.stringify(output, null, 2)}\n`);
 console.log(`Exported ${output.length} products to ${path.relative(projectRoot, outputFile)}.`);
+if (skippedDuplicates.length > 0) {
+  console.warn(
+    `Skipped ${skippedDuplicates.length} products with duplicate names or images: ` +
+      skippedDuplicates.join(", ")
+  );
+}

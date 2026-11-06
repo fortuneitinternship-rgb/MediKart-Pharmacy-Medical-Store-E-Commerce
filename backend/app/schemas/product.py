@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class CategoryResponse(BaseModel):
@@ -73,6 +73,21 @@ class ProductCreate(BaseModel):
     flash_sale_start: datetime | None = None
     flash_sale_end: datetime | None = None
 
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str) -> str:
+        normalized = " ".join(value.split())
+        if not normalized:
+            raise ValueError("Product name cannot be blank.")
+        return normalized
+
+    @field_validator("image")
+    @classmethod
+    def normalize_image(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.strip() or None
+
     model_config = ConfigDict(extra="forbid")
 
 
@@ -97,5 +112,22 @@ class ProductUpdate(BaseModel):
     is_flash_sale: bool | None = None
     flash_sale_start: datetime | None = None
     flash_sale_end: datetime | None = None
+
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = " ".join(value.split())
+        if not normalized:
+            raise ValueError("Product name cannot be blank.")
+        return normalized
+
+    @field_validator("image")
+    @classmethod
+    def normalize_image(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.strip() or None
 
     model_config = ConfigDict(extra="forbid")

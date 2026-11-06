@@ -163,6 +163,35 @@ def get_or_create_category(db: Session, name: str) -> Category:
     return category
 
 
+def ensure_product_is_unique(
+    db: Session,
+    name: str,
+    image: str | None,
+    exclude_product_id: int | None = None,
+) -> None:
+    normalized_name = " ".join(name.split()).casefold()
+    normalized_image = image.strip().casefold() if image else None
+
+    existing_products = db.query(Product.id, Product.name, Product.image).all()
+    for existing_id, existing_name, existing_image in existing_products:
+        if existing_id == exclude_product_id:
+            continue
+        if " ".join(existing_name.split()).casefold() == normalized_name:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"A product named '{name}' already exists.",
+            )
+        if (
+            normalized_image
+            and existing_image
+            and existing_image.strip().casefold() == normalized_image
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="This image is already assigned to another product.",
+            )
+
+
 @router.get("/categories", response_model=list[CategoryResponse])
 def list_categories(db: Session = Depends(get_db)):
     return (
@@ -247,6 +276,7 @@ def create_product(
     current_admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
+    ensure_product_is_unique(db, data.name, data.image)
     values = data.model_dump(exclude={"category"})
     product = Product(**values)
     product.category = get_or_create_category(db, data.category)
@@ -275,6 +305,12 @@ def update_product(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
 
     values = data.model_dump(exclude_unset=True)
+    ensure_product_is_unique(
+        db,
+        values.get("name", product.name),
+        values.get("image", product.image),
+        exclude_product_id=product.id,
+    )
     category_name = values.pop("category", None)
     if category_name is not None:
         product.category = get_or_create_category(db, category_name)
