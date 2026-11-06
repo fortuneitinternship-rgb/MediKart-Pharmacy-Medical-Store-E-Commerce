@@ -1,9 +1,9 @@
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
-from typing import Literal
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -26,12 +26,25 @@ router = APIRouter(
 # -------------------- REQUEST SCHEMAS --------------------
 
 class ShippingAddress(BaseModel):
-    name: str = Field(min_length=1, max_length=100)
-    phone: str = Field(pattern=r"^\d{10}$")
-    address: str = Field(min_length=1, max_length=500)
-    city: str = Field(min_length=1, max_length=100)
-    state: str = Field(min_length=1, max_length=100)
-    pincode: str = Field(pattern=r"^\d{6}$")
+    name: str = Field(min_length=2, max_length=100)
+    phone: str = Field(min_length=10, max_length=15, pattern=r"^\d{10}$")
+    address: str = Field(min_length=3, max_length=255)
+    city: str = Field(min_length=2, max_length=100)
+    state: str = Field(min_length=2, max_length=100)
+    pincode: str = Field(min_length=6, max_length=10, pattern=r"^\d{6}$")
+
+    @field_validator(
+        "name",
+        "phone",
+        "address",
+        "city",
+        "state",
+        "pincode",
+        mode="before",
+    )
+    @classmethod
+    def strip_address_values(cls, value: Any) -> Any:
+        return value.strip() if isinstance(value, str) else value
 
 
 class CheckoutAddressRequest(ShippingAddress):

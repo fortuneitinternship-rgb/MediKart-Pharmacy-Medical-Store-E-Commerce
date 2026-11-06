@@ -4,10 +4,11 @@ from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class Settings(BaseSettings):
+DEFAULT_DATABASE_PATH = Path(__file__).resolve().parents[2] / "medikart.db"
 
-        # Database
-    DATABASE_URL: str
+
+class Settings(BaseSettings):
+    DATABASE_URL: str = f"sqlite:///{DEFAULT_DATABASE_PATH.as_posix()}"
 
     UPLOAD_DIR: Path = Path(__file__).resolve().parents[2] / "uploads"
 

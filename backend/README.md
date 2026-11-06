@@ -10,14 +10,15 @@ npm install
 npm run export:catalog
 cd .\backend
 if (!(Test-Path .env)) { Copy-Item .env.example .env }
-# Edit .env if your local MySQL credentials or optional settings differ.
-.\environment\Scripts\Activate.ps1
+# Use SQLite without a local MySQL server by setting DATABASE_URL in .env:
+# DATABASE_URL=sqlite:///./medikart.db
+.\venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
 python -m app.scripts.seed_product_catalog
 uvicorn app.main:app --reload
 ```
 
-`backend\.env` is required and loaded from the backend folder regardless of the current working directory. There is no implicit SQLite fallback: the backend fails at startup if `DATABASE_URL` is missing. Startup upgrades the legacy address columns (`name`/`address_line`) without dropping saved address data, adds the optional second address line, and creates missing tables. `Base.metadata.create_all()` alone does not migrate existing tables. Create the `medikart` database first and grant `medikart_user` permission to alter and create tables.
+`backend\.env` is loaded from the backend folder regardless of the current working directory. If `DATABASE_URL` is omitted, the API uses SQLite at `backend\medikart.db`; the database file is created automatically and keeps records across restarts. Relative SQLite URLs such as `sqlite:///./medikart.db` resolve from the backend folder, not the terminal's current directory. Existing `.env` settings override this default. To use MySQL instead, keep the MySQL URL from `.env.example`, create the `medikart` database, and grant the configured user permission to create and alter tables. Startup upgrades the legacy address columns (`name`/`address_line`) without dropping saved address data, adds the optional second address line, and creates missing tables. `Base.metadata.create_all()` does not migrate arbitrary changes to existing tables.
 
 The local MySQL connection in `.env.example` is:
 
@@ -25,7 +26,7 @@ The local MySQL connection in `.env.example` is:
 DATABASE_URL=mysql+pymysql://medikart_user:your_password@localhost:3306/medikart
 ```
 
-Copy `.env.example` to `.env` before starting the API. `.env` is ignored by Git; do not commit real database credentials. All backend API reads and writes share this `DATABASE_URL`, including users, products, cart, wishlist, addresses, orders, payments, and submissions.
+Copy `.env.example` to `.env` before starting the API. The example is configured for MySQL; replace its `DATABASE_URL` with `sqlite:///./medikart.db` to use SQLite instead. `.env` is ignored by Git; do not commit real database credentials. All backend API reads and writes share this `DATABASE_URL`, including users, products, cart, wishlist, addresses, orders, payments, and submissions.
 
 Open interactive API docs at http://127.0.0.1:8000/docs. CORS reads comma-separated `FRONTEND_ORIGINS` and allows all methods/headers, including browser `OPTIONS` preflights. The defaults include Create React App ports 3000 and 3001, plus Vite port 5173, on both `localhost` and `127.0.0.1`.
 
@@ -123,12 +124,21 @@ Test-NetConnection smtp.gmail.com -Port 465
 
 ## Verify records directly
 
+The root and `/health` endpoints only report API status; they do not create
+records. Create records through the corresponding `POST` endpoints in `/docs`
+or through the frontend, then inspect the database configured by
+`DATABASE_URL`. Successful user, address, cart, order, and submission writes
+are committed before the API responds.
+
 For the configured MySQL database, connect to `medikart` in MySQL Workbench (or another MySQL client) using the same host/database from `DATABASE_URL`, then run:
 
 ```sql
 SELECT id, name, email, phone, last_login FROM users;
+SELECT id, name, price, stock, category_id FROM products;
 SELECT id, user_id, full_name, address_line1, city, state, pincode FROM addresses;
-SELECT id, order_id, user_id, subtotal, total_amount, status FROM orders;
+SELECT id, user_id, product_id, quantity FROM cart_items;
+SELECT id, order_id, user_id, product_amount, total_amount, status FROM orders;
+SELECT id, order_id, product_id, quantity FROM order_items;
 SELECT email, expires_at, attempts, is_used FROM email_otps;
 ```
 
@@ -172,5 +182,5 @@ does not charge cards or bank accounts.
 
 ```powershell
 cd .\medikart\backend
-.\environment\Scripts\python.exe -m pytest -q tests\test_users.py
+.\venv\Scripts\python.exe -m pytest -q tests\test_users.py
 ```

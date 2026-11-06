@@ -248,7 +248,11 @@ const Cart = () => {
       return;
     }
 
-    navigate("/checkout");
+    navigate("/checkout", {
+      state: {
+        checkoutItems: cartItems,
+      },
+    });
   };
 
   // -------------------- CART TOTALS --------------------

@@ -1,6 +1,7 @@
 import os
 import tempfile
 from datetime import date, datetime
+from pathlib import Path
 
 import pytest
 from sqlalchemy import create_engine, inspect, text
@@ -17,7 +18,13 @@ from fastapi.testclient import TestClient
 from app.api.routers import login as login_router
 from app.core.security import create_access_token
 from app.core.config import settings
-from app.database.database import Base, SessionLocal, engine
+from app.database.database import (
+    BACKEND_DIR,
+    Base,
+    SessionLocal,
+    create_database_engine,
+    engine,
+)
 from app.main import app
 from app.models.address import Address
 from app.models.cart_item import CartItem
@@ -85,6 +92,24 @@ def auth(token):
 
 def test_get_profile_requires_authentication(client, users):
     assert client.get("/api/users/me").status_code == 401
+
+
+def test_relative_sqlite_url_resolves_from_backend_directory():
+    test_engine = create_database_engine("sqlite:///relative-database-test.db")
+    try:
+        assert Path(test_engine.url.database) == (
+            BACKEND_DIR / "relative-database-test.db"
+        ).resolve()
+    finally:
+        test_engine.dispose()
+
+
+def test_in_memory_sqlite_url_is_not_resolved_to_a_file():
+    test_engine = create_database_engine("sqlite://")
+    try:
+        assert test_engine.url.database is None
+    finally:
+        test_engine.dispose()
 
 
 def test_get_profile_returns_safe_fields_only(client, users):
@@ -940,6 +965,30 @@ def test_checkout_saves_address_and_order_then_clears_cart(client, users):
         ).all()
         assert len(remaining_cart) == 1
         assert remaining_cart[0].product_id == other_product_id
+
+
+def test_checkout_address_rejects_values_that_exceed_database_columns(client, users):
+    headers = auth(users["first_token"])
+    valid_address = {
+        "name": "First User",
+        "phone": "4155550101",
+        "address": "123 Example Street",
+        "city": "San Francisco",
+        "state": "California",
+        "pincode": "941051",
+    }
+
+    for field, value in (
+        ("address", "A" * 256),
+        ("city", "C" * 101),
+        ("state", "S" * 101),
+    ):
+        response = client.post(
+            "/api/checkout/address",
+            headers=headers,
+            json={**valid_address, field: value},
+        )
+        assert response.status_code == 422, response.json()
 
 
 def test_cors_headers_are_present_on_internal_login_errors(users, monkeypatch):

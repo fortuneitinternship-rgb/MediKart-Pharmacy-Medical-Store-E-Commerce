@@ -265,6 +265,28 @@ describe("Checkout Component", () => {
     ).toBeInTheDocument();
   });
 
+  test("uses cart items passed from the cart page", async () => {
+    getCheckoutCart.mockResolvedValue({ items: [] });
+
+    render(
+      <MemoryRouter
+        initialEntries={[
+          {
+            pathname: "/checkout",
+            state: { checkoutItems: minimalCart },
+          },
+        ]}
+      >
+        <Checkout />
+      </MemoryRouter>
+    );
+
+    expect(
+      await screen.findByTestId("checkout-product-1")
+    ).toBeInTheDocument();
+    expect(getCheckoutCart).not.toHaveBeenCalled();
+  });
+
   test("increases and decreases item quantity", async () => {
     renderCheckout(minimalCart);
 
@@ -364,7 +386,7 @@ describe("Checkout Component", () => {
     );
 
     expect(global.alert).toHaveBeenCalledWith(
-      "Please enter your name."
+      "Please enter your full name (at least 2 characters)."
     );
   });
 
@@ -398,6 +420,55 @@ describe("Checkout Component", () => {
     expect(global.alert).toHaveBeenCalledWith(
       "Please enter a valid 10-digit phone number."
     );
+  });
+
+  test("validates address fields against database limits", async () => {
+    await goToAddressStep();
+
+    fillAddress();
+    fireEvent.change(screen.getByLabelText("Full Name"), {
+      target: { value: "A" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /continue to payment/i,
+      })
+    );
+
+    expect(global.alert).toHaveBeenCalledWith(
+      "Please enter your full name (at least 2 characters)."
+    );
+    expect(saveCheckoutAddress).not.toHaveBeenCalled();
+  });
+
+  test("shows the backend reason when address saving is rejected", async () => {
+    await goToAddressStep();
+    fillAddress();
+    saveCheckoutAddress.mockRejectedValueOnce({
+      response: {
+        status: 422,
+        data: {
+          detail: [
+            {
+              loc: ["body", "address"],
+              msg: "Address must be 255 characters or fewer.",
+            },
+          ],
+        },
+      },
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /continue to payment/i,
+      })
+    );
+
+    await waitFor(() => {
+      expect(global.alert).toHaveBeenCalledWith(
+        "Unable to save address. address: Address must be 255 characters or fewer."
+      );
+    });
   });
 
   test("validates pincode", async () => {

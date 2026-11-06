@@ -7,6 +7,14 @@ import {
 } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { MemoryRouter } from "react-router-dom";
+
+const mockNavigate = jest.fn();
+
+jest.mock("react-router-dom", () => ({
+  ...jest.requireActual("react-router-dom"),
+  useNavigate: () => mockNavigate,
+}));
+
 import Cart from "./Cart";
 import {
   getAccessToken,
@@ -51,13 +59,14 @@ jest.mock("../../components/CartItem/CartItem", () => ({
 
 jest.mock("../../components/CartSummary/CartSummary", () => ({
   __esModule: true,
-  default: ({ totalItems, subtotal, discount, delivery, totalPrice }) => (
+  default: ({ totalItems, subtotal, discount, delivery, totalPrice, onCheckout }) => (
     <div data-testid="cart-summary">
       <p>Items: {totalItems}</p>
       <p>Subtotal: ₹{subtotal}</p>
       <p>Discount: ₹{discount}</p>
       <p>Delivery: ₹{delivery}</p>
       <p>Total: ₹{totalPrice}</p>
+      <button onClick={onCheckout}>Proceed to Checkout</button>
     </div>
   ),
 }));
@@ -120,6 +129,19 @@ describe("Cart Component", () => {
     expect(screen.getByText("Discount: ₹18")).toBeInTheDocument();
     expect(screen.getByText("Delivery: ₹10")).toBeInTheDocument();
     expect(screen.getByText("Total: ₹172")).toBeInTheDocument();
+  });
+
+  test("passes the displayed cart items into checkout", async () => {
+    getCart.mockResolvedValue(mockCart);
+
+    renderCart();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Proceed to Checkout" })
+    );
+
+    expect(mockNavigate).toHaveBeenCalledWith("/checkout", {
+      state: { checkoutItems: mockCart },
+    });
   });
 
   test("shows the empty state when the database cart is empty", async () => {

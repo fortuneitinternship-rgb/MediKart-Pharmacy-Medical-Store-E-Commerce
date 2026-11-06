@@ -95,7 +95,6 @@ def get_cart_items(db: Session, user_id: int):
 
 @router.get("")
 @router.get("/")
-@router.get("")
 def get_cart(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
@@ -212,7 +211,6 @@ def import_local_cart(
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 @router.post("/", status_code=status.HTTP_201_CREATED)
-@router.post("", status_code=status.HTTP_201_CREATED)
 def add_cart_item(
     payload: CartItemCreate,
     db: Session = Depends(get_db),

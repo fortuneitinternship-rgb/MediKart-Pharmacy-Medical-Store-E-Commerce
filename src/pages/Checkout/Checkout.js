@@ -20,6 +20,7 @@ const Checkout = () => {
     const location = useLocation();
     const { id: routeProductId } = useParams();
     const buyNowItems = location.state?.buyNowItems;
+    const checkoutItems = location.state?.checkoutItems;
 
     // ======================= STATES =======================
 
@@ -114,6 +115,12 @@ const Checkout = () => {
                 return;
             }
 
+            if (Array.isArray(checkoutItems) && checkoutItems.length > 0) {
+                setCartItems(checkoutItems);
+                setCartLoading(false);
+                return;
+            }
+
             try {
                 const data = await getCheckoutCart();
 
@@ -150,7 +157,7 @@ const Checkout = () => {
         return () => {
             cancelled = true;
         };
-    }, [routeProductId, cartLoadAttempt, buyNowItems]);
+    }, [routeProductId, cartLoadAttempt, buyNowItems, checkoutItems]);
 
     // ======================= LOAD SAVED ADDRESS =======================
 
@@ -556,10 +563,20 @@ const Checkout = () => {
     // =====================================================
 
     const validateAddress = () => {
-        if (!address.name.trim()) {
+        const name = address.name.trim();
+        const deliveryAddress = address.address.trim();
+        const city = address.city.trim();
+        const state = address.state.trim();
+
+        if (name.length < 2) {
             alert(
-                "Please enter your name."
+                "Please enter your full name (at least 2 characters)."
             );
+            return false;
+        }
+
+        if (name.length > 100) {
+            alert("Full name must be 100 characters or fewer.");
             return false;
         }
 
@@ -574,24 +591,25 @@ const Checkout = () => {
             return false;
         }
 
-        if (!address.address.trim()) {
+        if (deliveryAddress.length < 3) {
             alert(
-                "Please enter your full delivery address."
+                "Please enter a full delivery address (at least 3 characters)."
             );
             return false;
         }
 
-        if (!address.city.trim()) {
-            alert(
-                "Please enter your city."
-            );
+        if (deliveryAddress.length > 255) {
+            alert("Delivery address must be 255 characters or fewer.");
             return false;
         }
 
-        if (!address.state.trim()) {
-            alert(
-                "Please enter your state."
-            );
+        if (city.length < 2 || city.length > 100) {
+            alert("Please enter a city between 2 and 100 characters.");
+            return false;
+        }
+
+        if (state.length < 2 || state.length > 100) {
+            alert("Please enter a state between 2 and 100 characters.");
             return false;
         }
 
@@ -652,21 +670,31 @@ const Checkout = () => {
                 error.response?.data || error.message
             );
 
-            const detail = error.response?.data?.detail;
-            const reason = Array.isArray(detail)
-                ? detail
+            const responseData = error.response?.data;
+            const detail = responseData?.detail;
+            let reason;
+            if (Array.isArray(detail)) {
+                reason = detail
                     .map((item) => {
                         const field = Array.isArray(item.loc)
                             ? item.loc[item.loc.length - 1]
                             : "";
                         return `${field ? `${field}: ` : ""}${item.msg}`;
                     })
-                    .join("\n")
-                : typeof detail === "string"
-                  ? detail
-                  : error.response
-                    ? "The server rejected the address."
-                    : "Could not reach the API. Check that the backend is running.";
+                    .join("\n");
+            } else if (typeof detail === "string") {
+                reason = detail;
+            } else if (detail && typeof detail === "object") {
+                reason = JSON.stringify(detail);
+            } else if (typeof responseData?.message === "string") {
+                reason = responseData.message;
+            } else if (typeof responseData === "string" && responseData) {
+                reason = responseData;
+            } else if (error.response) {
+                reason = `The server could not save the address (HTTP ${error.response.status}). Please try again.`;
+            } else {
+                reason = "Could not reach the API. Check that the backend is running.";
+            }
 
             alert(`Unable to save address. ${reason}`);
         } finally {
@@ -1879,6 +1907,7 @@ const Checkout = () => {
                                     id="checkout-name"
                                     type="text"
                                     name="name"
+                                    maxLength="100"
                                     value={
                                         address.name
                                     }
@@ -1923,6 +1952,7 @@ const Checkout = () => {
                             <textarea
                                 id="checkout-address"
                                 name="address"
+                                maxLength="255"
                                 value={
                                     address.address
                                 }
@@ -1947,6 +1977,7 @@ const Checkout = () => {
                                     id="checkout-city"
                                     type="text"
                                     name="city"
+                                    maxLength="100"
                                     value={
                                         address.city
                                     }
@@ -1968,6 +1999,7 @@ const Checkout = () => {
                                     id="checkout-state"
                                     type="text"
                                     name="state"
+                                    maxLength="100"
                                     value={
                                         address.state
                                     }
