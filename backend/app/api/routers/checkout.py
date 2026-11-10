@@ -386,6 +386,7 @@ def create_checkout_order(
         total_amount=float(total),
         status="Order Confirmed",
         stock_reserved=True,
+        payment_status="Pending",
     )
 
     try:

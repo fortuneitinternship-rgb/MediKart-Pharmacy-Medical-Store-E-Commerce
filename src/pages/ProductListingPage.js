@@ -1,3 +1,4 @@
+
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import SearchBar from "../components/SearchBar/SearchBar";
@@ -14,34 +15,71 @@ const categorySlugMap = {
   "medical-devices": ["device", "devices", "monitor", "thermometer"],
   healthcare: ["healthcare", "medical"],
   "premium-healthcare": ["premium", "premium healthcare"],
-  "hair-care": ["hair", "hair care"]
+  "hair-care": ["hair", "hair care"],
 };
 
 const matchesCategory = (product, selectedCategory) => {
   if (!selectedCategory) return true;
 
   const keywords = categorySlugMap[selectedCategory] || [selectedCategory];
-  const haystack = [product.category, product.name, product.description]
+
+  const haystack = [
+    product.category,
+    product.name,
+    product.description,
+  ]
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
 
-  return keywords.some((keyword) => haystack.includes(keyword.toLowerCase()));
+  return keywords.some((keyword) =>
+    haystack.includes(keyword.toLowerCase())
+  );
 };
 
 const ProductListing = () => {
   const { category } = useParams();
+
   const [search, setSearch] = useState("");
   const [products, setProducts] = useState([]);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    getProducts()
-      .then((items) => setProducts(getUniqueProductsByImage(items)))
-      .catch((loadError) => {
+    let isMounted = true;
+
+    const loadProducts = async () => {
+      try {
+        const items = await getProducts();
+
+        const uniqueProducts = getUniqueProductsByImage(
+          Array.isArray(items) ? items : []
+        );
+
+        if (isMounted) {
+          setProducts(
+            Array.isArray(uniqueProducts)
+              ? uniqueProducts
+              : []
+          );
+          setError("");
+        }
+      } catch (loadError) {
         console.error("Unable to load products:", loadError);
-        setError("Products could not be loaded from the database.");
-      });
+
+        if (isMounted) {
+          setProducts([]);
+          setError(
+            "Products could not be loaded from the database."
+          );
+        }
+      }
+    };
+
+    loadProducts();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const normalizedCategory = category
@@ -49,12 +87,21 @@ const ProductListing = () => {
     : "";
 
   const filteredProducts = useMemo(() => {
+    const searchKeyword = search.toLowerCase().trim();
+
     return products.filter((item) => {
       const keywordMatch =
-        item.name.toLowerCase().includes(search.toLowerCase()) ||
-        (item.category || "").toLowerCase().includes(search.toLowerCase());
+        (item.name || "")
+          .toLowerCase()
+          .includes(searchKeyword) ||
+        (item.category || "")
+          .toLowerCase()
+          .includes(searchKeyword);
 
-      const categoryMatch = matchesCategory(item, category?.toLowerCase());
+      const categoryMatch = matchesCategory(
+        item,
+        category?.toLowerCase()
+      );
 
       return keywordMatch && categoryMatch;
     });

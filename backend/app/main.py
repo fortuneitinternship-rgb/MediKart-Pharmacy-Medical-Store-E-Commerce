@@ -9,6 +9,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -19,7 +20,7 @@ from app.database.migrations import (
     upgrade_legacy_address_schema,
 )
 
-# Register models before creating database tables.
+# Register all SQLAlchemy models before create_all().
 import app.database.base  # noqa: F401
 
 # Import API routers.
@@ -44,16 +45,26 @@ from app.api.routers import (
     submissions,
     users,
     wishlist,
-    checkout
+    checkout,
 )
+
 from app.api.routers.otp import router as otp_router
 
 
 # ============================================================
-# CREATE APPLICATION
+# LOGGING
 # ============================================================
 
-app = FastAPI(
+logging.basicConfig(level=logging.INFO)
+
+logger = logging.getLogger("medikart.api")
+
+
+# ============================================================
+# CREATE FASTAPI APPLICATION
+# ============================================================
+
+api = FastAPI(
     title="MEDIKART API",
     description=(
         "FastAPI backend for the MediKart "
@@ -61,91 +72,143 @@ app = FastAPI(
     ),
     version="1.0.0",
 )
-logger = logging.getLogger("medikart.api")
 
 
-@app.exception_handler(RequestValidationError)
+# ============================================================
+# EXCEPTION HANDLERS
+# ============================================================
+
+@api.exception_handler(RequestValidationError)
 async def request_validation_error_handler(
     request: Request,
     error: RequestValidationError,
 ):
+    logger.warning(
+        "Validation error: %s %s",
+        request.method,
+        request.url.path,
+    )
+
     return JSONResponse(
         status_code=422,
-        content={"detail": jsonable_encoder(error.errors())},
+        content={
+            "detail": jsonable_encoder(error.errors())
+        },
     )
 
 
-@app.exception_handler(SQLAlchemyError)
-async def database_error_handler(request: Request, error: SQLAlchemyError):
-    logger.exception("Database request failed: %s %s", request.method, request.url.path)
+@api.exception_handler(SQLAlchemyError)
+async def database_error_handler(
+    request: Request,
+    error: SQLAlchemyError,
+):
+    logger.exception(
+        "Database error: %s %s",
+        request.method,
+        request.url.path,
+    )
+
     return JSONResponse(
         status_code=500,
-        content={"detail": "A database error prevented the request from completing."},
+        content={
+            "detail": "A database error prevented the request from completing."
+        },
     )
 
 
-@app.exception_handler(Exception)
-async def unexpected_error_handler(request: Request, error: Exception):
-    logger.exception("Unhandled API error: %s %s", request.method, request.url.path)
+@api.exception_handler(Exception)
+async def unexpected_error_handler(
+    request: Request,
+    error: Exception,
+):
+    logger.exception(
+        "Unexpected API error: %s %s",
+        request.method,
+        request.url.path,
+    )
+
     return JSONResponse(
         status_code=500,
-        content={"detail": "An unexpected server error occurred."},
+        content={
+            "detail": "An unexpected server error occurred."
+        },
     )
 
-
-# ============================================================
-# CORS CONFIGURATION
-# ============================================================
-
-frontend_origins = [
-    origin.strip()
-    for origin in settings.FRONTEND_ORIGINS.split(",")
-    if origin.strip()
-]
 
 # ============================================================
 # DATABASE INITIALIZATION
 # ============================================================
 
-@app.on_event("startup")
+@api.on_event("startup")
 def initialize_database():
-    # Keep existing address data while upgrading legacy column names.
-    upgrade_legacy_address_schema(engine)
-    # Create missing tables registered with SQLAlchemy.
-    Base.metadata.create_all(bind=engine)
-    upgrade_application_schema(engine)
-    settings.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+    logger.info("Starting MediKart database initialization...")
+
+    try:
+        # Upgrade existing legacy address columns.
+        upgrade_legacy_address_schema(engine)
+
+        # Create missing registered database tables.
+        Base.metadata.create_all(bind=engine)
+
+        # Apply application schema upgrades.
+        upgrade_application_schema(engine)
+
+        # Create uploads directory.
+        settings.UPLOAD_DIR.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        # Verify database connectivity.
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+
+        logger.info("MediKart database initialized successfully.")
+
+    except Exception:
+        logger.exception("MediKart database initialization failed.")
+        raise
 
 
 # ============================================================
-# REGISTER ROUTERS
+# REGISTER API ROUTERS
 # ============================================================
 
-app.include_router(auth.router)
-app.include_router(otp_router)
-app.include_router(addresses.router)
-app.include_router(blog.router)
-app.include_router(careers.router)
-app.include_router(newsletter.router)
-app.include_router(cart.router)
-app.include_router(compare.router)
-app.include_router(coupons.router)
-app.include_router(contact.router)
-app.include_router(reviews.router)
-app.include_router(returns.router)
-app.include_router(reports.router)
-app.include_router(uploads.router)
-app.include_router(wishlist.router)
-app.include_router(orders.router)
-app.include_router(payments.router)
-app.include_router(admin.router)
-app.include_router(products.router)
-app.include_router(users.router)
-app.include_router(submissions.router)
-app.include_router(checkout.router)
-app.mount(
+api.include_router(auth.router)
+api.include_router(otp_router)
+api.include_router(addresses.router)
+api.include_router(blog.router)
+api.include_router(careers.router)
+api.include_router(newsletter.router)
+api.include_router(cart.router)
+api.include_router(compare.router)
+api.include_router(coupons.router)
+api.include_router(contact.router)
+api.include_router(reviews.router)
+api.include_router(returns.router)
+api.include_router(reports.router)
+api.include_router(uploads.router)
+api.include_router(wishlist.router)
+api.include_router(orders.router)
+api.include_router(payments.router)
+api.include_router(admin.router)
+api.include_router(products.router)
+api.include_router(users.router)
+api.include_router(submissions.router)
+api.include_router(checkout.router)
+
+
+# ============================================================
+# STATIC UPLOAD FILES
+# ============================================================
+
+api.mount(
     "/uploads",
-    StaticFiles(directory=settings.UPLOAD_DIR, check_dir=False),
+    StaticFiles(
+        directory=str(settings.UPLOAD_DIR),
+        check_dir=False,
+    ),
     name="uploads",
 )
 
@@ -154,39 +217,71 @@ app.mount(
 # ROOT ENDPOINT
 # ============================================================
 
-@app.get("/", tags=["Health"])
+@api.get("/", tags=["Health"])
 def root():
+
     return {
         "message": "MEDIKART FastAPI Backend is running",
         "status": "success",
         "docs": "/docs",
+        "health": "/health",
     }
 
 
 # ============================================================
-# HEALTH CHECK
+# DATABASE HEALTH CHECK
 # ============================================================
 
-@app.get("/health", tags=["Health"])
+@api.get("/health", tags=["Health"])
 def health():
+
     try:
         with engine.connect() as connection:
             connection.execute(text("SELECT 1"))
+
+        return {
+            "status": "healthy",
+            "message": "MEDIKART API and database are working correctly",
+            "database": "connected",
+        }
+
     except SQLAlchemyError as error:
+
+        logger.exception("Database health check failed.")
+
         raise HTTPException(
             status_code=503,
             detail="Database is unavailable",
         ) from error
 
+
+# ============================================================
+# API HEALTH CHECK (WITHOUT DATABASE)
+# ============================================================
+
+@api.get("/health/api", tags=["Health"])
+def api_health():
+
     return {
-        "status": "healthy",
-        "message": "MEDIKART API and database are working correctly",
+        "status": "success",
+        "message": "MediKart API is running",
     }
 
 
-# Keep CORS outside FastAPI so it also decorates unhandled 500 responses.
+# ============================================================
+# CORS CONFIGURATION
+# ============================================================
+
+frontend_origins = [
+    origin.strip().rstrip("/")
+    for origin in settings.FRONTEND_ORIGINS.split(",")
+    if origin.strip()
+]
+
+# Keep CORS outside FastAPI so CORS headers are also added
+# to unhandled server-error responses.
 app = CORSMiddleware(
-    app=app,
+    app=api,
     allow_origins=frontend_origins,
     allow_credentials=True,
     allow_methods=["*"],
