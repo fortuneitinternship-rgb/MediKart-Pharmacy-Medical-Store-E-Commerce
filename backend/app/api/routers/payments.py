@@ -1,14 +1,25 @@
+
 import json
 import hashlib
 import hmac
 import logging
 import time
 import uuid
+
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Literal
 
 import httpx
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+
+from fastapi import (
+    APIRouter,
+    Depends,
+    Header,
+    HTTPException,
+    Request,
+    status,
+)
+
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -16,15 +27,38 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user
 from app.core.config import settings
 from app.database.database import get_db
+
 from app.models.order import Order
 from app.models.payment import Payment
 from app.models.payment_webhook_event import PaymentWebhookEvent
 from app.models.user import User
+
 from app.schemas.payment import PaymentCreate, PaymentResponse
 
+
 router = APIRouter(prefix="/api/payments", tags=["Payments"])
+
 logger = logging.getLogger(__name__)
 
+
+# ---------------------------------------------------------
+# MONEY HELPER
+# ---------------------------------------------------------
+
+def money(value) -> Decimal:
+    """
+    Convert a value to Decimal and round it to two
+    decimal places using standard currency rounding.
+    """
+    return Decimal(str(value)).quantize(
+        Decimal("0.01"),
+        rounding=ROUND_HALF_UP,
+    )
+
+
+# ---------------------------------------------------------
+# REQUEST SCHEMAS
+# ---------------------------------------------------------
 
 class RazorpayOrderRequest(BaseModel):
     order_id: str = Field(min_length=1, max_length=50)
@@ -41,26 +75,42 @@ class PaymentWebhookPayload(BaseModel):
     order_id: str = Field(min_length=1, max_length=50)
     transaction_id: str = Field(min_length=1, max_length=100)
     amount: Decimal = Field(ge=0)
+
     method: Literal["CARD", "NETBANKING"]
     status: Literal["succeeded", "failed"]
 
     @field_validator("amount")
     @classmethod
     def validate_amount_precision(cls, amount: Decimal) -> Decimal:
-        if not amount.is_finite() or amount.as_tuple().exponent < -2:
-            raise ValueError("Payment amount must have no more than two decimal places.")
+        if (
+            not amount.is_finite()
+            or amount.as_tuple().exponent < -2
+        ):
+            raise ValueError(
+                "Payment amount must have no more than two decimal places."
+            )
+
         return amount
 
+
+# ---------------------------------------------------------
+# PAYMENT CONFIGURATION
+# ---------------------------------------------------------
 
 @router.get("/config")
 def get_payment_config():
     return {
         "mode": settings.PAYMENT_MODE,
         "razorpay_enabled": bool(
-            settings.RAZORPAY_KEY_ID and settings.RAZORPAY_KEY_SECRET
+            settings.RAZORPAY_KEY_ID
+            and settings.RAZORPAY_KEY_SECRET
         ),
     }
 
+
+# ---------------------------------------------------------
+# PROCESS PAYMENT
+# ---------------------------------------------------------
 
 @router.post("/process", response_model=PaymentResponse)
 def process_payment(
@@ -68,29 +118,41 @@ def process_payment(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    order = db.query(Order).filter(
-        Order.order_id == data.order_id,
-        Order.user_id == current_user.id,
-    ).first()
+    order = (
+        db.query(Order)
+        .filter(
+            Order.order_id == data.order_id,
+            Order.user_id == current_user.id,
+        )
+        .first()
+    )
 
     if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Order not found",
+        )
 
     if data.method != order.payment_method:
         raise HTTPException(
-            status_code=409,
+            status_code=status.HTTP_409_CONFLICT,
             detail="Payment method must match the method selected for this order.",
         )
 
-    if data.method != "COD" and settings.PAYMENT_MODE == "razorpay":
+    if (
+        data.method != "COD"
+        and settings.PAYMENT_MODE == "razorpay"
+    ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Use Razorpay checkout to process this payment.",
         )
 
-    payment = db.query(Payment).filter(
-        Payment.order_id == order.id
-    ).first()
+    payment = (
+        db.query(Payment)
+        .filter(Payment.order_id == order.id)
+        .first()
+    )
 
     if not payment:
         payment = Payment(
@@ -98,21 +160,33 @@ def process_payment(
             amount=order.total_amount,
             method=data.method,
         )
+
         db.add(payment)
+
     payment.method = data.method
     payment.amount = order.total_amount
+
     if data.method == "COD":
         payment.transaction_id = None
         payment.status = "Pending"
+
     else:
         if not payment.transaction_id:
-            payment.transaction_id = "TXN-" + uuid.uuid4().hex[:12].upper()
+            payment.transaction_id = (
+                "TXN-" + uuid.uuid4().hex[:12].upper()
+            )
+
         payment.status = "Simulated"
 
     db.commit()
     db.refresh(payment)
+
     return payment
 
+
+# ---------------------------------------------------------
+# CREATE RAZORPAY ORDER
+# ---------------------------------------------------------
 
 @router.post("/razorpay/order")
 def create_razorpay_order(
@@ -120,8 +194,11 @@ def create_razorpay_order(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if settings.PAYMENT_MODE != "razorpay" or not (
-        settings.RAZORPAY_KEY_ID and settings.RAZORPAY_KEY_SECRET
+
+    if (
+        settings.PAYMENT_MODE != "razorpay"
+        or not settings.RAZORPAY_KEY_ID
+        or not settings.RAZORPAY_KEY_SECRET
     ):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -136,16 +213,19 @@ def create_razorpay_order(
         )
         .first()
     )
+
     if order is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Order not found.",
         )
+
     if order.payment_method not in {"CARD", "NETBANKING"}:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="This order is not configured for online payment.",
         )
+
     if order.status in {"Cancelled", "Refunded"}:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -153,8 +233,11 @@ def create_razorpay_order(
         )
 
     amount = int(
-        money(Decimal(str(order.total_amount or 0))) * Decimal("100")
+        money(
+            Decimal(str(order.total_amount or 0))
+        ) * Decimal("100")
     )
+
     if amount <= 0:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -167,12 +250,14 @@ def create_razorpay_order(
         .with_for_update()
         .first()
     )
+
     if payment is not None and payment.status == "Paid":
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="This order has already been paid.",
         )
 
+    # Reuse an existing Razorpay order when possible.
     if (
         payment is not None
         and payment.provider_order_id
@@ -195,25 +280,41 @@ def create_razorpay_order(
         with httpx.Client(timeout=15.0) as client:
             response = client.post(
                 "https://api.razorpay.com/v1/orders",
-                auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET),
+                auth=(
+                    settings.RAZORPAY_KEY_ID,
+                    settings.RAZORPAY_KEY_SECRET,
+                ),
                 json={
                     "amount": amount,
                     "currency": "INR",
                     "receipt": order.order_id,
-                    "notes": {"medikart_order_id": order.order_id},
+                    "notes": {
+                        "medikart_order_id": order.order_id
+                    },
                 },
             )
+
             response.raise_for_status()
             provider_order = response.json()
+
     except (httpx.HTTPError, ValueError) as error:
-        logger.exception("Unable to create Razorpay order for %s", order.order_id)
+
+        logger.exception(
+            "Unable to create Razorpay order for %s",
+            order.order_id,
+        )
+
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="The payment provider could not create an order. Please retry.",
         ) from error
 
     provider_order_id = provider_order.get("id")
-    if not isinstance(provider_order_id, str) or not provider_order_id:
+
+    if (
+        not isinstance(provider_order_id, str)
+        or not provider_order_id
+    ):
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="The payment provider returned an invalid order response.",
@@ -225,12 +326,15 @@ def create_razorpay_order(
             amount=float(order.total_amount),
             method=order.payment_method,
         )
+
         db.add(payment)
+
     payment.provider_order_id = provider_order_id
     payment.transaction_id = None
     payment.amount = float(order.total_amount)
     payment.method = order.payment_method
     payment.status = "Pending"
+
     db.commit()
 
     return {
@@ -247,17 +351,26 @@ def create_razorpay_order(
     }
 
 
-@router.post("/razorpay/verify", response_model=PaymentResponse)
+# ---------------------------------------------------------
+# VERIFY RAZORPAY PAYMENT
+# ---------------------------------------------------------
+
+@router.post(
+    "/razorpay/verify",
+    response_model=PaymentResponse,
+)
 def verify_razorpay_payment(
     payload: RazorpayVerificationRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+
     if settings.PAYMENT_MODE != "razorpay":
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Razorpay payments are not enabled.",
         )
+
     payment = (
         db.query(Payment)
         .join(Order, Payment.order_id == Order.id)
@@ -268,6 +381,7 @@ def verify_razorpay_payment(
         .with_for_update()
         .first()
     )
+
     if payment is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -275,14 +389,20 @@ def verify_razorpay_payment(
         )
 
     signed_data = (
-        f"{payload.razorpay_order_id}|{payload.razorpay_payment_id}".encode()
-    )
+        f"{payload.razorpay_order_id}|"
+        f"{payload.razorpay_payment_id}"
+    ).encode()
+
     expected_signature = hmac.new(
         settings.RAZORPAY_KEY_SECRET.encode(),
         signed_data,
         hashlib.sha256,
     ).hexdigest()
-    if not hmac.compare_digest(expected_signature, payload.razorpay_signature):
+
+    if not hmac.compare_digest(
+        expected_signature,
+        payload.razorpay_signature,
+    ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Payment signature verification failed.",
@@ -293,15 +413,22 @@ def verify_razorpay_payment(
             response = client.get(
                 "https://api.razorpay.com/v1/payments/"
                 f"{payload.razorpay_payment_id}",
-                auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET),
+                auth=(
+                    settings.RAZORPAY_KEY_ID,
+                    settings.RAZORPAY_KEY_SECRET,
+                ),
             )
+
             response.raise_for_status()
             provider_payment = response.json()
+
     except (httpx.HTTPError, ValueError) as error:
+
         logger.exception(
             "Unable to verify Razorpay payment %s",
             payload.razorpay_payment_id,
         )
+
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="The payment provider could not verify the payment. Please retry.",
@@ -310,18 +437,26 @@ def verify_razorpay_payment(
     expected_amount = int(
         money(Decimal(str(payment.amount))) * Decimal("100")
     )
+
     if (
         provider_payment.get("order_id") != payment.provider_order_id
         or provider_payment.get("amount") != expected_amount
         or provider_payment.get("currency") != "INR"
         or provider_payment.get("status") != "captured"
-        or provider_payment.get("method") not in {"card", "netbanking"}
+        or provider_payment.get("method") not in {
+            "card",
+            "netbanking",
+        }
     ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="The provider has not confirmed a captured payment for this order.",
         )
-    if payment.transaction_id not in (None, payload.razorpay_payment_id):
+
+    if payment.transaction_id not in (
+        None,
+        payload.razorpay_payment_id,
+    ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="A different payment is already recorded for this order.",
@@ -330,18 +465,29 @@ def verify_razorpay_payment(
     payment.transaction_id = payload.razorpay_payment_id
     payment.method = provider_payment["method"].upper()
     payment.status = "Paid"
+
     db.commit()
     db.refresh(payment)
+
     return payment
 
+
+# ---------------------------------------------------------
+# RAZORPAY WEBHOOK
+# ---------------------------------------------------------
 
 @router.post("/razorpay/webhook")
 async def razorpay_webhook(
     request: Request,
-    x_razorpay_signature: str = Header(alias="X-Razorpay-Signature"),
-    x_razorpay_event_id: str = Header(alias="X-Razorpay-Event-Id"),
+    x_razorpay_signature: str = Header(
+        alias="X-Razorpay-Signature"
+    ),
+    x_razorpay_event_id: str = Header(
+        alias="X-Razorpay-Event-Id"
+    ),
     db: Session = Depends(get_db),
 ):
+
     if (
         settings.PAYMENT_MODE != "razorpay"
         or len(settings.RAZORPAY_WEBHOOK_SECRET) < 16
@@ -352,12 +498,17 @@ async def razorpay_webhook(
         )
 
     raw_body = await request.body()
+
     expected_signature = hmac.new(
         settings.RAZORPAY_WEBHOOK_SECRET.encode(),
         raw_body,
         hashlib.sha256,
     ).hexdigest()
-    if not hmac.compare_digest(expected_signature, x_razorpay_signature):
+
+    if not hmac.compare_digest(
+        expected_signature,
+        x_razorpay_signature,
+    ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid Razorpay webhook signature.",
@@ -365,6 +516,7 @@ async def razorpay_webhook(
 
     try:
         event = json.loads(raw_body)
+
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -372,20 +524,33 @@ async def razorpay_webhook(
         ) from error
 
     event_type = event.get("event")
-    if event_type not in {"payment.captured", "payment.failed"}:
-        return {"received": True, "ignored": True}
+
+    if event_type not in {
+        "payment.captured",
+        "payment.failed",
+    }:
+        return {
+            "received": True,
+            "ignored": True,
+        }
 
     event_key = f"razorpay:{x_razorpay_event_id}"
+
     if db.get(PaymentWebhookEvent, event_key) is not None:
-        return {"received": True, "duplicate": True}
+        return {
+            "received": True,
+            "duplicate": True,
+        }
 
     try:
         entity = event["payload"]["payment"]["entity"]
+
         provider_order_id = entity["order_id"]
         transaction_id = entity["id"]
         amount = int(entity["amount"])
         currency = entity["currency"]
         method = entity["method"]
+
     except (KeyError, TypeError, ValueError) as error:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -394,27 +559,37 @@ async def razorpay_webhook(
 
     payment = (
         db.query(Payment)
-        .filter(Payment.provider_order_id == provider_order_id)
+        .filter(
+            Payment.provider_order_id == provider_order_id
+        )
         .with_for_update()
         .first()
     )
+
     if payment is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Payment order not found.",
         )
+
     expected_amount = int(
         money(Decimal(str(payment.amount))) * Decimal("100")
     )
-    if currency != "INR" or amount != expected_amount or method not in {
-        "card",
-        "netbanking",
-    }:
+
+    if (
+        currency != "INR"
+        or amount != expected_amount
+        or method not in {"card", "netbanking"}
+    ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Webhook amount or currency does not match the order.",
         )
-    if payment.status == "Paid" and event_type != "payment.captured":
+
+    if (
+        payment.status == "Paid"
+        and event_type != "payment.captured"
+    ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="A completed payment cannot be changed to failed.",
@@ -422,7 +597,13 @@ async def razorpay_webhook(
 
     payment.transaction_id = transaction_id
     payment.method = method.upper()
-    payment.status = "Paid" if event_type == "payment.captured" else "Failed"
+
+    payment.status = (
+        "Paid"
+        if event_type == "payment.captured"
+        else "Failed"
+    )
+
     db.add(
         PaymentWebhookEvent(
             event_id=event_key,
@@ -430,28 +611,49 @@ async def razorpay_webhook(
             event_status=event_type,
         )
     )
+
     try:
         db.commit()
+
     except IntegrityError as error:
         db.rollback()
+
         if db.get(PaymentWebhookEvent, event_key) is not None:
-            return {"received": True, "duplicate": True}
+            return {
+                "received": True,
+                "duplicate": True,
+            }
+
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Payment transaction was already processed.",
         ) from error
-    return {"received": True, "duplicate": False}
 
+    return {
+        "received": True,
+        "duplicate": False,
+    }
+
+
+# ---------------------------------------------------------
+# GENERIC PAYMENT WEBHOOK
+# ---------------------------------------------------------
 
 @router.post("/webhook")
 async def verify_payment_webhook(
     payload: PaymentWebhookPayload,
     request: Request,
-    x_payment_timestamp: str = Header(alias="X-Payment-Timestamp"),
-    x_payment_signature: str = Header(alias="X-Payment-Signature"),
+    x_payment_timestamp: str = Header(
+        alias="X-Payment-Timestamp"
+    ),
+    x_payment_signature: str = Header(
+        alias="X-Payment-Signature"
+    ),
     db: Session = Depends(get_db),
 ):
+
     secret = settings.PAYMENT_WEBHOOK_SECRET
+
     if not secret:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -460,53 +662,70 @@ async def verify_payment_webhook(
 
     try:
         timestamp = int(x_payment_timestamp)
+
     except ValueError as error:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid payment webhook timestamp.",
         ) from error
 
-    if abs(int(time.time()) - timestamp) > settings.PAYMENT_WEBHOOK_TOLERANCE_SECONDS:
+    if (
+        abs(int(time.time()) - timestamp)
+        > settings.PAYMENT_WEBHOOK_TOLERANCE_SECONDS
+    ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Payment webhook signature has expired.",
         )
 
-    signed_payload = str(timestamp).encode() + b"." + await request.body()
+    signed_payload = (
+        str(timestamp).encode()
+        + b"."
+        + await request.body()
+    )
+
     expected_signature = hmac.new(
         secret.encode(),
         signed_payload,
         hashlib.sha256,
     ).hexdigest()
-    if not hmac.compare_digest(expected_signature, x_payment_signature):
+
+    if not hmac.compare_digest(
+        expected_signature,
+        x_payment_signature,
+    ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid payment webhook signature.",
         )
 
     if db.get(PaymentWebhookEvent, payload.event_id) is not None:
-        return {"received": True, "duplicate": True}
+        return {
+            "received": True,
+            "duplicate": True,
+        }
 
-    order = db.query(Order).filter(Order.order_id == payload.order_id).first()
+    order = (
+        db.query(Order)
+        .filter(Order.order_id == payload.order_id)
+        .first()
+    )
+
     if order is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Order not found.",
         )
+
     if order.payment_method != payload.method:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Payment method does not match the order.",
         )
 
-    expected_amount = Decimal(str(order.total_amount or 0)).quantize(
-        Decimal("0.01"),
-        rounding=ROUND_HALF_UP,
-    )
-    received_amount = payload.amount.quantize(
-        Decimal("0.01"),
-        rounding=ROUND_HALF_UP,
-    )
+    expected_amount = money(order.total_amount or 0)
+    received_amount = money(payload.amount)
+
     if received_amount != expected_amount:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -519,32 +738,49 @@ async def verify_payment_webhook(
         .with_for_update()
         .first()
     )
-    if payment is not None and payment.transaction_id not in (
-        None,
-        payload.transaction_id,
+
+    if (
+        payment is not None
+        and payment.transaction_id not in (
+            None,
+            payload.transaction_id,
+        )
     ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="A different transaction is already recorded for this order.",
         )
-    if payment is not None and payment.status == "Paid" and payload.status != "succeeded":
+
+    if (
+        payment is not None
+        and payment.status == "Paid"
+        and payload.status != "succeeded"
+    ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="A completed payment cannot be changed to failed.",
         )
+
     if payment is None:
         payment = Payment(
             order_id=order.id,
             amount=float(expected_amount),
             method=payload.method,
         )
+
         db.add(payment)
         db.flush()
 
     payment.transaction_id = payload.transaction_id
     payment.amount = float(expected_amount)
     payment.method = payload.method
-    payment.status = "Paid" if payload.status == "succeeded" else "Failed"
+
+    payment.status = (
+        "Paid"
+        if payload.status == "succeeded"
+        else "Failed"
+    )
+
     db.add(
         PaymentWebhookEvent(
             event_id=payload.event_id,
@@ -552,12 +788,19 @@ async def verify_payment_webhook(
             event_status=payload.status,
         )
     )
+
     try:
         db.commit()
+
     except IntegrityError as error:
         db.rollback()
+
         if db.get(PaymentWebhookEvent, payload.event_id) is not None:
-            return {"received": True, "duplicate": True}
+            return {
+                "received": True,
+                "duplicate": True,
+            }
+
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Payment transaction was already processed.",
@@ -572,25 +815,45 @@ async def verify_payment_webhook(
     }
 
 
-@router.get("/order/{order_id}", response_model=PaymentResponse)
+# ---------------------------------------------------------
+# GET PAYMENT BY ORDER ID
+# ---------------------------------------------------------
+
+@router.get(
+    "/order/{order_id}",
+    response_model=PaymentResponse,
+)
 def get_payment(
     order_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    order = db.query(Order).filter(
-        Order.order_id == order_id,
-        Order.user_id == current_user.id,
-    ).first()
+
+    order = (
+        db.query(Order)
+        .filter(
+            Order.order_id == order_id,
+            Order.user_id == current_user.id,
+        )
+        .first()
+    )
 
     if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Order not found",
+        )
 
-    payment = db.query(Payment).filter(
-        Payment.order_id == order.id
-    ).first()
+    payment = (
+        db.query(Payment)
+        .filter(Payment.order_id == order.id)
+        .first()
+    )
 
     if not payment:
-        raise HTTPException(status_code=404, detail="Payment not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Payment not found",
+        )
 
     return payment

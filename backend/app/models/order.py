@@ -2,16 +2,16 @@
 from sqlalchemy import (
     Boolean,
     Column,
+    DateTime,
+    Float,
+    ForeignKey,
     Integer,
     String,
-    Float,
     Text,
-    DateTime,
-    ForeignKey,
     text,
 )
-from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 
 from app.database.database import Base
 
@@ -19,10 +19,8 @@ from app.database.database import Base
 class Order(Base):
     __tablename__ = "orders"
 
-    # Primary key
     id = Column(Integer, primary_key=True, index=True)
 
-    # Unique order number
     order_id = Column(
         String(50),
         unique=True,
@@ -30,7 +28,6 @@ class Order(Base):
         index=True,
     )
 
-    # User relationship - guest orders are allowed
     user_id = Column(
         Integer,
         ForeignKey("users.id", ondelete="SET NULL"),
@@ -38,7 +35,15 @@ class Order(Base):
         index=True,
     )
 
-    # Customer details
+    # Saved delivery address. Nullable for older orders.
+    address_id = Column(
+        Integer,
+        ForeignKey("addresses.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    # Customer and delivery details
     customer_name = Column(String(100), nullable=False)
     phone = Column(String(15), nullable=False)
     address = Column(Text, nullable=False)
@@ -47,10 +52,7 @@ class Order(Base):
     pincode = Column(String(10), nullable=False)
 
     # Payment details
-    payment_method = Column(
-        String(30),
-        nullable=False,
-    )
+    payment_method = Column(String(30), nullable=False)
 
     payment_status = Column(
         String(50),
@@ -60,22 +62,11 @@ class Order(Base):
     )
 
     # Delivery details
-    delivery_type = Column(
-        String(30),
-        nullable=False,
-    )
+    delivery_type = Column(String(30), nullable=False)
+    delivery_distance = Column(String(30), nullable=False)
+    delivery_time = Column(String(50), nullable=True)
 
-    delivery_distance = Column(
-        String(30),
-        nullable=False,
-    )
-
-    delivery_time = Column(
-        String(50),
-        nullable=True,
-    )
-
-    # Order price details
+    # Pricing
     delivery_charge = Column(
         Float,
         default=0,
@@ -126,6 +117,10 @@ class Order(Base):
         server_default="Order Confirmed",
     )
 
+    # Cancellation details
+    cancellation_reason = Column(Text, nullable=True)
+    cancelled_at = Column(DateTime(timezone=True), nullable=True)
+
     # Stock reservation
     stock_reserved = Column(
         Boolean,
@@ -134,22 +129,25 @@ class Order(Base):
         server_default=text("0"),
     )
 
-    # Order creation date
     created_at = Column(
         DateTime(timezone=True),
         server_default=func.now(),
         nullable=False,
     )
 
-    # User relationship
+    # Relationships
     user = relationship(
         "User",
         back_populates="orders",
     )
 
-    # Payment relationship
     payment = relationship(
         "Payment",
         back_populates="order",
         uselist=False,
+    )
+
+    delivery_address = relationship(
+        "Address",
+        foreign_keys=[address_id],
     )

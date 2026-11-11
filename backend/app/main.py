@@ -278,6 +278,15 @@ frontend_origins = [
     if origin.strip()
 ]
 
+# Allow Create React App fallback port in development.
+if settings.APP_ENV == "development":
+    frontend_origins.extend([
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
+    ])
+
+frontend_origins = list(dict.fromkeys(frontend_origins))
+
 # Keep CORS outside FastAPI so CORS headers are also added
 # to unhandled server-error responses.
 app = CORSMiddleware(

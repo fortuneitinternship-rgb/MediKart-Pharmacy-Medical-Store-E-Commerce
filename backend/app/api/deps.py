@@ -54,9 +54,9 @@ def get_current_user(
 
     if user is None:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User account not found. Please log in again.",
-        )
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="User not found",
+    )
 
     if not user.is_active:
         raise HTTPException(

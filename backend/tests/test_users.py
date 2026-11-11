@@ -854,6 +854,7 @@ def test_razorpay_webhook_verifies_signature_and_is_idempotent(
     client, users, monkeypatch
 ):
     secret = "razorpay-webhook-secret-for-tests"
+    monkeypatch.setattr(settings, "PAYMENT_MODE", "razorpay")
     monkeypatch.setattr(settings, "RAZORPAY_WEBHOOK_SECRET", secret)
     with SessionLocal() as db:
         order = Order(
