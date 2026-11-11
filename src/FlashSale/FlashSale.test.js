@@ -5,8 +5,8 @@ import {
   screen,
   fireEvent,
   waitFor,
-  act,
   cleanup,
+  act,
 } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { MemoryRouter } from "react-router-dom";
@@ -21,29 +21,6 @@ import {
   getProductImage,
   handleProductImageError,
 } from "../utils/productImage";
-
-// Mock CSS module
-jest.mock("./FlashSale.module.css", () => ({
-  flashSale: "flashSale",
-  header: "header",
-  titleSection: "titleSection",
-  timer: "timer",
-  timeBox: "timeBox",
-  productGrid: "productGrid",
-  productCard: "productCard",
-  imageWrapper: "imageWrapper",
-  productImage: "productImage",
-  cardContent: "cardContent",
-  brand: "brand",
-  rating: "rating",
-  priceSection: "priceSection",
-  originalPrice: "originalPrice",
-  discountedPrice: "discountedPrice",
-  buttonGroup: "buttonGroup",
-  viewBtn: "viewBtn",
-  cartBtn: "cartBtn",
-  added: "added",
-}));
 
 // Mock cart API
 jest.mock("../api/cartApi", () => ({
@@ -65,55 +42,57 @@ jest.mock("react-toastify", () => ({
 
 // Mock image utilities
 jest.mock("../utils/productImage", () => ({
-  getProductImage: jest.fn(),
+  getProductImage: jest.fn(() => "/mock-image.png"),
   handleProductImageError: jest.fn(),
 }));
 
 // Generic test data
 const mockProducts = [
   {
-    id: 101,
-    name: "Test Item One",
-    image: "test-image-one.jpg",
-    category: "Test Category",
-    brand: "Test Brand",
-    rating: 4.5,
-    price: 200,
-    discount_price: 150,
+    id: 1,
+    name: "Item A",
+    brand: "Brand A",
+    category: "Category A",
+    image: "image-a.png",
+    price: 100,
+    discount_price: 80,
+    rating: 4,
   },
   {
-    id: 102,
-    name: "Test Item Two",
-    image: "test-image-two.jpg",
-    category: "Another Category",
-    brand: "Another Brand",
-    rating: 4.2,
+    id: 2,
+    name: "Item B",
+    brand: "Brand B",
+    category: "Category B",
+    image: "image-b.png",
+    price: 200,
+    discount_price: 150,
+    rating: 5,
+  },
+  {
+    id: 3,
+    name: "Item C",
+    brand: "Brand C",
+    category: "Category C",
+    image: "image-c.png",
     price: 300,
-    discount_price: 250,
+    discount_price: null,
+    rating: 3,
   },
 ];
 
-const renderComponent = () => {
-  return render(
+const renderComponent = () =>
+  render(
     <MemoryRouter>
       <FlashSale />
     </MemoryRouter>
   );
-};
 
 describe("FlashSale Component", () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
     getFlashSaleProducts.mockResolvedValue(mockProducts);
-
-    addProductToCart.mockResolvedValue({
-      success: true,
-    });
-
-    getProductImage.mockImplementation(
-      (image) => image || "fallback-image.jpg"
-    );
+    addProductToCart.mockResolvedValue({});
   });
 
   afterEach(() => {
@@ -122,347 +101,27 @@ describe("FlashSale Component", () => {
   });
 
   // 1. Render component
-  test("renders FlashSale component", async () => {
+  test("renders Flash Sale heading", () => {
     renderComponent();
 
     expect(
-      screen.getByRole("heading", { name: /flash sale/i })
-    ).toBeInTheDocument();
-
-    await waitFor(() => {
-      expect(getFlashSaleProducts).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  // 2. Display section title
-  test("displays Flash Sale heading", () => {
-    renderComponent();
-
-    expect(
-      screen.getByRole("heading", { name: /flash sale/i })
-    ).toBeInTheDocument();
-  });
-
-  // 3. Display subtitle
-  test("displays limited time deals subtitle", () => {
-    renderComponent();
-
-    expect(
-      screen.getByText(/limited time deals/i)
-    ).toBeInTheDocument();
-  });
-
-  // 4. Fetch products
-  test("calls getFlashSaleProducts when component mounts", async () => {
-    renderComponent();
-
-    await waitFor(() => {
-      expect(getFlashSaleProducts).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  // 5. Display fetched products
-  test("renders fetched products", async () => {
-    renderComponent();
-
-    expect(
-      await screen.findByText("Test Item One")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByText("Test Item Two")
-    ).toBeInTheDocument();
-  });
-
-  // 6. Display product brand
-  test("displays product brands", async () => {
-    renderComponent();
-
-    expect(
-      await screen.findByText("Test Brand")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByText("Another Brand")
-    ).toBeInTheDocument();
-  });
-
-  // 7. Display product ratings
-  test("displays product ratings", async () => {
-    renderComponent();
-
-    expect(
-      await screen.findByText(/4\.5/)
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByText(/4\.2/)
-    ).toBeInTheDocument();
-  });
-
-  // 8. Display original prices
-  test("displays original prices", async () => {
-    renderComponent();
-
-    expect(
-      await screen.findByText("₹200")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByText("₹300")
-    ).toBeInTheDocument();
-  });
-
-  // 9. Display discounted prices
-  test("displays discounted prices", async () => {
-    renderComponent();
-
-    expect(
-      await screen.findByText("₹150")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByText("₹250")
-    ).toBeInTheDocument();
-  });
-
-  // 10. Display product images
-  test("renders product images with correct alt text", async () => {
-    renderComponent();
-
-    expect(
-      await screen.findByAltText("Test Item One")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByAltText("Test Item Two")
-    ).toBeInTheDocument();
-  });
-
-  // 11. Image utility
-  test("calls getProductImage with product image details", async () => {
-    renderComponent();
-
-    await screen.findByAltText("Test Item One");
-
-    expect(getProductImage).toHaveBeenCalledWith(
-      "test-image-one.jpg",
-      "Test Item One",
-      "Test Category"
-    );
-  });
-
-  // 12. View Details link
-  test("renders View Details links for products", async () => {
-    renderComponent();
-
-    const links = await screen.findAllByRole("link", {
-      name: /view details/i,
-    });
-
-    expect(links).toHaveLength(2);
-  });
-
-  // 13. View Details navigation
-  test("links to the correct product details page", async () => {
-    renderComponent();
-
-    const link = await screen.findByRole("link", {
-      name: /view details/i,
-    });
-
-    expect(link).toHaveAttribute("href", "/product/101");
-  });
-
-  // 14. Add to Cart buttons
-  test("renders Add to Cart buttons for products", async () => {
-    renderComponent();
-
-    const buttons = await screen.findAllByRole("button", {
-      name: /add to cart/i,
-    });
-
-    expect(buttons).toHaveLength(2);
-  });
-
-  // 15. Add product to cart
-  test("calls addProductToCart with selected product", async () => {
-    renderComponent();
-
-    const buttons = await screen.findAllByRole("button", {
-      name: /add to cart/i,
-    });
-
-    fireEvent.click(buttons[0]);
-
-    await waitFor(() => {
-      expect(addProductToCart).toHaveBeenCalledWith(
-        mockProducts[0]
-      );
-    });
-  });
-
-  // 16. Success notification
-  test("shows success toast after adding an item", async () => {
-    renderComponent();
-
-    const buttons = await screen.findAllByRole("button", {
-      name: /add to cart/i,
-    });
-
-    fireEvent.click(buttons[0]);
-
-    await waitFor(() => {
-      expect(toast.success).toHaveBeenCalledWith(
-        "Test Item One added to cart!",
-        expect.objectContaining({
-          position: "top-right",
-          autoClose: 2000,
-          theme: "colored",
-        })
-      );
-    });
-  });
-
-  // 17. Added button state
-  test("changes button text after successful add to cart", async () => {
-    renderComponent();
-
-    const buttons = await screen.findAllByRole("button", {
-      name: /add to cart/i,
-    });
-
-    fireEvent.click(buttons[0]);
-
-    expect(
-      await screen.findByRole("button", {
-        name: /added/i,
+      screen.getByRole("heading", {
+        name: /Flash Sale/i,
       })
     ).toBeInTheDocument();
   });
 
-  // 18. Only selected item changes
-  test("updates only the selected product button", async () => {
+  // 2. Render subtitle
+  test("renders Limited Time Deals text", () => {
     renderComponent();
 
-    const buttons = await screen.findAllByRole("button", {
-      name: /add to cart/i,
-    });
-
-    fireEvent.click(buttons[0]);
-
     expect(
-      await screen.findByRole("button", {
-        name: /added/i,
-      })
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByRole("button", {
-        name: /add to cart/i,
-      })
+      screen.getByText("Limited Time Deals")
     ).toBeInTheDocument();
   });
 
-  // 19. API error
-  test("shows error toast when add to cart fails", async () => {
-    addProductToCart.mockRejectedValueOnce(
-      new Error("Test API error")
-    );
-
-    renderComponent();
-
-    const buttons = await screen.findAllByRole("button", {
-      name: /add to cart/i,
-    });
-
-    fireEvent.click(buttons[0]);
-
-    await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith(
-        "Test API error"
-      );
-    });
-  });
-
-  // 20. Default error message
-  test("shows default error message when error has no message", async () => {
-    addProductToCart.mockRejectedValueOnce({});
-
-    renderComponent();
-
-    const buttons = await screen.findAllByRole("button", {
-      name: /add to cart/i,
-    });
-
-    fireEvent.click(buttons[0]);
-
-    await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith(
-        "Unable to add this product to your cart."
-      );
-    });
-  });
-
-  // 21. Image error handler
-  test("calls handleProductImageError when an image fails", async () => {
-    renderComponent();
-
-    const image = await screen.findByAltText("Test Item One");
-
-    fireEvent.error(image);
-
-    expect(handleProductImageError).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: "error",
-      }),
-      "Test Item One",
-      "Test Category"
-    );
-  });
-
-  // 22. Empty product list
-  test("renders correctly when API returns an empty array", async () => {
-    getFlashSaleProducts.mockResolvedValueOnce([]);
-
-    renderComponent();
-
-    await waitFor(() => {
-      expect(getFlashSaleProducts).toHaveBeenCalled();
-    });
-
-    expect(
-      screen.queryByRole("button", {
-        name: /add to cart/i,
-      })
-    ).not.toBeInTheDocument();
-  });
-
-  // 23. API loading error
-  test("displays error message when product loading fails", async () => {
-    const consoleErrorSpy = jest
-      .spyOn(console, "error")
-      .mockImplementation(() => { });
-
-    getFlashSaleProducts.mockRejectedValueOnce(
-      new Error("Test loading error")
-    );
-
-    renderComponent();
-
-    expect(
-      await screen.findByRole("alert")
-    ).toHaveTextContent(
-      "Flash-sale products could not be loaded."
-    );
-
-    expect(consoleErrorSpy).toHaveBeenCalled();
-
-    consoleErrorSpy.mockRestore();
-  });
-
-  // 24. Initial countdown
-  test("displays the initial countdown values", () => {
+  // 3. Initial countdown
+  test("renders initial countdown timer", () => {
     renderComponent();
 
     expect(screen.getByText("24")).toBeInTheDocument();
@@ -473,21 +132,415 @@ describe("FlashSale Component", () => {
     expect(screen.getByText("Seconds")).toBeInTheDocument();
   });
 
-  // 25. Countdown updates
-  test("updates countdown after one second", () => {
+  // 4. Fetch products
+  test("calls getFlashSaleProducts on component mount", () => {
+    renderComponent();
+
+    expect(getFlashSaleProducts).toHaveBeenCalledTimes(1);
+  });
+
+  // 5. Display products
+  test("displays products after successful API response", async () => {
+    renderComponent();
+
+    expect(
+      await screen.findByText("Item A")
+    ).toBeInTheDocument();
+
+    expect(screen.getByText("Item B")).toBeInTheDocument();
+    expect(screen.getByText("Item C")).toBeInTheDocument();
+  });
+
+  // 6. Display brands
+  test("displays product brands", async () => {
+    renderComponent();
+
+    expect(await screen.findByText("Brand A")).toBeInTheDocument();
+    expect(screen.getByText("Brand B")).toBeInTheDocument();
+    expect(screen.getByText("Brand C")).toBeInTheDocument();
+  });
+
+  // 7. Display ratings
+  test("displays product ratings", async () => {
+    renderComponent();
+
+    await screen.findByText("Item A");
+
+    expect(screen.getByText("⭐ 4")).toBeInTheDocument();
+    expect(screen.getByText("⭐ 5")).toBeInTheDocument();
+    expect(screen.getByText("⭐ 3")).toBeInTheDocument();
+  });
+
+  // 8. Display original prices
+  test("displays original product prices", async () => {
+    renderComponent();
+
+    await screen.findByText("Item A");
+
+    expect(screen.getByText("₹100")).toBeInTheDocument();
+    expect(screen.getByText("₹200")).toBeInTheDocument();
+    expect(screen.getByText("₹300")).toBeInTheDocument();
+  });
+
+  // 9. Display discounted prices
+  test("displays discounted prices", async () => {
+    renderComponent();
+
+    await screen.findByText("Item A");
+
+    expect(screen.getByText("₹80")).toBeInTheDocument();
+    expect(screen.getByText("₹150")).toBeInTheDocument();
+  });
+
+  // 10. Fallback price
+  test("uses original price when discount price is null", async () => {
+    renderComponent();
+
+    await screen.findByText("Item C");
+
+    const prices = screen.getAllByText("₹300");
+
+    expect(prices).toHaveLength(2);
+  });
+
+  // 11. Display images
+  test("renders product images", async () => {
+    renderComponent();
+
+    await screen.findByText("Item A");
+
+    const images = screen.getAllByRole("img");
+
+    expect(images).toHaveLength(3);
+
+    images.forEach((image) => {
+      expect(image).toHaveAttribute(
+        "src",
+        "/mock-image.png"
+      );
+    });
+  });
+
+  // 12. Image utility
+  test("calls getProductImage for every product", async () => {
+    renderComponent();
+
+    await screen.findByText("Item A");
+
+    expect(getProductImage).toHaveBeenCalledTimes(3);
+  });
+
+  // 13. Image error handling
+  test("handles image loading errors", async () => {
+    renderComponent();
+
+    await screen.findByText("Item A");
+
+    const images = screen.getAllByRole("img");
+
+    fireEvent.error(images[0]);
+
+    expect(handleProductImageError).toHaveBeenCalledTimes(1);
+  });
+
+  // 14. View Details links
+  test("renders View Details links", async () => {
+    renderComponent();
+
+    await screen.findByText("Item A");
+
+    expect(
+      screen.getAllByRole("link", {
+        name: "View Details",
+      })
+    ).toHaveLength(3);
+  });
+
+  // 15. Product navigation
+  test("renders correct product detail URLs", async () => {
+    renderComponent();
+
+    await screen.findByText("Item A");
+
+    const links = screen.getAllByRole("link", {
+      name: "View Details",
+    });
+
+    expect(links[0]).toHaveAttribute("href", "/product/1");
+    expect(links[1]).toHaveAttribute("href", "/product/2");
+    expect(links[2]).toHaveAttribute("href", "/product/3");
+  });
+
+  // 16. Add to Cart buttons
+  test("renders Add to Cart buttons", async () => {
+    renderComponent();
+
+    await screen.findByText("Item A");
+
+    expect(
+      screen.getAllByRole("button", {
+        name: "Add to Cart",
+      })
+    ).toHaveLength(3);
+  });
+
+  // 17. Button type
+  test("renders cart buttons with button type", async () => {
+    renderComponent();
+
+    await screen.findByText("Item A");
+
+    const buttons = screen.getAllByRole("button", {
+      name: "Add to Cart",
+    });
+
+    buttons.forEach((button) => {
+      expect(button).toHaveAttribute("type", "button");
+    });
+  });
+
+  // 18. Add product to cart
+  test("calls addProductToCart when Add to Cart is clicked", async () => {
+    renderComponent();
+
+    await screen.findByText("Item A");
+
+    fireEvent.click(
+      screen.getAllByRole("button", {
+        name: "Add to Cart",
+      })[0]
+    );
+
+    await waitFor(() => {
+      expect(addProductToCart).toHaveBeenCalledTimes(1);
+    });
+
+    expect(addProductToCart).toHaveBeenCalledWith(mockProducts[0]);
+  });
+
+  // 19. Add selected product
+  test("passes the selected product to cart API", async () => {
+    renderComponent();
+
+    await screen.findByText("Item B");
+
+    fireEvent.click(
+      screen.getAllByRole("button", {
+        name: "Add to Cart",
+      })[1]
+    );
+
+    await waitFor(() => {
+      expect(addProductToCart).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 2,
+          name: "Item B",
+        })
+      );
+    });
+  });
+
+  // 20. Success notification
+  test("displays success toast after adding product", async () => {
+    renderComponent();
+
+    await screen.findByText("Item A");
+
+    fireEvent.click(
+      screen.getAllByRole("button", {
+        name: "Add to Cart",
+      })[0]
+    );
+
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith(
+        "Item A added to cart!",
+        expect.objectContaining({
+          position: "top-right",
+          autoClose: 2000,
+          theme: "colored",
+        })
+      );
+    });
+  });
+
+  // 21. Added button state
+  test("changes button text after successful cart operation", async () => {
+    renderComponent();
+
+    await screen.findByText("Item A");
+
+    fireEvent.click(
+      screen.getAllByRole("button", {
+        name: "Add to Cart",
+      })[0]
+    );
+
+    expect(
+      await screen.findByRole("button", {
+        name: "✓ Added",
+      })
+    ).toBeInTheDocument();
+  });
+
+  // 22. Error notification
+  test("displays error toast when cart API fails", async () => {
+    addProductToCart.mockRejectedValue(
+      new Error("Cart operation failed")
+    );
+
+    renderComponent();
+
+    await screen.findByText("Item A");
+
+    fireEvent.click(
+      screen.getAllByRole("button", {
+        name: "Add to Cart",
+      })[0]
+    );
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith(
+        "Cart operation failed"
+      );
+    });
+  });
+
+  // 23. Default error notification
+  test("displays default error message when error message is missing", async () => {
+    addProductToCart.mockRejectedValue({});
+
+    renderComponent();
+
+    await screen.findByText("Item A");
+
+    fireEvent.click(
+      screen.getAllByRole("button", {
+        name: "Add to Cart",
+      })[0]
+    );
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith(
+        "Unable to add this product to your cart."
+      );
+    });
+  });
+
+  // 24. Failed cart request
+  test("does not show Added state when cart API fails", async () => {
+    addProductToCart.mockRejectedValue(
+      new Error("Request failed")
+    );
+
+    renderComponent();
+
+    await screen.findByText("Item A");
+
+    fireEvent.click(
+      screen.getAllByRole("button", {
+        name: "Add to Cart",
+      })[0]
+    );
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalled();
+    });
+
+    expect(
+      screen.getAllByRole("button", {
+        name: "Add to Cart",
+      })
+    ).toHaveLength(3);
+
+    expect(
+      screen.queryByRole("button", {
+        name: "✓ Added",
+      })
+    ).not.toBeInTheDocument();
+  });
+
+  // 25. Empty products
+  test("renders empty product grid when API returns empty array", async () => {
+    getFlashSaleProducts.mockResolvedValue([]);
+
+    const { container } = renderComponent();
+
+    await waitFor(() => {
+      expect(getFlashSaleProducts).toHaveBeenCalledTimes(1);
+    });
+
+    expect(
+      container.querySelector(".productGrid")
+    ).toBeInTheDocument();
+
+    expect(
+      container.querySelectorAll(".productCard")
+    ).toHaveLength(0);
+  });
+
+  // 26. API error
+  test("displays error message when product API fails", async () => {
+    const consoleError = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => { });
+
+    getFlashSaleProducts.mockRejectedValue(
+      new Error("API request failed")
+    );
+
+    renderComponent();
+
+    expect(
+      await screen.findByRole("alert")
+    ).toHaveTextContent(
+      "Flash-sale products could not be loaded."
+    );
+
+    expect(consoleError).toHaveBeenCalled();
+
+    consoleError.mockRestore();
+  });
+
+  // 27. No products displayed after API error
+  test("does not display product cards after API failure", async () => {
+    const consoleError = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => { });
+
+    getFlashSaleProducts.mockRejectedValue(
+      new Error("Request failed")
+    );
+
+    const { container } = renderComponent();
+
+    await screen.findByRole("alert");
+
+    expect(
+      container.querySelectorAll(".productCard")
+    ).toHaveLength(0);
+
+    consoleError.mockRestore();
+  });
+
+  // 28. Countdown updates
+  test("updates countdown after one second", async () => {
     jest.useFakeTimers();
 
     renderComponent();
 
-    act(() => {
+    expect(screen.getByText("24")).toBeInTheDocument();
+
+    await act(async () => {
       jest.advanceTimersByTime(1000);
     });
+
+    expect(screen.getByText("23")).toBeInTheDocument();
+    expect(screen.getByText("59")).toBeInTheDocument();
   });
 
-  // 26. Timer cleanup
-  test("clears countdown interval when component unmounts", () => {
-    jest.useFakeTimers();
-
+  // 29. Countdown timer cleanup
+  test("cleans up countdown interval on unmount", () => {
     const clearIntervalSpy = jest.spyOn(
       global,
       "clearInterval"
@@ -502,22 +555,80 @@ describe("FlashSale Component", () => {
     clearIntervalSpy.mockRestore();
   });
 
-  // 27. No cart API call on initial render
-  test("does not add any item to cart on initial render", async () => {
+  // 30. Added button resets after two seconds
+  test("resets Added button after two seconds", async () => {
+    jest.useFakeTimers();
+
     renderComponent();
 
-    await screen.findByText("Test Item One");
+    await act(async () => {
+      await Promise.resolve();
+    });
 
-    expect(addProductToCart).not.toHaveBeenCalled();
+    fireEvent.click(
+      screen.getAllByRole("button", {
+        name: "Add to Cart",
+      })[0]
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(
+      screen.getByRole("button", {
+        name: "✓ Added",
+      })
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      jest.advanceTimersByTime(2000);
+    });
+
+    expect(
+      screen.getAllByRole("button", {
+        name: "Add to Cart",
+      })
+    ).toHaveLength(3);
   });
 
-  // 28. No toast on initial render
-  test("does not show toast notifications on initial render", async () => {
-    renderComponent();
+  // 31. CSS structure
+  test("renders correct component CSS structure", () => {
+    const { container } = renderComponent();
 
-    await screen.findByText("Test Item One");
+    expect(
+      container.querySelector("section")
+    ).toBeInTheDocument();
 
-    expect(toast.success).not.toHaveBeenCalled();
-    expect(toast.error).not.toHaveBeenCalled();
+    expect(
+      container.querySelector(".header")
+    ).toBeInTheDocument();
+
+    expect(
+      container.querySelector(".timer")
+    ).toBeInTheDocument();
+
+    expect(
+      container.querySelector(".productGrid")
+    ).toBeInTheDocument();
+  });
+
+  // 32. Product card structure
+  test("renders product cards with image and content sections", async () => {
+    const { container } = renderComponent();
+
+    await screen.findByText("Item A");
+
+    expect(
+      container.querySelectorAll(".productCard")
+    ).toHaveLength(3);
+
+    expect(
+      container.querySelectorAll(".imageWrapper")
+    ).toHaveLength(3);
+
+    expect(
+      container.querySelectorAll(".cardContent")
+    ).toHaveLength(3);
   });
 });

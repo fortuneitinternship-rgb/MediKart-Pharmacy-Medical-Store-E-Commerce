@@ -94,9 +94,8 @@ function TrendingProducts() {
                     View Details
                   </Link>
                   <button
-                    className={`cart-btn ${
-                      addedItems[product.id] ? "added" : ""
-                    }`}
+                    className={`cart-btn ${addedItems[product.id] ? "added" : ""
+                      }`}
                     onClick={() => handleAddToCart(product)}
                   >
                     {addedItems[product.id] ? "✓ Added" : "Add to Cart"}
