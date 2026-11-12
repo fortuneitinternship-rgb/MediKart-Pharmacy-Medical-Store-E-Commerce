@@ -12,8 +12,16 @@ from app.database.database import get_db
 from app.models.category import Category
 from app.models.product import Product
 from app.models.user import User
-from app.schemas.category import CategoryCreate, CategoryResponse, CategoryUpdate
-from app.schemas.product import ProductCreate, ProductResponse, ProductUpdate
+from app.schemas.category import (
+    CategoryCreate,
+    CategoryResponse,
+    CategoryUpdate,
+)
+from app.schemas.product import (
+    ProductCreate,
+    ProductResponse,
+    ProductUpdate,
+)
 
 
 router = APIRouter(
@@ -22,9 +30,9 @@ router = APIRouter(
 )
 
 
-# -------------------------------------------------
+# =================================================
 # PRODUCT RESPONSE HELPERS
-# -------------------------------------------------
+# =================================================
 
 def calculate_discount(product):
     if product.discount_price is None or product.price <= 0:
@@ -67,42 +75,25 @@ def product_response(product):
     }
 
 
-# -------------------------------------------------
+# =================================================
 # PRODUCT DUPLICATE VALIDATION
-# -------------------------------------------------
-
-
-# -------------------------------------------------
-# PRODUCT DUPLICATE VALIDATION
-# -------------------------------------------------
+# =================================================
 
 def normalize_text(value):
     if value is None:
-        return None
+        return ""
 
     return " ".join(str(value).split()).casefold()
 
 
 def ensure_product_is_unique(
     db: Session,
-    name: str,
+    name: str | None = None,
     image: str | None = None,
     exclude_product_id: int | None = None,
-) -> None:
-    """
-    Prevent duplicate product names and duplicate image paths.
-    Name comparison ignores case and extra whitespace.
-    Image comparison ignores case and surrounding whitespace.
-    """
-
+):
     normalized_name = normalize_text(name)
-    normalized_image = normalize_text(image)
-
-    if not normalized_name:
-        raise HTTPException(
-            status_code=422,
-            detail="Product name cannot be blank.",
-        )
+    normalized_image = (image or "").strip()
 
     query = db.query(Product)
 
@@ -111,83 +102,35 @@ def ensure_product_is_unique(
             Product.id != exclude_product_id
         )
 
-    existing_products = query.all()
+    products = query.all()
 
-    for existing in existing_products:
+    for existing in products:
+
         existing_name = normalize_text(existing.name)
-        existing_image = normalize_text(existing.image)
+        existing_image = (existing.image or "").strip()
 
-        # Duplicate product name
-        if existing_name == normalized_name:
-            raise HTTPException(
-                status_code=409,
-                detail="A product with this name already exists.",
-            )
-
-        # Duplicate product image
         if (
-            normalized_image is not None
-            and existing_image is not None
-            and existing_image == normalized_image
+            normalized_name
+            and normalized_name == existing_name
         ):
             raise HTTPException(
-                status_code=409,
-                detail="This image is already assigned to another product.",
-            )
-
-def ensure_product_is_unique(
-    db: Session,
-    name: str,
-    image: str | None = None,
-    exclude_product_id: int | None = None,
-) -> None:
-
-    normalized_name = " ".join(name.split()).casefold()
-    normalized_image = (
-        image.strip().casefold()
-        if image
-        else None
-    )
-
-    query = db.query(Product)
-
-    if exclude_product_id is not None:
-        query = query.filter(
-            Product.id != exclude_product_id
-        )
-
-    existing_products = query.all()
-
-    for existing in existing_products:
-
-        existing_name = (
-            " ".join(existing.name.split()).casefold()
-        )
-
-        existing_image = (
-            existing.image.strip().casefold()
-            if existing.image
-            else None
-        )
-
-        if existing_name == normalized_name:
-            raise HTTPException(
-                status_code=409,
+                status_code=status.HTTP_409_CONFLICT,
                 detail="A product with this name already exists.",
             )
 
         if (
             normalized_image
-            and existing_image
-            and existing_image == normalized_image
+            and normalized_image == existing_image
         ):
             raise HTTPException(
-                status_code=409,
-                detail="This image is already assigned to another product.",
+                status_code=status.HTTP_409_CONFLICT,
+                detail="A product with this image already exists.",
             )
-# -------------------------------------------------
+
+
+# =================================================
 # CATEGORY HELPERS
-# -------------------------------------------------
+# =================================================
 
 def get_or_create_category(
     db: Session,
@@ -212,9 +155,9 @@ def get_or_create_category(
     return category
 
 
-# -------------------------------------------------
+# =================================================
 # PRODUCT LISTING
-# -------------------------------------------------
+# =================================================
 
 @router.get(
     "",
@@ -313,9 +256,9 @@ def get_products(
     ]
 
 
-# -------------------------------------------------
+# =================================================
 # CATEGORIES
-# -------------------------------------------------
+# =================================================
 
 @router.get(
     "/categories",
@@ -355,7 +298,7 @@ def create_category(
         db.rollback()
 
         raise HTTPException(
-            status_code=409,
+            status_code=status.HTTP_409_CONFLICT,
             detail="A category with this name already exists.",
         ) from error
 
@@ -399,7 +342,7 @@ def update_category(
         db.rollback()
 
         raise HTTPException(
-            status_code=409,
+            status_code=status.HTTP_409_CONFLICT,
             detail="A category with this name already exists.",
         ) from error
 
@@ -434,9 +377,9 @@ def deactivate_category(
     db.commit()
 
 
-# -------------------------------------------------
+# =================================================
 # CREATE PRODUCT
-# -------------------------------------------------
+# =================================================
 
 @router.post(
     "",
@@ -450,7 +393,7 @@ def create_product(
 ):
 
     ensure_product_is_unique(
-        db,
+        db=db,
         name=data.name,
         image=data.image,
     )
@@ -473,7 +416,7 @@ def create_product(
         db.rollback()
 
         raise HTTPException(
-            status_code=409,
+            status_code=status.HTTP_409_CONFLICT,
             detail="A product with these details already exists.",
         ) from error
 
@@ -482,9 +425,10 @@ def create_product(
     return product_response(product)
 
 
-# -------------------------------------------------
+# =================================================
 # UPDATE PRODUCT
-# -------------------------------------------------
+# =================================================
+
 
 @router.put(
     "/{product_id}",
@@ -496,7 +440,6 @@ def update_product(
     current_admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-
     product = (
         db.query(Product)
         .filter(Product.id == product_id)
@@ -511,17 +454,39 @@ def update_product(
 
     values = data.model_dump(exclude_unset=True)
 
-    # Check uniqueness using updated values or
-    # the product's existing values.
     new_name = values.get("name", product.name)
     new_image = values.get("image", product.image)
 
-    ensure_product_is_unique(
-        db=db,
-        name=new_name,
-        image=new_image,
-        exclude_product_id=product.id,
+    # Normalize incoming values
+    normalized_name = normalize_text(new_name)
+    normalized_image = (new_image or "").strip()
+
+    # Find another product with the same name
+    existing_products = (
+        db.query(Product)
+        .filter(Product.id != product.id)
+        .all()
     )
+
+    for existing in existing_products:
+
+        if (
+            normalized_name
+            and normalize_text(existing.name) == normalized_name
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail="A product with this name already exists.",
+            )
+
+        if (
+            normalized_image
+            and (existing.image or "").strip() == normalized_image
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail="A product with this image already exists.",
+            )
 
     category_name = values.pop("category", None)
 
@@ -542,17 +507,16 @@ def update_product(
 
         raise HTTPException(
             status_code=409,
-            detail="The product could not be updated because of a database conflict.",
+            detail="Product update conflict.",
         ) from error
 
     db.refresh(product)
 
     return product_response(product)
 
-
-# -------------------------------------------------
+# =================================================
 # DELETE PRODUCT
-# -------------------------------------------------
+# =================================================
 
 @router.delete(
     "/{product_id}",
@@ -584,7 +548,7 @@ def delete_product(
         db.rollback()
 
         raise HTTPException(
-            status_code=409,
+            status_code=status.HTTP_409_CONFLICT,
             detail="Product cannot be deleted because it is being used elsewhere.",
         ) from error
 
@@ -593,9 +557,9 @@ def delete_product(
     }
 
 
-# -------------------------------------------------
+# =================================================
 # FEATURED PRODUCTS
-# -------------------------------------------------
+# =================================================
 
 @router.get(
     "/featured",
@@ -623,9 +587,9 @@ def get_featured_products(
     ]
 
 
-# -------------------------------------------------
+# =================================================
 # TRENDING PRODUCTS
-# -------------------------------------------------
+# =================================================
 
 @router.get(
     "/trending",
@@ -654,9 +618,9 @@ def get_trending_products(
     ]
 
 
-# -------------------------------------------------
+# =================================================
 # FLASH SALE
-# -------------------------------------------------
+# =================================================
 
 @router.get(
     "/flash-sale",
@@ -689,9 +653,9 @@ def get_flash_sale_products(
     ]
 
 
-# -------------------------------------------------
+# =================================================
 # NEW ARRIVALS
-# -------------------------------------------------
+# =================================================
 
 @router.get(
     "/new-arrivals",
@@ -720,9 +684,9 @@ def get_new_arrivals(
     ]
 
 
-# -------------------------------------------------
+# =================================================
 # PRODUCT DETAILS
-# -------------------------------------------------
+# =================================================
 
 @router.get(
     "/{product_id}",

@@ -1853,6 +1853,7 @@ def test_admin_product_create_update_and_delete(client, users):
     assert duplicate_name.status_code == 409
     assert "already exists" in duplicate_name.json()["detail"]
 
+    
     duplicate_image = client.post(
         "/api/products",
         headers=headers,
@@ -1864,12 +1865,27 @@ def test_admin_product_create_update_and_delete(client, users):
     )
     assert duplicate_image.status_code == 409
 
+    # Create a second product with a unique image.
+    second_product = client.post(
+        "/api/products",
+        headers=headers,
+        json={
+            **product_data,
+            "name": "Different Product",
+            "image": "/catalog/different-product.png",
+        },
+    )
+    assert second_product.status_code == 201
+
+    # Updating the first product to the second product's name
+    # must return 409 because that name already exists.
     duplicate_update = client.put(
         f"/api/products/{product_id}",
         headers=headers,
         json={"name": "Different Product"},
     )
     assert duplicate_update.status_code == 409
+
 
     listed = client.get("/api/products")
     assert listed.status_code == 200
