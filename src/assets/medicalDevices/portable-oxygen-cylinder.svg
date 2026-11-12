@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="640" viewBox="0 0 640 640" role="img" aria-labelledby="title description">
+  <title id="title">Portable oxygen cylinder</title>
+  <desc id="description">A compact blue oxygen cylinder with a carry handle, valve, and pressure gauge.</desc>
+  <defs>
+    <linearGradient id="tank" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#1673b8"/>
+      <stop offset=".48" stop-color="#49a7df"/>
+      <stop offset="1" stop-color="#135d98"/>
+    </linearGradient>
+    <linearGradient id="metal" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#f8fbff"/>
+      <stop offset="1" stop-color="#a9bac8"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-20%" width="160%" height="150%">
+      <feDropShadow dx="0" dy="16" stdDeviation="15" flood-color="#173a56" flood-opacity=".2"/>
+    </filter>
+  </defs>
+  <rect width="640" height="640" rx="36" fill="#f3f8fc"/>
+  <ellipse cx="320" cy="548" rx="170" ry="25" fill="#d6e5ef"/>
+  <g filter="url(#shadow)">
+    <path d="M253 151h134v36h-134z" fill="#263c4d"/>
+    <path d="M272 118h96v39h-96z" rx="14" fill="url(#metal)" stroke="#8195a3" stroke-width="7"/>
+    <path d="M294 105v-25h53v25" fill="none" stroke="#718493" stroke-linecap="round" stroke-width="13"/>
+    <path d="M283 74h76v14h-76z" rx="7" fill="#425a6b"/>
+    <rect x="177" y="175" width="286" height="337" rx="91" fill="url(#tank)" stroke="#174c76" stroke-width="8"/>
+    <path d="M198 268c36-16 67-22 98-22" fill="none" stroke="#a9dcf5" stroke-linecap="round" stroke-width="11" opacity=".8"/>
+    <circle cx="352" cy="193" r="44" fill="#f7fafc" stroke="#3b5567" stroke-width="9"/>
+    <circle cx="352" cy="193" r="30" fill="#fff" stroke="#c7d4dc" stroke-width="4"/>
+    <path d="m352 193 13-13" stroke="#e34e4e" stroke-linecap="round" stroke-width="5"/>
+    <circle cx="352" cy="193" r="4" fill="#334b5d"/>
+    <path d="M345 228h15v35h-15z" fill="#dce8ee"/>
+    <path d="M203 466h234" stroke="#0f4e7d" stroke-width="10" opacity=".5"/>
+    <text x="320" y="374" fill="#fff" font-family="Arial, sans-serif" font-size="31" font-weight="700" letter-spacing="3" text-anchor="middle">OXYGEN</text>
+    <text x="320" y="408" fill="#e1f4ff" font-family="Arial, sans-serif" font-size="16" letter-spacing="2" text-anchor="middle">PORTABLE CYLINDER</text>
+    <path d="M224 508h192v15H224z" rx="7" fill="#31495a"/>
+    <path d="M209 523h222v15H209z" rx="8" fill="#697e8d"/>
+  </g>
+</svg>

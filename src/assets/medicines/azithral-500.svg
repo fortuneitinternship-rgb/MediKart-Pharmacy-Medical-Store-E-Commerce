@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="420" viewBox="0 0 600 420" role="img" aria-labelledby="title description">
+  <title id="title">Azithral 500 tablets</title>
+  <desc id="description">Illustration of an Azithral 500 tablet carton and blister pack.</desc>
+  <rect width="600" height="420" rx="24" fill="#f8fafc"/>
+  <ellipse cx="307" cy="354" rx="212" ry="24" fill="#dbe4ed"/>
+  <g transform="translate(104 66)">
+    <path d="M22 18h244l36 28v208H22z" fill="#fff" stroke="#cbd5e1" stroke-width="4"/>
+    <path d="M266 18v28h36" fill="#e2e8f0" stroke="#cbd5e1" stroke-width="4"/>
+    <path d="M22 150h280v48H22z" fill="#e11d48"/>
+    <text x="50" y="115" fill="#334155" font-family="Arial, sans-serif" font-size="24" font-weight="700">AZITHRAL</text>
+    <text x="49" y="184" fill="#fff" font-family="Arial, sans-serif" font-size="28" font-weight="700">500 mg</text>
+    <text x="49" y="229" fill="#64748b" font-family="Arial, sans-serif" font-size="16">3 Tablets</text>
+  </g>
+  <g transform="translate(354 206) rotate(-8)">
+    <rect width="150" height="100" rx="16" fill="#e2e8f0" stroke="#94a3b8" stroke-width="3"/>
+    <g fill="#fff" stroke="#94a3b8" stroke-width="2">
+      <circle cx="32" cy="30" r="13"/>
+      <circle cx="75" cy="30" r="13"/>
+      <circle cx="118" cy="30" r="13"/>
+      <circle cx="32" cy="70" r="13"/>
+      <circle cx="75" cy="70" r="13"/>
+      <circle cx="118" cy="70" r="13"/>
+    </g>
+  </g>
+</svg>
