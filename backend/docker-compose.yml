@@ -4,12 +4,12 @@ services:
     environment:
       MYSQL_DATABASE: ${MYSQL_DATABASE:-medikart}
       MYSQL_USER: ${MYSQL_USER:-medikart_user}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in backend/.env}
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in backend/.env}
+      MYSQL_PASSWORD: ${root:?Set root in backend/.env}
+      MYSQL_ROOT_PASSWORD: ${root:?Set root in backend/.env}
     volumes:
       - medikart_mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$root\" --silent"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -19,7 +19,7 @@ services:
     build:
       context: .
     environment:
-      DATABASE_URL: mysql+pymysql://${MYSQL_USER:-medikart_user}:${MYSQL_PASSWORD}@db:3306/${MYSQL_DATABASE:-medikart}
+      DATABASE_URL: mysql+pymysql://${MYSQL_USER:-medikart_user}:${root}@db:3306/${MYSQL_DATABASE:-medikart}
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in backend/.env}
       APP_ENV: ${APP_ENV:-development}
       PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET:-}
