@@ -1,5 +1,6 @@
 /* Shared phone layout rules for pages that use the app's plain CSS classes. */
 @media (max-width: 768px) {
+
   .about-page,
   .account-page,
   .addresses-page,
@@ -55,18 +56,18 @@
     min-width: 0;
   }
 
-  .about-page > *,
-  .account-page > *,
-  .blog-container > *,
-  .contact-page > *,
-  .gallery-container > *,
-  .health-page > *,
-  .notifications-page > *,
-  .offers-page > *,
-  .order-page > *,
-  .payments-page > *,
-  .reviews-page > *,
-  .settings-container > * {
+  .about-page>*,
+  .account-page>*,
+  .blog-container>*,
+  .contact-page>*,
+  .gallery-container>*,
+  .health-page>*,
+  .notifications-page>*,
+  .offers-page>*,
+  .order-page>*,
+  .payments-page>*,
+  .reviews-page>*,
+  .settings-container>* {
     min-width: 0;
   }
 
@@ -146,10 +147,10 @@
     gap: 12px;
   }
 
-  .product-topbar > *,
-  .listing-top-bar > *,
-  .checkout-actions > *,
-  .order-header-actions > * {
+  .product-topbar>*,
+  .listing-top-bar>*,
+  .checkout-actions>*,
+  .order-header-actions>* {
     max-width: 100%;
   }
 
@@ -250,6 +251,7 @@
 }
 
 @media (max-width: 480px) {
+
   .features-grid,
   .account-menu-grid,
   .blog-grid,

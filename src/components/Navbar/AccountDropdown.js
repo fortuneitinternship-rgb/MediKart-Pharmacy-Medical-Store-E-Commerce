@@ -1,3 +1,4 @@
+
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -216,6 +217,7 @@ const AccountDropdown = ({ username = "Satender" }) => {
       ============================================ */}
 
       <button
+        type="button"
         className="logout-btn"
         onClick={handleLogout}
       >

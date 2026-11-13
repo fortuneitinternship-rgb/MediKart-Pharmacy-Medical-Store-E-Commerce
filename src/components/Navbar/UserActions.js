@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import styles from "./UserAction.module.css";
@@ -8,33 +9,60 @@ import {
   FaCog,
   FaTruck,
   FaBoxOpen,
+  FaFileMedical,
 } from "react-icons/fa";
 
 import Login from "../Login/Login";
 import Register from "../Register/Register";
 import ForgotPassword from "../ForgotPassword/ForgotPassword";
+
 import { getAccessToken, getCart } from "../../api/cartApi";
 import { getWishlist } from "../../api/wishlistApi";
 import { logoutUser } from "../../api/loginApi";
 
+// ============================================
+// LOCAL CART AND WISHLIST COUNTS
+// ============================================
+
 function getLocalShoppingCounts() {
   try {
-    const localCart = JSON.parse(localStorage.getItem("cart") || "[]");
-    const localWishlist = JSON.parse(localStorage.getItem("wishlist") || "[]");
+    const localCart = JSON.parse(
+      localStorage.getItem("cart") || "[]"
+    );
+
+    const localWishlist = JSON.parse(
+      localStorage.getItem("wishlist") || "[]"
+    );
+
     return {
       cart: Array.isArray(localCart)
         ? localCart.reduce(
-            (total, item) => total + (Number(item.quantity) || 1),
-            0
-          )
+          (total, item) =>
+            total + (Number(item.quantity) || 1),
+          0
+        )
         : 0,
-      wishlist: Array.isArray(localWishlist) ? localWishlist.length : 0,
+
+      wishlist: Array.isArray(localWishlist)
+        ? localWishlist.length
+        : 0,
     };
   } catch (error) {
-    console.error("Unable to read local shopping counts:", error);
-    return { cart: 0, wishlist: 0 };
+    console.error(
+      "Unable to read local shopping counts:",
+      error
+    );
+
+    return {
+      cart: 0,
+      wishlist: 0,
+    };
   }
 }
+
+// ============================================
+// USER ACTIONS COMPONENT
+// ============================================
 
 function UserActions() {
   const navigate = useNavigate();
@@ -43,42 +71,59 @@ function UserActions() {
   const [wishlistCount, setWishlistCount] = useState(0);
   const [username, setUsername] = useState("");
   const [authModal, setAuthModal] = useState(null);
+
   const [showAccountDropdown, setShowAccountDropdown] =
     useState(false);
 
-  // ==============================
-  // UPDATE COUNTS & USER
-  // ==============================
+  // ============================================
+  // UPDATE CART, WISHLIST AND USER
+  // ============================================
 
   const updateCount = async () => {
     if (!getAccessToken()) {
       const localCounts = getLocalShoppingCounts();
+
       setCartCount(localCounts.cart);
       setWishlistCount(localCounts.wishlist);
     } else {
-      const [cartResult, wishlistResult] = await Promise.allSettled([
+      const [cartResult, wishlistResult] =
+        await Promise.allSettled([
           getCart(),
           getWishlist(),
-      ]);
+        ]);
+
       const localCounts = getLocalShoppingCounts();
-      const cartFailed = cartResult.status === "rejected";
-      const wishlistFailed = wishlistResult.status === "rejected";
+
+      const cartFailed =
+        cartResult.status === "rejected";
+
+      const wishlistFailed =
+        wishlistResult.status === "rejected";
 
       if (cartFailed) {
-        console.error("Unable to load cart count:", cartResult.reason);
+        console.error(
+          "Unable to load cart count:",
+          cartResult.reason
+        );
       }
+
       if (wishlistFailed) {
-        console.error("Unable to load wishlist count:", wishlistResult.reason);
+        console.error(
+          "Unable to load wishlist count:",
+          wishlistResult.reason
+        );
       }
 
       setCartCount(
         cartFailed
           ? localCounts.cart
           : cartResult.value.reduce(
-              (total, item) => total + item.quantity,
-              0
-            )
+            (total, item) =>
+              total + item.quantity,
+            0
+          )
       );
+
       setWishlistCount(
         wishlistFailed
           ? localCounts.wishlist
@@ -86,8 +131,10 @@ function UserActions() {
       );
 
       if (
-        (cartFailed && cartResult.reason.response?.status === 401) ||
-        (wishlistFailed && wishlistResult.reason.response?.status === 401)
+        (cartFailed &&
+          cartResult.reason.response?.status === 401) ||
+        (wishlistFailed &&
+          wishlistResult.reason.response?.status === 401)
       ) {
         logoutUser();
       }
@@ -102,18 +149,15 @@ function UserActions() {
     }
   };
 
-  // ==============================
+  // ============================================
   // USE EFFECT
-  // ==============================
+  // ============================================
 
   useEffect(() => {
     updateCount();
 
     window.addEventListener("cartUpdated", updateCount);
-    window.addEventListener(
-      "wishlistUpdated",
-      updateCount
-    );
+    window.addEventListener("wishlistUpdated", updateCount);
     window.addEventListener("userUpdated", updateCount);
 
     return () => {
@@ -134,21 +178,22 @@ function UserActions() {
     };
   }, []);
 
-  // ==============================
+  // ============================================
   // LOGOUT
-  // ==============================
+  // ============================================
 
   const handleLogout = () => {
     logoutUser();
+
     setUsername("");
     setShowAccountDropdown(false);
 
     navigate("/");
   };
 
-  // ==============================
+  // ============================================
   // LOGIN SUCCESS
-  // ==============================
+  // ============================================
 
   const handleLoginSuccess = () => {
     setAuthModal(null);
@@ -161,21 +206,25 @@ function UserActions() {
     );
   };
 
-  // ==============================
+  // ============================================
   // CLOSE DROPDOWN
-  // ==============================
+  // ============================================
 
   const closeDropdown = () => {
     setShowAccountDropdown(false);
   };
 
+  // ============================================
+  // COMPONENT JSX
+  // ============================================
+
   return (
     <>
       <div className={styles.userActions}>
 
-        {/* ==============================
+        {/* ========================================
             WISHLIST
-        ============================== */}
+        ======================================== */}
 
         <Link
           to="/wishlist"
@@ -194,9 +243,9 @@ function UserActions() {
           )}
         </Link>
 
-        {/* ==============================
+        {/* ========================================
             CART
-        ============================== */}
+        ======================================== */}
 
         <Link
           to="/cart"
@@ -215,9 +264,9 @@ function UserActions() {
           )}
         </Link>
 
-        {/* ==============================
+        {/* ========================================
             ACCOUNT
-        ============================== */}
+        ======================================== */}
 
         <div className={styles.accountWrapper}>
 
@@ -242,26 +291,21 @@ function UserActions() {
 
             {username && (
               <span className={styles.arrow}>
-                {showAccountDropdown
-                  ? "▲"
-                  : "▼"}
+                {showAccountDropdown ? "▲" : "▼"}
               </span>
             )}
           </button>
 
-          {/* ==============================
+          {/* ========================================
               ACCOUNT DROPDOWN
-          ============================== */}
+          ======================================== */}
 
           {username && showAccountDropdown && (
             <div className={styles.accountDropdown}>
 
-              {/* =========================================
-        ACCOUNT HEADER
-    ========================================= */}
+              {/* ACCOUNT HEADER */}
 
               <div className={styles.accountHeader}>
-
                 <div className={styles.profileIcon}>
                   👤
                 </div>
@@ -270,14 +314,11 @@ function UserActions() {
                   <strong>{username}</strong>
                   <span>My Account</span>
                 </div>
-
               </div>
 
               <div className={styles.dropdownDivider}></div>
 
-              {/* =========================================
-        MY ACCOUNT
-    ========================================= */}
+              {/* MY ACCOUNT */}
 
               <Link
                 to="/account"
@@ -285,15 +326,10 @@ function UserActions() {
                 onClick={closeDropdown}
               >
                 👤
-
-                <span>
-                  My Account
-                </span>
+                <span>My Account</span>
               </Link>
 
-              {/* =========================================
-        MY ORDERS
-    ========================================= */}
+              {/* MY ORDERS */}
 
               <Link
                 to="/orders"
@@ -301,15 +337,10 @@ function UserActions() {
                 onClick={closeDropdown}
               >
                 <FaBoxOpen />
-
-                <span>
-                  My Orders
-                </span>
+                <span>My Orders</span>
               </Link>
 
-              {/* =========================================
-        ORDER HISTORY
-    ========================================= */}
+              {/* ORDER HISTORY */}
 
               <Link
                 to="/order-history"
@@ -317,15 +348,10 @@ function UserActions() {
                 onClick={closeDropdown}
               >
                 📋
-
-                <span>
-                  Order History
-                </span>
+                <span>Order History</span>
               </Link>
 
-              {/* =========================================
-        TRACK ORDER
-    ========================================= */}
+              {/* TRACK ORDER */}
 
               <Link
                 to="/track-order"
@@ -333,15 +359,10 @@ function UserActions() {
                 onClick={closeDropdown}
               >
                 <FaTruck />
-
-                <span>
-                  Track Order
-                </span>
+                <span>Track Order</span>
               </Link>
 
-              {/* =========================================
-        MY WISHLIST
-    ========================================= */}
+              {/* MY WISHLIST */}
 
               <Link
                 to="/wishlist"
@@ -349,15 +370,10 @@ function UserActions() {
                 onClick={closeDropdown}
               >
                 <FaHeart />
-
-                <span>
-                  My Wishlist
-                </span>
+                <span>My Wishlist</span>
               </Link>
 
-              {/* =========================================
-        MY CART
-    ========================================= */}
+              {/* MY CART */}
 
               <Link
                 to="/cart"
@@ -365,15 +381,23 @@ function UserActions() {
                 onClick={closeDropdown}
               >
                 <FaShoppingCart />
-
-                <span>
-                  My Cart
-                </span>
+                <span>My Cart</span>
               </Link>
 
-              {/* =========================================
-        SETTINGS
-    ========================================= */}
+              {/* ====================================
+                  UPLOAD PRESCRIPTION
+              ==================================== */}
+
+              <Link
+                to="/upload-prescription"
+                className={styles.dropdownItem}
+                onClick={closeDropdown}
+              >
+                <FaFileMedical />
+                <span>Upload Prescription</span>
+              </Link>
+
+              {/* SETTINGS */}
 
               <Link
                 to="/settings"
@@ -381,17 +405,12 @@ function UserActions() {
                 onClick={closeDropdown}
               >
                 <FaCog />
-
-                <span>
-                  Settings
-                </span>
+                <span>Settings</span>
               </Link>
 
               <div className={styles.dropdownDivider}></div>
 
-              {/* =========================================
-        LOGOUT
-    ========================================= */}
+              {/* LOGOUT */}
 
               <button
                 type="button"
@@ -399,10 +418,7 @@ function UserActions() {
                 onClick={handleLogout}
               >
                 🚪
-
-                <span>
-                  Logout
-                </span>
+                <span>Logout</span>
               </button>
 
             </div>
@@ -411,20 +427,21 @@ function UserActions() {
         </div>
       </div>
 
-      {/* ==============================
-          LOGIN POPUP
-      ============================== */}
+      {/* ==========================================
+          LOGIN / REGISTER / FORGOT PASSWORD POPUP
+      ========================================== */}
 
       {authModal && (
         <div
           className={styles.overlay}
           onClick={() => setAuthModal(null)}
         >
-
           <div
             className={styles.popup}
             onClick={(e) => e.stopPropagation()}
           >
+
+            {/* CLOSE BUTTON */}
 
             <button
               type="button"
@@ -434,31 +451,44 @@ function UserActions() {
               ✕
             </button>
 
+            {/* LOGIN */}
+
             {authModal === "login" && (
               <Login
                 onClose={() => setAuthModal(null)}
                 onLoginSuccess={handleLoginSuccess}
-                onSwitchToRegister={() => setAuthModal("register")}
-                onSwitchToForgotPassword={() => setAuthModal("forgot")}
+                onSwitchToRegister={() =>
+                  setAuthModal("register")
+                }
+                onSwitchToForgotPassword={() =>
+                  setAuthModal("forgot")
+                }
               />
             )}
+
+            {/* REGISTER */}
 
             {authModal === "register" && (
               <Register
                 onClose={() => setAuthModal(null)}
-                onSwitchToLogin={() => setAuthModal("login")}
+                onSwitchToLogin={() =>
+                  setAuthModal("login")
+                }
               />
             )}
+
+            {/* FORGOT PASSWORD */}
 
             {authModal === "forgot" && (
               <ForgotPassword
                 onClose={() => setAuthModal(null)}
-                onSwitchToLogin={() => setAuthModal("login")}
+                onSwitchToLogin={() =>
+                  setAuthModal("login")
+                }
               />
             )}
 
           </div>
-
         </div>
       )}
 

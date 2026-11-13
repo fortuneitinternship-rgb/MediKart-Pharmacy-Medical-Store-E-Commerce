@@ -248,35 +248,17 @@ function Layout() {
         <Route path="/profile" element={<Profile />} />
         <Route path="/payments" element={<Payments />} />
         <Route path="/addresses" element={<Addresses />} />
-        <Route
-          path="/upload-prescription"
-          element={<UploadPrescription />}
-        />
-        <Route
-          path="/health-records"
-          element={<HealthRecords />}
-        />
+        <Route path="/upload-prescription" element={<UploadPrescription />} />
+        <Route path="/health-records" element={<HealthRecords />} />
         <Route path="/offers" element={<Offers />} />
-        <Route
-          path="/notifications"
-          element={<Notifications />}
-        />
+        <Route path="/notifications" element={<Notifications />} />
         <Route path="/settings" element={<Settings />} />
 
         {/* Error / Status */}
         <Route path="/500" element={<Error500 />} />
-        <Route
-          path="/no-internet"
-          element={<NoInternet />}
-        />
-        <Route
-          path="/access-denied"
-          element={<AccessDenied />}
-        />
-        <Route
-          path="/maintenance"
-          element={<Maintenance />}
-        />
+        <Route path="/no-internet" element={<NoInternet />} />
+        <Route path="/access-denied" element={<AccessDenied />} />
+        <Route path="/maintenance" element={<Maintenance />} />
         <Route path="/empty" element={<EmptyState />} />
 
         {/* 404 */}
