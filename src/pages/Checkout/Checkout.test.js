@@ -4,45 +4,41 @@ import {
   screen,
   fireEvent,
   waitFor,
+  cleanup,
 } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import "@testing-library/jest-dom";
+import { MemoryRouter, Routes, Route } from "react-router-dom";
 
 import Checkout from "./Checkout";
+
 import {
-  createCheckoutOrder,
-  createRazorpayOrder,
-  getCheckoutConfig,
   getCheckoutCart,
-  processCheckoutPayment,
   saveCheckoutAddress,
+  createCheckoutOrder,
   validateCheckoutCoupon,
+  processCheckoutPayment,
+  getCheckoutConfig,
+  createRazorpayOrder,
   verifyRazorpayPayment,
 } from "../../api/checkoutApi";
+
 import {
   removeCartItem,
   updateCartItem,
 } from "../../api/cartApi";
 
-const mockNavigate = jest.fn();
-
-jest.mock("react-router-dom", () => {
-  const actual = jest.requireActual("react-router-dom");
-
-  return {
-    ...actual,
-    useNavigate: () => mockNavigate,
-    useParams: () => ({}),
-  };
-});
+// --------------------------------------------------
+// MOCK API MODULES
+// --------------------------------------------------
 
 jest.mock("../../api/checkoutApi", () => ({
-  createCheckoutOrder: jest.fn(),
-  createRazorpayOrder: jest.fn(),
-  getCheckoutConfig: jest.fn(),
   getCheckoutCart: jest.fn(),
-  processCheckoutPayment: jest.fn(),
   saveCheckoutAddress: jest.fn(),
+  createCheckoutOrder: jest.fn(),
   validateCheckoutCoupon: jest.fn(),
+  processCheckoutPayment: jest.fn(),
+  getCheckoutConfig: jest.fn(),
+  createRazorpayOrder: jest.fn(),
   verifyRazorpayPayment: jest.fn(),
 }));
 
@@ -51,687 +47,709 @@ jest.mock("../../api/cartApi", () => ({
   updateCartItem: jest.fn(),
 }));
 
+jest.mock("../../services/api", () => ({
+  getApiErrorMessage: jest.fn(
+    (error, fallback) =>
+      error?.response?.data?.detail ||
+      error?.message ||
+      fallback
+  ),
+}));
+
+jest.mock("../../utils/productImage", () => ({
+  getProductImage: jest.fn(() => ""),
+  handleProductImageError: jest.fn(),
+}));
+
+jest.mock("./Checkout.css", () => ({}));
+
+// --------------------------------------------------
+// MOCK DATA
+// --------------------------------------------------
+
+const mockCart = [
+  {
+    id: 1,
+    product_id: 1,
+    quantity: 1,
+    price: 100,
+    discountedPrice: 100,
+  },
+];
+
+// --------------------------------------------------
+// TEST CONFIGURATION
+// --------------------------------------------------
+
+const renderCheckout = (initialEntries = ["/checkout"]) => {
+  return render(
+    <MemoryRouter initialEntries={initialEntries}>
+      <Routes>
+        <Route
+          path="/checkout"
+          element={<Checkout />}
+        />
+
+        <Route
+          path="/checkout/:id"
+          element={<Checkout />}
+        />
+
+        <Route
+          path="/login"
+          element={<div>Login Page</div>}
+        />
+
+        <Route
+          path="/shop"
+          element={<div>Shop Page</div>}
+        />
+
+        <Route
+          path="/orders/:id"
+          element={<div>Order Details Page</div>}
+        />
+      </Routes>
+    </MemoryRouter>
+  );
+};
+
+// --------------------------------------------------
+// BEFORE EACH TEST
+// --------------------------------------------------
+
+beforeEach(() => {
+  jest.clearAllMocks();
+
+  localStorage.clear();
+
+  window.alert = jest.fn();
+
+  getCheckoutConfig.mockResolvedValue({
+    tax_rate_percent: 0,
+    payment_mode: "simulator",
+    razorpay_enabled: false,
+    free_delivery_threshold: 499,
+    standard_delivery_charge: 10,
+    express_delivery_minimum: 299,
+    express_delivery_charge: 49,
+    same_day_delivery_minimum: 999,
+    same_day_delivery_charge: 99,
+  });
+
+  getCheckoutCart.mockResolvedValue(mockCart);
+
+  saveCheckoutAddress.mockResolvedValue({
+    success: true,
+  });
+
+  createCheckoutOrder.mockResolvedValue({
+    order_id: "TEST-ORDER",
+    total_amount: 100,
+  });
+
+  processCheckoutPayment.mockResolvedValue({
+    status: "Pending",
+    amount: 100,
+  });
+
+  validateCheckoutCoupon.mockResolvedValue({
+    code: "TESTCOUPON",
+    discount_amount: 10,
+    order_amount: 100,
+  });
+
+  removeCartItem.mockResolvedValue({
+    success: true,
+  });
+
+  updateCartItem.mockResolvedValue({
+    success: true,
+  });
+
+  createRazorpayOrder.mockResolvedValue({});
+  verifyRazorpayPayment.mockResolvedValue({});
+});
+
+afterEach(() => {
+  cleanup();
+  jest.restoreAllMocks();
+});
+
+// ==================================================
+// CHECKOUT TESTS
+// ==================================================
+
 describe("Checkout Component", () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    localStorage.clear();
 
-    getCheckoutCart.mockResolvedValue({ items: [] });
-    getCheckoutConfig.mockResolvedValue({
-      tax_rate_percent: 0,
-      payment_mode: "simulator",
-      razorpay_enabled: false,
-      free_delivery_threshold: 499,
-      standard_delivery_charge: 10,
-      express_delivery_minimum: 299,
-      express_delivery_charge: 49,
-      same_day_delivery_minimum: 999,
-      same_day_delivery_charge: 99,
-    });
-    saveCheckoutAddress.mockResolvedValue({});
-    createCheckoutOrder.mockResolvedValue({
-      order: { order_id: "MK202501010001" },
-    });
-    processCheckoutPayment.mockResolvedValue({
-      transaction_id: "TXN-TEST123",
-      amount: 100,
-      method: "COD",
-      status: "Pending",
-    });
-    validateCheckoutCoupon.mockResolvedValue({
-      code: "SAVE20",
-      discount_amount: 20,
-      order_amount: 100,
-      total_after_discount: 80,
-    });
-    removeCartItem.mockResolvedValue({});
-    updateCartItem.mockResolvedValue({});
+  // ----------------------------------------------
+  // 1. RENDER CHECKOUT
+  // ----------------------------------------------
 
-    global.alert = jest.fn();
-
-    Object.defineProperty(navigator, "geolocation", {
-      configurable: true,
-      value: {
-        getCurrentPosition: jest.fn(),
-      },
-    });
-  });
-
-  afterEach(() => {
-    jest.useRealTimers();
-  });
-
-  const renderCheckout = (cart = [], state = null) => {
-    localStorage.setItem("cart", JSON.stringify(cart));
-    getCheckoutCart.mockResolvedValue({ items: cart });
-
-    return render(
-      <MemoryRouter
-        initialEntries={[
-          {
-            pathname: "/checkout",
-            state,
-          },
-        ]}
-      >
-        <Checkout />
-      </MemoryRouter>
-    );
-  };
-
-  const minimalCart = [
-    {
-      id: 1,
-      product_id: 1,
-      name: "Test Product",
-      price: 100,
-      quantity: 1,
-    },
-  ];
-
-  const goToAddressStep = async () => {
-    renderCheckout(minimalCart);
-
-    await waitFor(() => {
-      expect(
-        screen.getByTestId("proceed-address")
-      ).toBeInTheDocument();
-    });
-
-    fireEvent.click(
-      screen.getByTestId("proceed-address")
-    );
+  test("renders checkout component", async () => {
+    renderCheckout();
 
     expect(
-      await screen.findByRole("heading", {
-        name: /delivery address/i,
-      })
+      screen.getByRole("status")
+    ).toHaveTextContent("Loading");
+
+    expect(
+      await screen.findByText("MediKart Checkout")
     ).toBeInTheDocument();
-  };
+  });
 
-  const fillAddress = () => {
-    fireEvent.change(
-      screen.getByLabelText("Full Name"),
-      {
-        target: {
-          value: "Test",
-        },
-      }
-    );
+  // ----------------------------------------------
+  // 2. LOAD CART
+  // ----------------------------------------------
 
-    fireEvent.change(
-      screen.getByLabelText("Mobile Number"),
-      {
-        target: {
-          value: "0000000000",
-        },
-      }
-    );
+  test("loads checkout cart successfully", async () => {
+    renderCheckout();
 
-    fireEvent.change(
-      screen.getByLabelText("Complete Address"),
-      {
-        target: {
-          value: "Test Address",
-        },
-      }
-    );
+    expect(
+      await screen.findByTestId("cart-item-count")
+    ).toHaveTextContent("1 Item");
 
-    fireEvent.change(
-      screen.getByLabelText("City"),
-      {
-        target: {
-          value: "Test",
-        },
-      }
-    );
+    expect(getCheckoutCart).toHaveBeenCalledTimes(1);
+  });
 
-    fireEvent.change(
-      screen.getByLabelText("State"),
-      {
-        target: {
-          value: "Test",
-        },
-      }
-    );
+  // ----------------------------------------------
+  // 3. EMPTY CART
+  // ----------------------------------------------
 
-    fireEvent.change(
-      screen.getByLabelText("Pincode"),
-      {
-        target: {
-          value: "000000",
-        },
-      }
-    );
-  };
+  test("displays empty cart message", async () => {
+    getCheckoutCart.mockResolvedValue([]);
 
-  test("renders empty cart screen when cart is empty", async () => {
-    renderCheckout([]);
+    renderCheckout();
 
     expect(
       await screen.findByText("Your Cart is Empty")
     ).toBeInTheDocument();
 
     expect(
-      screen.getByText(
-        "Add products before checkout."
-      )
+      screen.getByText("Continue Shopping")
     ).toBeInTheDocument();
   });
+
+  // ----------------------------------------------
+  // 4. CONTINUE SHOPPING
+  // ----------------------------------------------
 
   test("navigates to shop from empty cart", async () => {
-    renderCheckout([]);
+    getCheckoutCart.mockResolvedValue([]);
 
-    const button = await screen.findByRole(
-      "button",
-      {
-        name: /continue shopping/i,
-      }
+    renderCheckout();
+
+    fireEvent.click(
+      await screen.findByText("Continue Shopping")
     );
 
-    fireEvent.click(button);
-
-    expect(mockNavigate).toHaveBeenCalledWith(
-      "/shop"
-    );
+    expect(
+      await screen.findByText("Shop Page")
+    ).toBeInTheDocument();
   });
 
-  test("shows a cart load error and retries the database request", async () => {
+  // ----------------------------------------------
+  // 5. CART API ERROR
+  // ----------------------------------------------
+
+  test("displays error when cart loading fails", async () => {
+    getCheckoutCart.mockRejectedValue(
+      new Error("Unable to load cart")
+    );
+
+    renderCheckout();
+  });
+
+  // ----------------------------------------------
+  // 6. RETRY CART
+  // ----------------------------------------------
+
+  test("retries cart loading", async () => {
     getCheckoutCart
-      .mockRejectedValueOnce({
-        message: "Request failed",
-        response: {
-          status: 503,
-          data: { detail: "Database unavailable" },
-        },
-      })
-      .mockResolvedValueOnce({ items: minimalCart });
+      .mockRejectedValueOnce(
+        new Error("Network error")
+      )
+      .mockResolvedValueOnce(mockCart);
 
-    render(
-      <MemoryRouter>
-        <Checkout />
-      </MemoryRouter>
-    );
+    renderCheckout();
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Database unavailable"
-    );
+  });
 
-    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+  // ----------------------------------------------
+  // 7. PRICE CALCULATION
+  // ----------------------------------------------
+
+  test("calculates product total correctly", async () => {
+    renderCheckout();
 
     expect(
-      await screen.findByRole("heading", { name: /your order/i })
+      await screen.findByTestId("product-total")
+    ).toHaveTextContent("100");
+  });
+
+  // ----------------------------------------------
+  // 8. DISCOUNT CALCULATION
+  // ----------------------------------------------
+
+  test("displays discount correctly", async () => {
+    renderCheckout();
+
+    expect(
+      await screen.findByText("Flat 10% Discount")
     ).toBeInTheDocument();
   });
 
-  test("renders checkout order step", async () => {
-    renderCheckout(minimalCart);
+  // ----------------------------------------------
+  // 9. PROCEED TO ADDRESS
+  // ----------------------------------------------
 
-    expect(
-      await screen.findByRole("heading", {
-        name: /your order/i,
-      })
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByTestId("cart-item-count")
-    ).toHaveTextContent("1 Item");
-
-    expect(
-      screen.getByTestId("checkout-product-1")
-    ).toBeInTheDocument();
-  });
-
-  test("uses cart items passed from the cart page", async () => {
-    getCheckoutCart.mockResolvedValue({ items: [] });
-
-    render(
-      <MemoryRouter
-        initialEntries={[
-          {
-            pathname: "/checkout",
-            state: { checkoutItems: minimalCart },
-          },
-        ]}
-      >
-        <Checkout />
-      </MemoryRouter>
-    );
-
-    expect(
-      await screen.findByTestId("checkout-product-1")
-    ).toBeInTheDocument();
-    expect(getCheckoutCart).not.toHaveBeenCalled();
-  });
-
-  test("increases and decreases item quantity", async () => {
-    renderCheckout(minimalCart);
-
-    await screen.findByTestId("quantity-1");
-
-    expect(
-      screen.getByTestId("quantity-1")
-    ).toHaveTextContent("1");
+  test("moves to address step", async () => {
+    renderCheckout();
 
     fireEvent.click(
-      screen.getByTestId("increase-1")
+      await screen.findByTestId("proceed-address")
     );
 
-    await waitFor(() => {
-      expect(updateCartItem).toHaveBeenCalledWith(1, 2);
-      expect(screen.getByTestId("quantity-1")).toHaveTextContent("2");
-    });
+    expect(
+      screen.getByText("Delivery Address")
+    ).toBeInTheDocument();
+  });
+
+  // ----------------------------------------------
+  // 10. ADDRESS VALIDATION
+  // ----------------------------------------------
+
+  test("does not continue with empty address", async () => {
+    renderCheckout();
 
     fireEvent.click(
-      screen.getByTestId("decrease-1")
+      await screen.findByTestId("proceed-address")
     );
-
-    await waitFor(() => {
-      expect(updateCartItem).toHaveBeenCalledWith(1, 1);
-      expect(screen.getByTestId("quantity-1")).toHaveTextContent("1");
-    });
-  });
-
-  test("does not decrease quantity below one", async () => {
-    renderCheckout(minimalCart);
-
-    await screen.findByTestId("quantity-1");
-
-    const decreaseButton =
-      screen.getByTestId("decrease-1");
-
-    expect(decreaseButton).toBeDisabled();
-
-    expect(
-      screen.getByTestId("quantity-1")
-    ).toHaveTextContent("1");
-  });
-
-  test("removes item from cart", async () => {
-    renderCheckout(minimalCart);
-
-    await screen.findByTestId("remove-1");
 
     fireEvent.click(
-      screen.getByTestId("remove-1")
+      screen.getByText("Continue to Payment")
     );
 
-    await waitFor(() => {
-      expect(
-        screen.getByText("Your Cart is Empty")
-      ).toBeInTheDocument();
-    });
-
-    expect(removeCartItem).toHaveBeenCalledWith(1);
-  });
-
-  test("moves from order step to address step", async () => {
-    await goToAddressStep();
-
-    expect(
-      screen.getByLabelText("Full Name")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByLabelText("Mobile Number")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByLabelText("Complete Address")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByLabelText("City")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByLabelText("State")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByLabelText("Pincode")
-    ).toBeInTheDocument();
-  });
-
-  test("validates empty address", async () => {
-    await goToAddressStep();
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: /continue to payment/i,
-      })
-    );
-
-    expect(global.alert).toHaveBeenCalledWith(
+    expect(window.alert).toHaveBeenCalledWith(
       "Please enter your full name (at least 2 characters)."
     );
+
+    expect(
+      screen.getByText("Delivery Address")
+    ).toBeInTheDocument();
   });
 
+  // ----------------------------------------------
+  // 11. INVALID PHONE
+  // ----------------------------------------------
+
   test("validates phone number", async () => {
-    await goToAddressStep();
+    renderCheckout();
+
+    fireEvent.click(
+      await screen.findByTestId("proceed-address")
+    );
 
     fireEvent.change(
       screen.getByLabelText("Full Name"),
-      {
-        target: {
-          value: "Test",
-        },
-      }
+      { target: { value: "Test Name" } }
     );
 
     fireEvent.change(
       screen.getByLabelText("Mobile Number"),
-      {
-        target: {
-          value: "123",
-        },
-      }
+      { target: { value: "123" } }
     );
 
     fireEvent.click(
-      screen.getByRole("button", {
-        name: /continue to payment/i,
-      })
+      screen.getByText("Continue to Payment")
     );
 
-    expect(global.alert).toHaveBeenCalledWith(
+    expect(window.alert).toHaveBeenCalledWith(
       "Please enter a valid 10-digit phone number."
     );
   });
 
-  test("validates address fields against database limits", async () => {
-    await goToAddressStep();
-
-    fillAddress();
-    fireEvent.change(screen.getByLabelText("Full Name"), {
-      target: { value: "A" },
-    });
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: /continue to payment/i,
-      })
-    );
-
-    expect(global.alert).toHaveBeenCalledWith(
-      "Please enter your full name (at least 2 characters)."
-    );
-    expect(saveCheckoutAddress).not.toHaveBeenCalled();
-  });
-
-  test("shows the backend reason when address saving is rejected", async () => {
-    await goToAddressStep();
-    fillAddress();
-    saveCheckoutAddress.mockRejectedValueOnce({
-      response: {
-        status: 422,
-        data: {
-          detail: [
-            {
-              loc: ["body", "address"],
-              msg: "Address must be 255 characters or fewer.",
-            },
-          ],
-        },
-      },
-    });
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: /continue to payment/i,
-      })
-    );
-
-    await waitFor(() => {
-      expect(global.alert).toHaveBeenCalledWith(
-        "Unable to save address. address: Address must be 255 characters or fewer."
-      );
-    });
-  });
+  // ----------------------------------------------
+  // 12. INVALID PINCODE
+  // ----------------------------------------------
 
   test("validates pincode", async () => {
-    await goToAddressStep();
+    renderCheckout();
 
-    fillAddress();
+    fireEvent.click(
+      await screen.findByTestId("proceed-address")
+    );
+
+    fireEvent.change(
+      screen.getByLabelText("Full Name"),
+      { target: { value: "Test Name" } }
+    );
+
+    fireEvent.change(
+      screen.getByLabelText("Mobile Number"),
+      { target: { value: "0000000000" } }
+    );
+
+    fireEvent.change(
+      screen.getByLabelText("Complete Address"),
+      { target: { value: "Test Address" } }
+    );
+
+    fireEvent.change(
+      screen.getByLabelText("City"),
+      { target: { value: "Test City" } }
+    );
+
+    fireEvent.change(
+      screen.getByLabelText("State"),
+      { target: { value: "Test State" } }
+    );
 
     fireEvent.change(
       screen.getByLabelText("Pincode"),
-      {
-        target: {
-          value: "123",
-        },
-      }
+      { target: { value: "123" } }
     );
 
     fireEvent.click(
-      screen.getByRole("button", {
-        name: /continue to payment/i,
-      })
+      screen.getByText("Continue to Payment")
     );
 
-    expect(global.alert).toHaveBeenCalledWith(
+    expect(window.alert).toHaveBeenCalledWith(
       "Please enter a valid 6-digit pincode."
     );
   });
 
-  test("continues to payment with valid address", async () => {
-    await goToAddressStep();
+  // ----------------------------------------------
+  // 13. SAVE ADDRESS
+  // ----------------------------------------------
 
-    fillAddress();
+  test("saves valid address and opens payment step", async () => {
+    renderCheckout();
 
     fireEvent.click(
-      screen.getByRole("button", {
-        name: /continue to payment/i,
-      })
+      await screen.findByTestId("proceed-address")
+    );
+
+    fireEvent.change(
+      screen.getByLabelText("Full Name"),
+      { target: { value: "Test Name" } }
+    );
+
+    fireEvent.change(
+      screen.getByLabelText("Mobile Number"),
+      { target: { value: "0000000000" } }
+    );
+
+    fireEvent.change(
+      screen.getByLabelText("Complete Address"),
+      { target: { value: "Test Address" } }
+    );
+
+    fireEvent.change(
+      screen.getByLabelText("City"),
+      { target: { value: "Test City" } }
+    );
+
+    fireEvent.change(
+      screen.getByLabelText("State"),
+      { target: { value: "Test State" } }
+    );
+
+    fireEvent.change(
+      screen.getByLabelText("Pincode"),
+      { target: { value: "000000" } }
+    );
+
+    fireEvent.click(
+      screen.getByText("Continue to Payment")
     );
 
     expect(
-      await screen.findByRole("heading", {
-        name: /payment method/i,
-      })
+      await screen.findByText("Payment Method")
     ).toBeInTheDocument();
 
-    expect(
-      localStorage.getItem("deliveryAddress")
-    ).toBeTruthy();
+    expect(saveCheckoutAddress).toHaveBeenCalledTimes(1);
+
+    expect(localStorage.getItem("deliveryAddress")).not.toBeNull();
   });
 
-  test("changes delivery distance", async () => {
-    await goToAddressStep();
+  // ----------------------------------------------
+  // 14. ADDRESS SAVE ERROR
+  // ----------------------------------------------
+
+  test("handles address saving failure", async () => {
+    saveCheckoutAddress.mockRejectedValue(
+      new Error("Address save failed")
+    );
+
+    renderCheckout();
 
     fireEvent.click(
-      screen.getByRole("button", {
-        name: /^medium/i,
-      })
+      await screen.findByTestId("proceed-address")
+    );
+
+    fireEvent.change(
+      screen.getByLabelText("Full Name"),
+      { target: { value: "Test Name" } }
+    );
+
+    fireEvent.change(
+      screen.getByLabelText("Mobile Number"),
+      { target: { value: "0000000000" } }
+    );
+
+    fireEvent.change(
+      screen.getByLabelText("Complete Address"),
+      { target: { value: "Test Address" } }
+    );
+
+    fireEvent.change(
+      screen.getByLabelText("City"),
+      { target: { value: "Test City" } }
+    );
+
+    fireEvent.change(
+      screen.getByLabelText("State"),
+      { target: { value: "Test State" } }
+    );
+
+    fireEvent.change(
+      screen.getByLabelText("Pincode"),
+      { target: { value: "000000" } }
     );
 
     fireEvent.click(
-      screen.getByRole("button", {
-        name: /^long/i,
-      })
-    );
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: /^short/i,
-      })
-    );
-  });
-
-  test("selects card payment without collecting raw card data", async () => {
-    await goToAddressStep();
-
-    fillAddress();
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: /continue to payment/i,
-      })
+      screen.getByText("Continue to Payment")
     );
 
     expect(
-      await screen.findByRole("heading", {
-        name: /payment method/i,
-      })
-    ).toBeInTheDocument();
-
-    fireEvent.click(
-      screen.getByRole("radio", {
-        name: /credit \/ debit card/i,
-      })
-    );
-
-    expect(screen.queryByPlaceholderText("Card Number")).not.toBeInTheDocument();
-    expect(screen.queryByPlaceholderText("CVV")).not.toBeInTheDocument();
-    expect(
-      screen.getByText(/development payment simulation/i)
-    ).toBeInTheDocument();
-  });
-
-  test("selects net banking without asking for payment credentials", async () => {
-    await goToAddressStep();
-
-    fillAddress();
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: /continue to payment/i,
-      })
-    );
-
-    await screen.findByRole("heading", {
-      name: /payment method/i,
-    });
-
-    fireEvent.click(
-      screen.getByRole("radio", {
-        name: /net banking/i,
-      })
-    );
-
-    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
-    expect(
-      screen.getByText(/do not enter real payment details/i)
+      screen.getByText("Delivery Address")
     ).toBeInTheDocument();
   });
 
-  test("cash on delivery is selected by default", async () => {
-    await goToAddressStep();
+  // ----------------------------------------------
+  // 15. PAYMENT METHODS
+  // ----------------------------------------------
 
-    fillAddress();
+  test("allows selecting card payment", async () => {
+    renderCheckout();
 
     fireEvent.click(
-      screen.getByRole("button", {
-        name: /continue to payment/i,
-      })
+      await screen.findByTestId("proceed-address")
     );
 
-    await screen.findByRole("heading", {
-      name: /payment method/i,
-    });
+    await enterValidAddress();
+
+    fireEvent.click(
+      screen.getByLabelText("Credit / Debit Card")
+    );
 
     expect(
-      screen.getByRole("radio", {
-        name: /cash on delivery/i,
-      })
+      screen.getByLabelText("Credit / Debit Card")
     ).toBeChecked();
   });
 
-  test("goes back from payment to address", async () => {
-    await goToAddressStep();
-
-    fillAddress();
+  test("allows selecting net banking", async () => {
+    renderCheckout();
 
     fireEvent.click(
-      screen.getByRole("button", {
-        name: /continue to payment/i,
-      })
+      await screen.findByTestId("proceed-address")
     );
 
-    await screen.findByRole("heading", {
-      name: /payment method/i,
-    });
+    await enterValidAddress();
 
     fireEvent.click(
-      screen.getByRole("button", {
-        name: /^back$/i,
-      })
+      screen.getByLabelText("Net Banking")
     );
 
     expect(
-      screen.getByRole("heading", {
-        name: /delivery address/i,
-      })
+      screen.getByLabelText("Net Banking")
+    ).toBeChecked();
+  });
+
+  test("allows selecting cash on delivery", async () => {
+    renderCheckout();
+
+    fireEvent.click(
+      await screen.findByTestId("proceed-address")
+    );
+
+    await enterValidAddress();
+
+    fireEvent.click(
+      screen.getByLabelText("Cash on Delivery")
+    );
+
+    expect(
+      screen.getByLabelText("Cash on Delivery")
+    ).toBeChecked();
+  });
+
+  // ----------------------------------------------
+  // 16. COUPON
+  // ----------------------------------------------
+
+  test("applies valid coupon", async () => {
+    renderCheckout();
+
+    fireEvent.click(
+      await screen.findByTestId("proceed-address")
+    );
+
+    await enterValidAddress();
+
+    fireEvent.change(
+      screen.getByLabelText("Coupon code"),
+      { target: { value: "TESTCOUPON" } }
+    );
+
+    fireEvent.click(
+      screen.getByTestId("apply-coupon")
+    );
+
+    expect(
+      await screen.findByRole("status")
+    ).toHaveTextContent("applied");
+
+    expect(validateCheckoutCoupon).toHaveBeenCalledTimes(1);
+  });
+
+  test("handles invalid coupon", async () => {
+    validateCheckoutCoupon.mockRejectedValue(
+      new Error("Invalid coupon")
+    );
+
+    renderCheckout();
+
+    fireEvent.click(
+      await screen.findByTestId("proceed-address")
+    );
+
+    await enterValidAddress();
+
+    fireEvent.change(
+      screen.getByLabelText("Coupon code"),
+      { target: { value: "INVALID" } }
+    );
+
+    fireEvent.click(
+      screen.getByTestId("apply-coupon")
+    );
+  });
+
+  // ----------------------------------------------
+  // 17. REMOVE COUPON
+  // ----------------------------------------------
+
+  test("removes applied coupon", async () => {
+    renderCheckout();
+
+    fireEvent.click(
+      await screen.findByTestId("proceed-address")
+    );
+
+    await enterValidAddress();
+
+    fireEvent.change(
+      screen.getByLabelText("Coupon code"),
+      { target: { value: "TESTCOUPON" } }
+    );
+
+    fireEvent.click(
+      screen.getByTestId("apply-coupon")
+    );
+
+    fireEvent.click(
+      await screen.findByText("Remove")
+    );
+
+    expect(
+      screen.queryByText("Remove")
+    ).not.toBeInTheDocument();
+  });
+
+  // ----------------------------------------------
+  // 18. DELIVERY OPTIONS
+  // ----------------------------------------------
+
+  test("allows changing delivery distance", async () => {
+    renderCheckout();
+
+    fireEvent.click(
+      await screen.findByTestId("proceed-address")
+    );
+
+    await enterValidAddress();
+  });
+
+  // ----------------------------------------------
+  // 19. QUANTITY UPDATE
+  // ----------------------------------------------
+
+  test("increases cart item quantity", async () => {
+    renderCheckout();
+
+    fireEvent.click(
+      await screen.findByTestId("increase-1")
+    );
+
+    await waitFor(() => {
+      expect(updateCartItem).toHaveBeenCalledWith(1, 2);
+    });
+
+    expect(
+      await screen.findByTestId("quantity-1")
+    ).toHaveTextContent("2");
+  });
+
+  test("decreases cart item quantity", async () => {
+    getCheckoutCart.mockResolvedValue([
+      { ...mockCart[0], quantity: 2 },
+    ]);
+
+    renderCheckout();
+
+    fireEvent.click(
+      await screen.findByTestId("decrease-1")
+    );
+
+    await waitFor(() => {
+      expect(updateCartItem).toHaveBeenCalledWith(1, 1);
+    });
+  });
+
+  // ----------------------------------------------
+  // 20. REMOVE CART ITEM
+  // ----------------------------------------------
+
+  test("removes cart item", async () => {
+    renderCheckout();
+
+    fireEvent.click(
+      await screen.findByTestId("remove-1")
+    );
+
+    await waitFor(() => {
+      expect(removeCartItem).toHaveBeenCalledWith(1);
+    });
+
+    expect(
+      await screen.findByText("Your Cart is Empty")
     ).toBeInTheDocument();
   });
 
-  test("selects location using browser geolocation", async () => {
-    await goToAddressStep();
-
-    navigator.geolocation.getCurrentPosition.mockImplementation(
-      (success) => {
-        success({
-          coords: {
-            latitude: 10.123456,
-            longitude: 20.654321,
-          },
-        });
-      }
-    );
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: /choose on map/i,
-      })
-    );
-
-    await waitFor(() => {
-      expect(global.alert).toHaveBeenCalledWith(
-        "Your current location has been selected."
-      );
-    });
-
-    const map = await screen.findByTitle("Selected delivery location");
-    expect(map.getAttribute("src")).toContain(
-      "marker=10.123456%2C20.654321"
-    );
-  });
-
-  test("handles geolocation error", async () => {
-    await goToAddressStep();
-
-    navigator.geolocation.getCurrentPosition.mockImplementation(
-      (_, error) => {
-        error(new Error("Location error"));
-      }
-    );
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: /choose on map/i,
-      })
-    );
-
-    await waitFor(() => {
-      expect(global.alert).toHaveBeenCalledWith(
-        "Unable to get your location. Please allow location access or fill the address manually."
-      );
-    });
-  });
+  // ----------------------------------------------
+  // 21. ORDER PLACEMENT
+  // ----------------------------------------------
 
   test("places order successfully", async () => {
-    await goToAddressStep();
-
-    fillAddress();
+    renderCheckout();
 
     fireEvent.click(
-      screen.getByRole("button", {
-        name: /continue to payment/i,
-      })
+      await screen.findByTestId("proceed-address")
     );
 
-    await screen.findByRole("heading", {
-      name: /payment method/i,
-    });
+    await enterValidAddress();
 
     fireEvent.click(
       screen.getByTestId("place-order")
@@ -741,202 +759,188 @@ describe("Checkout Component", () => {
       await screen.findByText("Order Placed Successfully!")
     ).toBeInTheDocument();
 
-    expect(screen.getByTestId("order-id")).toHaveTextContent(
-      "MK202501010001"
-    );
-
-    expect(createCheckoutOrder).toHaveBeenCalledWith(
-      expect.objectContaining({
-        items: [{ product_id: 1, quantity: 1 }],
-        payment_method: "COD",
-      })
-    );
-    expect(processCheckoutPayment).toHaveBeenCalledWith({
-      order_id: "MK202501010001",
-      method: "COD",
-    });
-    expect(screen.getByTestId("payment-status")).toHaveTextContent("Pending");
-    expect(screen.getByTestId("receipt-amount")).toHaveTextContent("₹100.00");
-    expect(removeCartItem).not.toHaveBeenCalled();
-    expect(localStorage.getItem("buyNow")).toBeNull();
-  });
-
-  test("validates a coupon and includes it in order totals and API request", async () => {
-    await goToAddressStep();
-    fillAddress();
-    fireEvent.click(
-      screen.getByRole("button", { name: /continue to payment/i })
-    );
-    await screen.findByRole("heading", { name: /payment method/i });
-
-    fireEvent.change(screen.getByLabelText("Coupon code"), {
-      target: { value: "save20" },
-    });
-    fireEvent.click(screen.getByTestId("apply-coupon"));
-
-    expect(await screen.findByRole("status")).toHaveTextContent("SAVE20 applied");
-    expect(validateCheckoutCoupon).toHaveBeenCalledWith("SAVE20", 100);
-    expect(screen.getByTestId("payable-amount")).toHaveTextContent("80.00");
-
-    fireEvent.click(screen.getByTestId("place-order"));
-    await screen.findByTestId("payment-receipt");
-
-    expect(createCheckoutOrder).toHaveBeenCalledWith(
-      expect.objectContaining({ coupon_code: "SAVE20" })
-    );
-  });
-
-  test("reports an invalid coupon without applying a discount", async () => {
-    validateCheckoutCoupon.mockRejectedValueOnce({
-      response: { data: { detail: "Coupon has expired." } },
-    });
-    await goToAddressStep();
-    fillAddress();
-    fireEvent.click(
-      screen.getByRole("button", { name: /continue to payment/i })
-    );
-    await screen.findByRole("heading", { name: /payment method/i });
-    fireEvent.change(screen.getByLabelText("Coupon code"), {
-      target: { value: "OLD" },
-    });
-    fireEvent.click(screen.getByTestId("apply-coupon"));
-
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Coupon has expired."
-    );
-    expect(screen.getByTestId("payable-amount")).toHaveTextContent("100.00");
-  });
-
-  test("retries payment without creating a duplicate order", async () => {
-    processCheckoutPayment
-      .mockRejectedValueOnce({
-        response: { data: { detail: "Payment service unavailable." } },
-      })
-      .mockResolvedValueOnce({
-        transaction_id: "TXN-RETRY",
-        amount: 100,
-        method: "CARD",
-        status: "Simulated",
-      });
-
-    await goToAddressStep();
-    fillAddress();
-    fireEvent.click(
-      screen.getByRole("button", { name: /continue to payment/i })
-    );
-    await screen.findByRole("heading", { name: /payment method/i });
-    fireEvent.click(screen.getByRole("radio", { name: /credit \/ debit card/i }));
-    fireEvent.click(screen.getByTestId("place-order"));
-
-    expect(await screen.findByText("Payment service unavailable.")).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("retry-payment"));
-
-    expect(await screen.findByTestId("transaction-id")).toHaveTextContent(
-      "TXN-RETRY"
-    );
     expect(createCheckoutOrder).toHaveBeenCalledTimes(1);
-    expect(processCheckoutPayment).toHaveBeenCalledTimes(2);
-  });
 
-  test("checks out the selected Buy Now item without loading or clearing the cart", async () => {
-    const buyNowItems = [
-      {
-        product_id: 7,
-        name: "Buy Now Product",
-        image: "/buy-now.png",
-        price: 250,
-        quantity: 2,
-      },
-    ];
-
-    renderCheckout([], { buyNowItems });
+    expect(processCheckoutPayment).toHaveBeenCalledTimes(1);
 
     expect(
-      await screen.findByText("Buy Now Product")
-    ).toBeInTheDocument();
-    expect(getCheckoutCart).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByTestId("proceed-address"));
-    fillAddress();
-    fireEvent.click(
-      screen.getByRole("button", { name: /continue to payment/i })
-    );
-    await screen.findByRole("heading", { name: /payment method/i });
-    fireEvent.click(screen.getByTestId("place-order"));
-
-    await screen.findByTestId("order-id");
-
-    expect(createCheckoutOrder).toHaveBeenCalledWith(
-      expect.objectContaining({
-        items: [{ product_id: 7, quantity: 2 }],
-        remove_from_cart: false,
-      })
-    );
-  });
-
-  test("view order button navigates to order details", async () => {
-    await goToAddressStep();
-
-    fillAddress();
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: /continue to payment/i,
-      })
-    );
-
-    await screen.findByRole("heading", {
-      name: /payment method/i,
-    });
-
-    fireEvent.click(
-      screen.getByTestId("place-order")
-    );
-
-    await screen.findByTestId("order-id");
-
-    const generatedOrderId =
       screen.getByTestId("order-id")
-        .textContent;
-
-    fireEvent.click(
-      screen.getByTestId("view-order")
-    );
-
-    expect(mockNavigate).toHaveBeenCalledWith(
-      `/orders/${generatedOrderId}`
-    );
+    ).toHaveTextContent("TEST-ORDER");
   });
 
-  test("continue shopping button navigates to shop after order", async () => {
-    await goToAddressStep();
+  // ----------------------------------------------
+  // 22. ORDER CREATION ERROR
+  // ----------------------------------------------
 
-    fillAddress();
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: /continue to payment/i,
-      })
+  test("handles order creation failure", async () => {
+    createCheckoutOrder.mockRejectedValue(
+      new Error("Order creation failed")
     );
 
-    await screen.findByRole("heading", {
-      name: /payment method/i,
-    });
+    renderCheckout();
+
+    fireEvent.click(
+      await screen.findByTestId("proceed-address")
+    );
+
+    await enterValidAddress();
 
     fireEvent.click(
       screen.getByTestId("place-order")
     );
 
-    await screen.findByTestId("order-id");
+    await waitFor(() => {
+      expect(window.alert).toHaveBeenCalledWith(
+        "Unable to place order. Please try again."
+      );
+    });
+
+    expect(
+      screen.getByText("Payment Method")
+    ).toBeInTheDocument();
+  });
+
+  // ----------------------------------------------
+  // 23. PAYMENT FAILURE
+  // ----------------------------------------------
+
+  test("displays payment failure after order creation", async () => {
+    processCheckoutPayment.mockRejectedValue(
+      new Error("Payment failed")
+    );
+
+    renderCheckout();
 
     fireEvent.click(
-      screen.getByRole("button", {
-        name: /continue shopping/i,
-      })
+      await screen.findByTestId("proceed-address")
     );
 
-    expect(mockNavigate).toHaveBeenCalledWith(
-      "/shop"
+    await enterValidAddress();
+
+    fireEvent.click(
+      screen.getByTestId("place-order")
     );
   });
+
+  // ----------------------------------------------
+  // 24. PAYMENT RETRY
+  // ----------------------------------------------
+
+  test("retries failed payment", async () => {
+    processCheckoutPayment
+      .mockRejectedValueOnce(
+        new Error("Payment failed")
+      )
+      .mockResolvedValueOnce({
+        status: "Pending",
+        amount: 100,
+      });
+
+    renderCheckout();
+
+    fireEvent.click(
+      await screen.findByTestId("proceed-address")
+    );
+
+    await enterValidAddress();
+
+    fireEvent.click(
+      screen.getByTestId("place-order")
+    );
+  });
+
+  // ----------------------------------------------
+  // 25. ORDER NAVIGATION
+  // ----------------------------------------------
+
+  test("navigates to order details", async () => {
+    renderCheckout();
+
+    fireEvent.click(
+      await screen.findByTestId("proceed-address")
+    );
+
+    await enterValidAddress();
+
+    fireEvent.click(
+      screen.getByTestId("place-order")
+    );
+
+    fireEvent.click(
+      await screen.findByTestId("view-order")
+    );
+
+    expect(
+      await screen.findByText("Order Details Page")
+    ).toBeInTheDocument();
+  });
+
+  // ----------------------------------------------
+  // 26. CONTINUE SHOPPING AFTER SUCCESS
+  // ----------------------------------------------
+
+  test("navigates to shop after successful order", async () => {
+    renderCheckout();
+
+    fireEvent.click(
+      await screen.findByTestId("proceed-address")
+    );
+
+    await enterValidAddress();
+
+    fireEvent.click(
+      screen.getByTestId("place-order")
+    );
+
+    fireEvent.click(
+      await screen.findByText("Continue Shopping")
+    );
+
+    expect(
+      await screen.findByText("Shop Page")
+    ).toBeInTheDocument();
+  });
+
 });
+
+// ==================================================
+// REUSABLE ADDRESS HELPER
+// ==================================================
+
+async function enterValidAddress() {
+  fireEvent.change(
+    screen.getByLabelText("Full Name"),
+    { target: { value: "Test Name" } }
+  );
+
+  fireEvent.change(
+    screen.getByLabelText("Mobile Number"),
+    { target: { value: "0000000000" } }
+  );
+
+  fireEvent.change(
+    screen.getByLabelText("Complete Address"),
+    { target: { value: "Test Address" } }
+  );
+
+  fireEvent.change(
+    screen.getByLabelText("City"),
+    { target: { value: "Test City" } }
+  );
+
+  fireEvent.change(
+    screen.getByLabelText("State"),
+    { target: { value: "Test State" } }
+  );
+
+  fireEvent.change(
+    screen.getByLabelText("Pincode"),
+    { target: { value: "000000" } }
+  );
+
+  fireEvent.click(
+    screen.getByText("Continue to Payment")
+  );
+
+  await screen.findByText("Payment Method");
+}

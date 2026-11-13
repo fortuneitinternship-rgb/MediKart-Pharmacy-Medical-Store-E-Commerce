@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "react-toastify";
@@ -15,116 +16,175 @@ const FlashSale = () => {
   const [timeLeft, setTimeLeft] = useState({
     hours: "24",
     minutes: "00",
-    seconds: "00"
+    seconds: "00",
   });
 
   const [addedItems, setAddedItems] = useState({});
+  const [loadingItems, setLoadingItems] = useState({});
   const [flashSaleProducts, setFlashSaleProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // =========================================
   // FLASH SALE TIMER
-  // =========================================
-
   useEffect(() => {
     const target = Date.now() + 24 * 60 * 60 * 1000;
 
-    const timer = setInterval(() => {
-      const difference = target - Date.now();
+    const updateTimer = () => {
+      const difference = Math.max(0, target - Date.now());
 
-      if (difference <= 0) {
-        clearInterval(timer);
-
-        setTimeLeft({
-          hours: "00",
-          minutes: "00",
-          seconds: "00"
-        });
-
-        return;
-      }
+      const hours = Math.floor(difference / (1000 * 60 * 60));
+      const minutes = Math.floor(
+        (difference / (1000 * 60)) % 60
+      );
+      const seconds = Math.floor(
+        (difference / 1000) % 60
+      );
 
       setTimeLeft({
-        hours: String(
-          Math.floor(difference / (1000 * 60 * 60))
-        ).padStart(2, "0"),
-
-        minutes: String(
-          Math.floor((difference / (1000 * 60)) % 60)
-        ).padStart(2, "0"),
-
-        seconds: String(
-          Math.floor((difference / 1000) % 60)
-        ).padStart(2, "0")
+        hours: String(hours).padStart(2, "0"),
+        minutes: String(minutes).padStart(2, "0"),
+        seconds: String(seconds).padStart(2, "0"),
       });
+
+      return difference > 0;
+    };
+
+    updateTimer();
+
+    const timer = setInterval(() => {
+      if (!updateTimer()) {
+        clearInterval(timer);
+      }
     }, 1000);
 
     return () => clearInterval(timer);
   }, []);
 
+  // FETCH FLASH SALE PRODUCTS
   useEffect(() => {
-    getFlashSaleProducts()
-      .then(setFlashSaleProducts)
-      .catch((loadError) => {
-        console.error("Unable to load flash-sale products:", loadError);
-        setError("Flash-sale products could not be loaded.");
-      });
+    let isMounted = true;
+
+    const fetchProducts = async () => {
+      try {
+        setLoading(true);
+        setError("");
+
+        const response = await getFlashSaleProducts();
+
+        if (isMounted) {
+          setFlashSaleProducts(
+            Array.isArray(response) ? response : []
+          );
+        }
+      } catch (loadError) {
+        console.error(
+          "Unable to load flash-sale products:",
+          loadError
+        );
+
+        if (isMounted) {
+          setError("Flash-sale products could not be loaded.");
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchProducts();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  // =========================================
-  // ADD TO CART
-  // =========================================
-
+  // ADD PRODUCT TO CART
   const handleAddToCart = async (product) => {
+    if (!product?.id || loadingItems[product.id]) {
+      return;
+    }
+
+    const productId = product.id;
+
+    setLoadingItems((prev) => ({
+      ...prev,
+      [productId]: true,
+    }));
+
     try {
       await addProductToCart(product);
-      toast.success(`${product.name} added to cart!`, {
+
+      toast.success("Product added to cart!", {
         position: "top-right",
         autoClose: 2000,
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: true,
-        draggable: true,
-        theme: "colored"
+        theme: "colored",
       });
 
       setAddedItems((prev) => ({
         ...prev,
-        [product.id]: true
+        [productId]: true,
       }));
 
-    // Reset button after 2 seconds
       setTimeout(() => {
-      setAddedItems((prev) => ({
-        ...prev,
-        [product.id]: false
-      }));
+        setAddedItems((prev) => ({
+          ...prev,
+          [productId]: false,
+        }));
       }, 2000);
-    } catch (error) {
-      toast.error(error.message || "Unable to add this product to your cart.");
+    } catch (cartError) {
+      toast.error(
+        cartError?.message ||
+        "Unable to add this product to your cart."
+      );
+    } finally {
+      setLoadingItems((prev) => ({
+        ...prev,
+        [productId]: false,
+      }));
     }
   };
 
-  // =========================================
-  // JSX
-  // =========================================
+  // LOADING STATE
+  if (loading) {
+    return (
+      <section className={styles.flashSale}>
+        <p role="status">Loading flash-sale products...</p>
+      </section>
+    );
+  }
 
+  // ERROR STATE
+  if (error) {
+    return (
+      <section className={styles.flashSale}>
+        <p role="alert">{error}</p>
+      </section>
+    );
+  }
+
+  // EMPTY STATE
+  if (flashSaleProducts.length === 0) {
+    return (
+      <section className={styles.flashSale}>
+        <h2>🔥 Flash Sale</h2>
+        <p>No flash-sale products available.</p>
+      </section>
+    );
+  }
+
+  // MAIN JSX
   return (
     <section className={styles.flashSale}>
-
       {/* HEADER */}
       <div className={styles.header}>
-
         <div className={styles.titleSection}>
           <h2>🔥 Flash Sale</h2>
           <p>Limited Time Deals</p>
         </div>
 
-        {error && <p role="alert">{error}</p>}
-
         {/* TIMER */}
         <div className={styles.timer}>
-
           <div className={styles.timeBox}>
             <span>{timeLeft.hours}</span>
             <small>Hours</small>
@@ -139,31 +199,25 @@ const FlashSale = () => {
             <span>{timeLeft.seconds}</span>
             <small>Seconds</small>
           </div>
-
         </div>
-
       </div>
 
       {/* PRODUCTS */}
       <div className={styles.productGrid}>
-
         {flashSaleProducts.map((product) => (
-
           <div
             key={product.id}
             className={styles.productCard}
           >
-
             {/* IMAGE */}
             <div className={styles.imageWrapper}>
-
               <img
                 src={getProductImage(
                   product.image,
                   product.name,
                   product.category
                 )}
-                alt={product.name}
+                alt={product.name || "Product"}
                 className={styles.productImage}
                 onError={(event) =>
                   handleProductImageError(
@@ -173,39 +227,38 @@ const FlashSale = () => {
                   )
                 }
               />
-
             </div>
 
             {/* CONTENT */}
             <div className={styles.cardContent}>
-
               <h3>{product.name}</h3>
 
-              <p className={styles.brand}>
-                {product.brand}
-              </p>
+              {product.brand && (
+                <p className={styles.brand}>
+                  {product.brand}
+                </p>
+              )}
 
               {/* RATING */}
-              <div className={styles.rating}>
-                ⭐ {product.rating}
-              </div>
+              {product.rating != null && (
+                <div className={styles.rating}>
+                  ⭐ {product.rating}
+                </div>
+              )}
 
               {/* PRICE */}
               <div className={styles.priceSection}>
-
                 <span className={styles.originalPrice}>
-                  ₹{product.price}
+                  ₹{product.price ?? 0}
                 </span>
 
                 <span className={styles.discountedPrice}>
-                  ₹{product.discount_price ?? product.price}
+                  ₹{product.discount_price ?? product.price ?? 0}
                 </span>
-
               </div>
 
               {/* BUTTONS */}
               <div className={styles.buttonGroup}>
-
                 <Link
                   to={`/product/${product.id}`}
                   className={styles.viewBtn}
@@ -220,25 +273,20 @@ const FlashSale = () => {
                       ? styles.added
                       : styles.cartBtn
                   }
-                  onClick={() =>
-                    handleAddToCart(product)
-                  }
+                  onClick={() => handleAddToCart(product)}
+                  disabled={loadingItems[product.id]}
                 >
-                  {addedItems[product.id]
-                    ? "✓ Added"
-                    : "Add to Cart"}
+                  {loadingItems[product.id]
+                    ? "Adding..."
+                    : addedItems[product.id]
+                      ? "✓ Added"
+                      : "Add to Cart"}
                 </button>
-
               </div>
-
             </div>
-
           </div>
-
         ))}
-
       </div>
-
     </section>
   );
 };

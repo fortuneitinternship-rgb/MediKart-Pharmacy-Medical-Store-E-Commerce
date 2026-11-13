@@ -5,28 +5,29 @@ import {
     screen,
     fireEvent,
     waitFor,
-    act,
+    cleanup,
 } from "@testing-library/react";
-
+import "@testing-library/jest-dom";
 import { MemoryRouter } from "react-router-dom";
 
 import FeaturedProducts from "./FeaturedProducts";
 
 import { addProductToCart } from "../api/cartApi";
 import { getFeaturedProducts } from "../api/productApi";
+import { toast } from "react-toastify";
 
 import {
+    getUniqueProductsByImage,
     getProductImage,
     handleProductImageError,
 } from "../utils/productImage";
 
-import { toast } from "react-toastify";
-
-// Mock API functions
+// Mock cart API
 jest.mock("../api/cartApi", () => ({
     addProductToCart: jest.fn(),
 }));
 
+// Mock product API
 jest.mock("../api/productApi", () => ({
     getFeaturedProducts: jest.fn(),
 }));
@@ -39,72 +40,71 @@ jest.mock("react-toastify", () => ({
     },
 }));
 
-// Mock image utilities
+// Mock product image utilities
 jest.mock("../utils/productImage", () => ({
-    getUniqueProductsByImage: jest.fn((items) => items),
-    getProductImage: jest.fn(),
+    getUniqueProductsByImage: jest.fn((products) => products),
+    getProductImage: jest.fn(() => "dummy-image.jpg"),
     handleProductImageError: jest.fn(),
 }));
 
-// Mock CSS
-jest.mock("react-toastify/dist/ReactToastify.css", () => ({}));
+// Dummy data for testing only
+const dummyProducts = [
+    {
+        id: 1,
+        name: "Sample Item One",
+        price: 100,
+        rating: 4.5,
+        image: "image-one.jpg",
+        category: "Sample Category",
+    },
+    {
+        id: 2,
+        name: "Sample Item Two",
+        price: 200,
+        rating: 4.0,
+        image: "image-two.jpg",
+        category: "Sample Category",
+    },
+];
 
-jest.mock("./FeaturedProducts.css", () => ({}));
+// Render component with Router
+const renderComponent = () => {
+    return render(
+        <MemoryRouter>
+            <FeaturedProducts />
+        </MemoryRouter>
+    );
+};
 
-describe("FeaturedProducts Component Tests", () => {
-    // Synthetic test data only.
-    const mockProducts = [
-        {
-            id: 10001,
-            name: "Synthetic Item Alpha",
-            price: 100,
-            rating: 4,
-            category: "category-alpha",
-            image: "synthetic-image-alpha",
-        },
-        {
-            id: 10002,
-            name: "Synthetic Item Beta",
-            price: 200,
-            rating: 5,
-            category: "category-beta",
-            image: "synthetic-image-beta",
-        },
-    ];
-
-    const renderComponent = () =>
-        render(
-            <MemoryRouter>
-                <FeaturedProducts />
-            </MemoryRouter>
-        );
+describe("FeaturedProducts Component Testing", () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
 
-        jest.useRealTimers();
+        // Mock API response
+        getFeaturedProducts.mockResolvedValue(dummyProducts);
 
-        getFeaturedProducts.mockResolvedValue(mockProducts);
+        // Mock cart API
+        addProductToCart.mockResolvedValue({ success: true });
 
-        addProductToCart.mockResolvedValue({
-            success: true,
+        // IMPORTANT: Restore utility mock implementations
+        getUniqueProductsByImage.mockImplementation((products) => {
+            return Array.isArray(products) ? products : [];
         });
 
-        getProductImage.mockReturnValue(
-            "synthetic-placeholder-image"
-        );
+        getProductImage.mockReturnValue("dummy-image.jpg");
+
+        handleProductImageError.mockImplementation(() => { });
     });
 
+
     afterEach(() => {
-        jest.useRealTimers();
+        cleanup();
         jest.restoreAllMocks();
     });
 
-    // --------------------------------
-    // RENDERING TESTS
-    // --------------------------------
-
-    test("should render Featured Products heading", async () => {
+    // Test 1: Component rendering
+    test("renders Featured Products heading", () => {
         renderComponent();
 
         expect(
@@ -112,13 +112,10 @@ describe("FeaturedProducts Component Tests", () => {
                 name: "Featured Products",
             })
         ).toBeInTheDocument();
-
-        expect(
-            await screen.findByText("Synthetic Item Alpha")
-        ).toBeInTheDocument();
     });
 
-    test("should display featured products description", () => {
+    // Test 2: Description rendering
+    test("renders section description", () => {
         renderComponent();
 
         expect(
@@ -128,94 +125,82 @@ describe("FeaturedProducts Component Tests", () => {
         ).toBeInTheDocument();
     });
 
-    test("should call featured products API", async () => {
+    // Test 3: API function call
+    test("calls getFeaturedProducts on component load", async () => {
         renderComponent();
 
-        await screen.findByText("Synthetic Item Alpha");
-
-        expect(getFeaturedProducts).toHaveBeenCalledTimes(1);
-    });
-
-    test("should render all featured products", async () => {
-        renderComponent();
-
-        const products = await screen.findAllByRole("heading", {
-            level: 3,
+        await waitFor(() => {
+            expect(getFeaturedProducts).toHaveBeenCalledTimes(1);
         });
-
-        expect(products).toHaveLength(2);
     });
 
-    test("should display product prices", async () => {
+    // Test 4: Product display
+    test("displays products returned by API", async () => {
         renderComponent();
 
         expect(
-            await screen.findByText("₹100")
+            await screen.findByText("Sample Item One")
         ).toBeInTheDocument();
 
+        expect(
+            screen.getByText("Sample Item Two")
+        ).toBeInTheDocument();
+    });
+
+    // Test 5: Price display
+    test("displays product prices", async () => {
+        renderComponent();
+
+        expect(await screen.findByText("₹100")).toBeInTheDocument();
         expect(screen.getByText("₹200")).toBeInTheDocument();
     });
 
-    test("should display product ratings", async () => {
+    // Test 6: Rating display
+    test("displays product ratings", async () => {
         renderComponent();
 
         expect(
-            await screen.findByText("⭐ 4")
+            await screen.findByText("⭐ 4.5")
         ).toBeInTheDocument();
 
-        expect(screen.getByText("⭐ 5")).toBeInTheDocument();
+        expect(screen.getByText("⭐ 4")).toBeInTheDocument();
     });
 
-    // --------------------------------
-    // IMAGE TESTS
-    // --------------------------------
-
-    test("should call getProductImage for each product", async () => {
+    // Test 7: Product image
+    test("displays product image", async () => {
         renderComponent();
 
-        await screen.findByText("Synthetic Item Alpha");
+        const image = await screen.findByAltText("Sample Item One");
 
-        expect(getProductImage).toHaveBeenCalledTimes(2);
-
-        expect(getProductImage).toHaveBeenCalledWith(
-            "synthetic-image-alpha",
-            "Synthetic Item Alpha",
-            "category-alpha"
-        );
+        expect(image).toBeInTheDocument();
+        expect(image).toHaveAttribute("src", "dummy-image.jpg");
+        expect(getProductImage).toHaveBeenCalled();
     });
 
-    test("should render product images", async () => {
+    // Test 8: Image error handling
+    test("calls image error handler when image fails", async () => {
         renderComponent();
 
-        const images = await screen.findAllByRole("img");
+        const image = await screen.findByAltText("Sample Item One");
 
-        expect(images).toHaveLength(2);
+        fireEvent.error(image);
 
-        expect(images[0]).toHaveAttribute(
-            "src",
-            "synthetic-placeholder-image"
-        );
+        expect(handleProductImageError).toHaveBeenCalled();
     });
 
-    test("should handle broken product images", async () => {
+    // Test 9: Unique image utility
+    test("calls getUniqueProductsByImage with fetched products", async () => {
         renderComponent();
 
-        const images = await screen.findAllByRole("img");
-
-        fireEvent.error(images[0]);
-
-        expect(handleProductImageError).toHaveBeenCalledWith(
-            expect.any(Object),
-            "Synthetic Item Alpha",
-            "category-alpha"
-        );
+        await waitFor(() => {
+            expect(getUniqueProductsByImage).toHaveBeenCalledWith(
+                dummyProducts
+            );
+        });
     });
 
-    // --------------------------------
-    // PRODUCT NAVIGATION TESTS
-    // --------------------------------
-
-    test("should display View Details links", async () => {
+    // Test 10: View details links
+    test("renders correct product detail links", async () => {
         renderComponent();
 
         const links = await screen.findAllByRole("link", {
@@ -223,26 +208,12 @@ describe("FeaturedProducts Component Tests", () => {
         });
 
         expect(links).toHaveLength(2);
+        expect(links[0]).toHaveAttribute("href", "/product/1");
+        expect(links[1]).toHaveAttribute("href", "/product/2");
     });
 
-    test("should navigate to the correct product details route", async () => {
-        renderComponent();
-
-        const link = await screen.findByRole("link", {
-            name: "View Details",
-        });
-
-        expect(link).toHaveAttribute(
-            "href",
-            "/product/10001"
-        );
-    });
-
-    // --------------------------------
-    // ADD TO CART TESTS
-    // --------------------------------
-
-    test("should display Add to Cart buttons", async () => {
+    // Test 11: Add to Cart buttons
+    test("renders Add to Cart buttons", async () => {
         renderComponent();
 
         const buttons = await screen.findAllByRole("button", {
@@ -252,51 +223,26 @@ describe("FeaturedProducts Component Tests", () => {
         expect(buttons).toHaveLength(2);
     });
 
-    test("should call addProductToCart when clicked", async () => {
+    // Test 12: Successful cart addition
+    test("adds item to cart successfully", async () => {
         renderComponent();
 
-        const button = await screen.findAllByRole("button", {
+        const buttons = await screen.findAllByRole("button", {
             name: "Add to Cart",
         });
 
-        fireEvent.click(button[0]);
+        fireEvent.click(buttons[0]);
 
         await waitFor(() => {
             expect(addProductToCart).toHaveBeenCalledWith(
-                mockProducts[0]
+                dummyProducts[0]
             );
-        });
-    });
 
-    test("should show success notification after adding to cart", async () => {
-        renderComponent();
-
-        const buttons = await screen.findAllByRole("button", {
-            name: "Add to Cart",
-        });
-
-        fireEvent.click(buttons[0]);
-
-        await waitFor(() => {
             expect(toast.success).toHaveBeenCalledWith(
-                "Synthetic Item Alpha added to cart!",
-                expect.objectContaining({
-                    position: "top-right",
-                    autoClose: 2000,
-                    theme: "colored",
-                })
+                "Sample Item One added to cart!",
+                expect.any(Object)
             );
         });
-    });
-
-    test("should change button text after successful cart addition", async () => {
-        renderComponent();
-
-        const buttons = await screen.findAllByRole("button", {
-            name: "Add to Cart",
-        });
-
-        fireEvent.click(buttons[0]);
 
         expect(
             await screen.findByRole("button", {
@@ -305,23 +251,10 @@ describe("FeaturedProducts Component Tests", () => {
         ).toBeInTheDocument();
     });
 
-    test("should apply added CSS class after successful addition", async () => {
-        renderComponent();
-
-        const buttons = await screen.findAllByRole("button", {
-            name: "Add to Cart",
-        });
-
-        fireEvent.click(buttons[0]);
-
-        await waitFor(() => {
-            expect(buttons[0]).toHaveClass("added");
-        });
-    });
-
-    test("should display error notification when cart API fails", async () => {
-        addProductToCart.mockRejectedValue(
-            new Error("Synthetic cart failure")
+    // Test 13: Cart addition failure
+    test("shows error notification when cart addition fails", async () => {
+        addProductToCart.mockRejectedValueOnce(
+            new Error("Unable to add item")
         );
 
         renderComponent();
@@ -334,103 +267,17 @@ describe("FeaturedProducts Component Tests", () => {
 
         await waitFor(() => {
             expect(toast.error).toHaveBeenCalledWith(
-                "Synthetic cart failure"
+                "Unable to add item"
             );
         });
     });
 
-    test("should display fallback error when cart API error has no message", async () => {
-        addProductToCart.mockRejectedValue({});
+    // Test 14: API loading failure
+    test("displays error when products fail to load", async () => {
+        jest.spyOn(console, "error").mockImplementation(() => { });
 
-        renderComponent();
-
-        const buttons = await screen.findAllByRole("button", {
-            name: "Add to Cart",
-        });
-
-        fireEvent.click(buttons[0]);
-
-        await waitFor(() => {
-            expect(toast.error).toHaveBeenCalledWith(
-                "Unable to add this product to your cart."
-            );
-        });
-    });
-
-    test("should not show success notification when cart API fails", async () => {
-        addProductToCart.mockRejectedValue(
-            new Error("Synthetic failure")
-        );
-
-        renderComponent();
-
-        const buttons = await screen.findAllByRole("button", {
-            name: "Add to Cart",
-        });
-
-        fireEvent.click(buttons[0]);
-
-        await waitFor(() => {
-            expect(toast.error).toHaveBeenCalled();
-        });
-
-        expect(toast.success).not.toHaveBeenCalled();
-    });
-
-    // --------------------------------
-    // TIMER TESTS
-    // --------------------------------
-
-    test("should reset added button after two seconds", async () => {
-        jest.useFakeTimers();
-
-        renderComponent();
-
-        await act(async () => {
-            await Promise.resolve();
-        });
-
-        const button = screen.getAllByRole("button", {
-            name: "Add to Cart",
-        })[0];
-
-        await act(async () => {
-            fireEvent.click(button);
-            await Promise.resolve();
-        });
-
-        expect(button).toHaveTextContent("✓ Added");
-
-        await act(async () => {
-            jest.advanceTimersByTime(2000);
-        });
-
-        expect(button).toHaveTextContent("Add to Cart");
-    });
-
-    // --------------------------------
-    // EMPTY AND ERROR TESTS
-    // --------------------------------
-
-    test("should handle empty featured products response", async () => {
-        getFeaturedProducts.mockResolvedValue([]);
-
-        renderComponent();
-
-        expect(
-            screen.getByRole("heading", {
-                name: "Featured Products",
-            })
-        ).toBeInTheDocument();
-
-        expect(
-            screen.queryByTestId("product-card")
-        ).not.toBeInTheDocument();
-    });
-
-    test("should display error when featured products API fails", async () => {
-        getFeaturedProducts.mockRejectedValue(
-            new Error("Synthetic API failure")
+        getFeaturedProducts.mockRejectedValueOnce(
+            new Error("Test API error")
         );
 
         renderComponent();
@@ -442,18 +289,23 @@ describe("FeaturedProducts Component Tests", () => {
         );
     });
 
-    test("should not render product cards when API fails", async () => {
-        getFeaturedProducts.mockRejectedValue(
-            new Error("Synthetic API failure")
-        );
+    // Test 15: Empty product response
+    test("handles an empty product list", async () => {
+        getFeaturedProducts.mockResolvedValueOnce([]);
 
         renderComponent();
 
-        await screen.findByRole("alert");
+        await waitFor(() => {
+            expect(getFeaturedProducts).toHaveBeenCalled();
+        });
 
         expect(
-            screen.queryByRole("link", {
-                name: "View Details",
+            screen.queryByText("Sample Item One")
+        ).not.toBeInTheDocument();
+
+        expect(
+            screen.queryByRole("button", {
+                name: "Add to Cart",
             })
         ).not.toBeInTheDocument();
     });

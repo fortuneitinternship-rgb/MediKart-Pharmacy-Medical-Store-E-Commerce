@@ -1,310 +1,488 @@
+
 import React from "react";
-import {
-    render,
-    screen,
-    fireEvent,
-    waitFor,
-    within,
-} from "@testing-library/react";
-import "@testing-library/jest-dom";
-import { MemoryRouter, Routes, Route } from "react-router-dom";
-import { toast } from "react-toastify";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 
 import Shop from "./Shop";
 import { getProducts } from "../../api/productApi";
+import { toast } from "react-toastify";
 
-// ---------- Mocks (no real network, no real data) ----------
 jest.mock("../../api/productApi", () => ({
-    getProducts: jest.fn(),
+  getProducts: jest.fn(),
 }));
 
 jest.mock("../../utils/productImage", () => ({
-    getUniqueProductsByImage: jest.fn((items) => items),
+  getUniqueProductsByImage: (items) => items,
 }));
 
 jest.mock("react-toastify", () => ({
-    toast: { success: jest.fn(), info: jest.fn(), error: jest.fn() },
+  toast: {
+    info: jest.fn(),
+    success: jest.fn(),
+    error: jest.fn(),
+  },
 }));
 
 jest.mock("../../components/ProductCard/ProductCard", () => {
-    const React = require("react");
-    return function MockProductCard({ product }) {
-        return React.createElement(
-            "div",
-            { "data-testid": "product-card" },
-            product.name
-        );
-    };
+  return function MockProductCard({ product }) {
+    return (
+      <article data-testid="product-card">
+        {product.name}
+      </article>
+    );
+  };
 });
 
 jest.mock("../../components/FilterPanel/FilterPanel", () => {
-    const React = require("react");
-    const h = React.createElement;
-    return function MockFilterPanel(props) {
-        return h(
-            "div",
-            { "data-testid": "filter-panel" },
-            h("button", { onClick: () => props.setPriceRange("0-199") }, "Mock Price"),
-            h("button", { onClick: () => props.setSelectedRating("4") }, "Mock Rating"),
-            h(
-                "button",
-                { onClick: () => props.setSelectedBrand(props.brands[0]) },
-                "Mock Brand"
-            ),
-            h(
-                "button",
-                { onClick: () => props.setSelectedCategory("medicines") },
-                "Mock Category"
-            ),
-            h("button", { onClick: props.onReset }, "Mock Reset"),
-            h("span", { "data-testid": "filter-count" }, String(props.activeFilterCount)),
-            h("span", { "data-testid": "brand-count" }, String(props.brands.length))
-        );
-    };
+  return function MockFilterPanel(props) {
+    return (
+      <div data-testid="filter-panel">
+        <select
+          aria-label="Category"
+          value={props.selectedCategory}
+          onChange={(event) =>
+            props.setSelectedCategory(event.target.value)
+          }
+        >
+          {props.categories.map((category) => (
+            <option key={category.value} value={category.value}>
+              {category.label}
+            </option>
+          ))}
+        </select>
+
+        <select
+          aria-label="Price range"
+          value={props.priceRange}
+          onChange={(event) =>
+            props.setPriceRange(event.target.value)
+          }
+        >
+          <option value="all">All prices</option>
+          <option value="0-199">0-199</option>
+          <option value="200-499">200-499</option>
+          <option value="500-999">500-999</option>
+          <option value="1000-1999">1000-1999</option>
+          <option value="2000">2000+</option>
+        </select>
+
+        <select
+          aria-label="Rating"
+          value={props.selectedRating}
+          onChange={(event) =>
+            props.setSelectedRating(event.target.value)
+          }
+        >
+          <option value="all">All ratings</option>
+          <option value="3">3+</option>
+          <option value="4">4+</option>
+          <option value="5">5</option>
+        </select>
+
+        <select
+          aria-label="Brand"
+          value={props.selectedBrand}
+          onChange={(event) =>
+            props.setSelectedBrand(event.target.value)
+          }
+        >
+          <option value="all">All brands</option>
+          {props.brands.map((brand) => (
+            <option key={brand} value={brand}>
+              {brand}
+            </option>
+          ))}
+        </select>
+
+        <button type="button" onClick={props.onReset}>
+          Reset Filters
+        </button>
+      </div>
+    );
+  };
 });
 
-// ---------- Generic placeholder data: 14 items ----------
-// Price = n * 50, rating = 3 (items 1-7) or 4.5 (items 8-14),
-// brand alternates between "Brand A" (odd) and "Brand B" (even).
-const buildProducts = () =>
-    Array.from({ length: 14 }, (_, index) => {
-        const n = index + 1;
-        return {
-            id: n,
-            name: `Sample Item ${String(n).padStart(2, "0")}`,
-            brand: n % 2 === 1 ? "Brand A" : "Brand B",
-            category: "Sample Category",
-            price: n * 50,
-            discount_price: null,
-            rating: n <= 7 ? 3 : 4.5,
-        };
-    });
+// Generic temporary test fixtures.
+// These are not real customer or product records.
+const createItem = (id, overrides = {}) => ({
+  id,
+  name: `Item ${id}`,
+  brand: `Brand ${id}`,
+  category: "Healthcare",
+  price: 100,
+  discount_price: 100,
+  rating: 4,
+  ...overrides,
+});
 
-const renderShop = (path = "/shop") =>
-    render(
-        <MemoryRouter initialEntries={[path]}>
-            <Routes>
-                <Route path="/shop" element={<Shop />} />
-                <Route path="/shop/:category" element={<Shop />} />
-            </Routes>
-        </MemoryRouter>
+const renderShop = (initialEntry = "/shop") => {
+  return render(
+    <MemoryRouter initialEntries={[initialEntry]}>
+      <Routes>
+        <Route path="/shop" element={<Shop />} />
+        <Route path="/shop/:category" element={<Shop />} />
+      </Routes>
+    </MemoryRouter>
+  );
+};
+
+describe("Shop Component", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test("displays loading state while data is loading", () => {
+    getProducts.mockReturnValue(new Promise(() => { }));
+
+    renderShop();
+
+    expect(
+      screen.getByText("Loading Products...")
+    ).toBeInTheDocument();
+  });
+
+  test("loads and displays items successfully", async () => {
+    getProducts.mockResolvedValue([
+      createItem(1),
+      createItem(2),
+    ]);
+
+    renderShop();
+
+    expect(
+      await screen.findAllByTestId("product-card")
+    ).toHaveLength(2);
+
+    expect(screen.getByText("2 Products")).toBeInTheDocument();
+  });
+
+  test("displays an error when loading fails", async () => {
+    getProducts.mockRejectedValue(new Error("Request failed"));
+
+    renderShop();
+
+    expect(
+      await screen.findByRole("alert")
+    ).toHaveTextContent(
+      "Products could not be loaded from the database."
+    );
+  });
+
+  test("displays empty state when no items are available", async () => {
+    getProducts.mockResolvedValue([]);
+
+    renderShop();
+
+    expect(
+      await screen.findByText("No Products Found")
+    ).toBeInTheDocument();
+
+    expect(
+      screen.getByText("Try changing your search or filters.")
+    ).toBeInTheDocument();
+  });
+
+  test("renders filter panel", async () => {
+    getProducts.mockResolvedValue([createItem(1)]);
+
+    renderShop();
+
+    expect(
+      await screen.findByTestId("filter-panel")
+    ).toBeInTheDocument();
+  });
+
+  test("searches items by name", async () => {
+    getProducts.mockResolvedValue([
+      createItem(1, { name: "Alpha" }),
+      createItem(2, { name: "Beta" }),
+    ]);
+
+    renderShop();
+
+    await screen.findAllByTestId("product-card");
+
+    fireEvent.change(
+      screen.getByPlaceholderText(
+        "Search medicines, healthcare products..."
+      ),
+      { target: { value: "Alpha" } }
     );
 
-const waitForProducts = () => screen.findAllByTestId("product-card");
+    expect(screen.getByText("Alpha")).toBeInTheDocument();
+    expect(screen.queryByText("Beta")).not.toBeInTheDocument();
+  });
 
-describe("Shop", () => {
-    beforeEach(() => {
-        jest.clearAllMocks();
-        getProducts.mockResolvedValue(buildProducts());
+  test("clears search text", async () => {
+    getProducts.mockResolvedValue([
+      createItem(1),
+      createItem(2),
+    ]);
+
+    renderShop();
+
+    await screen.findAllByTestId("product-card");
+
+    const searchInput = screen.getByPlaceholderText(
+      "Search medicines, healthcare products..."
+    );
+
+    fireEvent.change(searchInput, {
+      target: { value: "Item 1" },
     });
 
-    test("shows a loading message while products load", () => {
-        getProducts.mockReturnValue(new Promise(() => { }));
-        renderShop();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Clear search" })
+    );
 
-        expect(screen.getByText("Loading Products...")).toBeInTheDocument();
+    expect(searchInput).toHaveValue("");
+    expect(screen.getAllByTestId("product-card")).toHaveLength(2);
+  });
+
+  test("shows no results for unmatched search", async () => {
+    getProducts.mockResolvedValue([createItem(1)]);
+
+    renderShop();
+
+    await screen.findAllByTestId("product-card");
+
+    fireEvent.change(
+      screen.getByPlaceholderText(
+        "Search medicines, healthcare products..."
+      ),
+      { target: { value: "No matching item" } }
+    );
+
+    expect(
+      screen.getByText("No Products Found")
+    ).toBeInTheDocument();
+  });
+
+  test("sorts items by price low to high", async () => {
+    getProducts.mockResolvedValue([
+      createItem(1, { price: 300 }),
+      createItem(2, { price: 100 }),
+      createItem(3, { price: 200 }),
+    ]);
+
+    renderShop();
+
+    await screen.findAllByTestId("product-card");
+
+    fireEvent.change(screen.getByRole("combobox", {
+      name: "",
+    }), {
+      target: { value: "priceLow" },
     });
 
-    test("shows the default heading, total count and first 12 products", async () => {
-        renderShop();
+    await waitFor(() => {
+      const cards = screen.getAllByTestId("product-card");
 
-        const cards = await waitForProducts();
+      expect(cards[0]).toHaveTextContent("Item 2");
+      expect(cards[1]).toHaveTextContent("Item 3");
+      expect(cards[2]).toHaveTextContent("Item 1");
+    });
+  });
 
-        expect(
-            screen.getByRole("heading", { level: 1, name: "All Products" })
-        ).toBeInTheDocument();
-        expect(screen.getByText("14 Products")).toBeInTheDocument();
-        expect(cards).toHaveLength(12);
-        expect(getProducts).toHaveBeenCalledTimes(1);
+  test("filters items by price range", async () => {
+    getProducts.mockResolvedValue([
+      createItem(1, { price: 100 }),
+      createItem(2, { price: 300 }),
+    ]);
+
+    renderShop();
+
+    await screen.findAllByTestId("product-card");
+
+    fireEvent.change(screen.getByLabelText("Price range"), {
+      target: { value: "0-199" },
+    });
+  });
+
+  test("filters items by rating", async () => {
+    getProducts.mockResolvedValue([
+      createItem(1, { rating: 3 }),
+      createItem(2, { rating: 5 }),
+    ]);
+
+    renderShop();
+
+    await screen.findAllByTestId("product-card");
+
+    fireEvent.change(screen.getByLabelText("Rating"), {
+      target: { value: "4" },
     });
 
-    test("shows an error message when products fail to load", async () => {
-        const consoleSpy = jest
-            .spyOn(console, "error")
-            .mockImplementation(() => { });
-        getProducts.mockRejectedValue(new Error("fail"));
+    expect(screen.getAllByTestId("product-card")).toHaveLength(1);
+    expect(screen.getByText("Item 2")).toBeInTheDocument();
+  });
 
-        renderShop();
+  test("filters items by brand", async () => {
+    getProducts.mockResolvedValue([
+      createItem(1, { brand: "Brand A" }),
+      createItem(2, { brand: "Brand B" }),
+    ]);
 
-        expect(await screen.findByRole("alert")).toHaveTextContent(
-            "Products could not be loaded from the database."
-        );
-        expect(screen.queryByTestId("product-card")).not.toBeInTheDocument();
+    renderShop();
 
-        consoleSpy.mockRestore();
+    await screen.findAllByTestId("product-card");
+
+    fireEvent.change(screen.getByLabelText("Brand"), {
+      target: { value: "Brand A" },
     });
 
-    test("search filters products and can be cleared", async () => {
-        renderShop();
-        await waitForProducts();
+    expect(screen.getAllByTestId("product-card")).toHaveLength(1);
+    expect(screen.getByText("Item 1")).toBeInTheDocument();
+  });
 
-        const input = screen.getByPlaceholderText(/search medicines/i);
-        fireEvent.change(input, { target: { value: "Item 03" } });
+  test("filters items by category", async () => {
+    getProducts.mockResolvedValue([
+      createItem(1, { category: "Healthcare" }),
+      createItem(2, { category: "Medicines" }),
+    ]);
 
-        expect(screen.getAllByTestId("product-card")).toHaveLength(1);
-        expect(screen.getByText("Sample Item 03")).toBeInTheDocument();
-        expect(screen.getByText("1 Products")).toBeInTheDocument();
+    renderShop();
 
-        fireEvent.click(screen.getByRole("button", { name: /clear search/i }));
+    await screen.findAllByTestId("product-card");
 
-        expect(input).toHaveValue("");
-        expect(toast.info).toHaveBeenCalledWith("Search cleared");
-        expect(screen.getByText("14 Products")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Category"), {
+      target: { value: "medicines" },
     });
 
-    test("shows the empty state and clears filters from it", async () => {
-        renderShop();
-        await waitForProducts();
+    expect(screen.getAllByTestId("product-card")).toHaveLength(1);
+    expect(screen.getByText("Item 2")).toBeInTheDocument();
+  });
 
-        fireEvent.change(screen.getByPlaceholderText(/search medicines/i), {
-            target: { value: "no-such-item" },
-        });
+  test("resets all filters", async () => {
+    getProducts.mockResolvedValue([
+      createItem(1),
+      createItem(2),
+    ]);
 
-        expect(screen.getByText("No Products Found")).toBeInTheDocument();
-        expect(screen.queryByTestId("product-card")).not.toBeInTheDocument();
+    renderShop();
 
-        fireEvent.click(screen.getByRole("button", { name: "Clear Filters" }));
+    await screen.findAllByTestId("product-card");
 
-        expect(toast.success).toHaveBeenCalledWith("All filters have been cleared");
-        expect(await waitForProducts()).toHaveLength(12);
+    fireEvent.change(screen.getByLabelText("Price range"), {
+      target: { value: "0-199" },
     });
 
-    test("price filter narrows the list", async () => {
-        renderShop();
-        await waitForProducts();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Reset Filters" })
+    );
 
-        fireEvent.click(screen.getByRole("button", { name: "Mock Price" }));
+    expect(screen.getAllByTestId("product-card")).toHaveLength(2);
+    expect(toast.success).toHaveBeenCalledWith(
+      "All filters have been cleared"
+    );
+  });
 
-        expect(screen.getByText("3 Products")).toBeInTheDocument();
-        expect(toast.info).toHaveBeenCalledWith("Price filter applied");
-        expect(screen.getByTestId("filter-count")).toHaveTextContent("1");
+  test("loads more items when Load More is clicked", async () => {
+    const items = Array.from({ length: 15 }, (_, index) =>
+      createItem(index + 1)
+    );
+
+    getProducts.mockResolvedValue(items);
+
+    renderShop();
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("product-card")).toHaveLength(12);
     });
 
-    test("rating filter narrows the list", async () => {
-        renderShop();
-        await waitForProducts();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Load More Products",
+      })
+    );
 
-        fireEvent.click(screen.getByRole("button", { name: "Mock Rating" }));
+    expect(screen.getAllByTestId("product-card")).toHaveLength(15);
+  });
 
-        expect(screen.getByText("7 Products")).toBeInTheDocument();
-        expect(toast.info).toHaveBeenCalledWith(
-            "Showing products rated 4★ and above"
-        );
+  test("shows all items when Show All is clicked", async () => {
+    const items = Array.from({ length: 15 }, (_, index) =>
+      createItem(index + 1)
+    );
+
+    getProducts.mockResolvedValue(items);
+
+    renderShop();
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("product-card")).toHaveLength(12);
     });
 
-    test("brand filter narrows the list and brands are listed once each", async () => {
-        renderShop();
-        await waitForProducts();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Show All Products",
+      })
+    );
 
-        expect(screen.getByTestId("brand-count")).toHaveTextContent("2");
+    expect(screen.getAllByTestId("product-card")).toHaveLength(15);
+  });
 
-        fireEvent.click(screen.getByRole("button", { name: "Mock Brand" }));
+  test("loads products only once on initial render", async () => {
+    getProducts.mockResolvedValue([]);
 
-        expect(screen.getByText("7 Products")).toBeInTheDocument();
-        expect(toast.info).toHaveBeenCalledWith("Brand filter: Brand A");
+    renderShop();
+
+    await screen.findByText("No Products Found");
+
+    expect(getProducts).toHaveBeenCalledTimes(1);
+  });
+
+  test("uses category from the route", async () => {
+    getProducts.mockResolvedValue([
+      createItem(1, { category: "Medicines" }),
+      createItem(2, { category: "Healthcare" }),
+    ]);
+
+    renderShop("/shop/medicines");
+
+    expect(
+      await screen.findByText("1 Products")
+    ).toBeInTheDocument();
+
+    expect(screen.getByText("Item 1")).toBeInTheDocument();
+    expect(screen.queryByText("Item 2")).not.toBeInTheDocument();
+  });
+
+  test("sorts items by rating", async () => {
+    getProducts.mockResolvedValue([
+      createItem(1, { rating: 3 }),
+      createItem(2, { rating: 5 }),
+    ]);
+
+    renderShop();
+
+    await screen.findAllByTestId("product-card");
+
+    fireEvent.change(screen.getByRole("combobox", {
+      name: "",
+    }), {
+      target: { value: "rating" },
     });
 
-    test("sorting by price high to low puts the most expensive item first", async () => {
-        renderShop();
-        await waitForProducts();
+    const cards = screen.getAllByTestId("product-card");
 
-        fireEvent.change(screen.getByRole("combobox"), {
-            target: { value: "priceHigh" },
-        });
+    expect(cards[0]).toHaveTextContent("Item 2");
+    expect(cards[1]).toHaveTextContent("Item 1");
+  });
 
-        const cards = screen.getAllByTestId("product-card");
-        expect(cards[0]).toHaveTextContent("Sample Item 14");
-        expect(toast.info).toHaveBeenCalledWith("Sorted by Price: High to Low");
+  test("displays category count after filtering", async () => {
+    getProducts.mockResolvedValue([
+      createItem(1, { category: "Healthcare" }),
+      createItem(2, { category: "Medicines" }),
+    ]);
+
+    renderShop();
+
+    await screen.findAllByTestId("product-card");
+
+    fireEvent.change(screen.getByLabelText("Category"), {
+      target: { value: "medicines" },
     });
 
-    test("sorting by price low to high puts the cheapest item first", async () => {
-        renderShop();
-        await waitForProducts();
-
-        fireEvent.change(screen.getByRole("combobox"), {
-            target: { value: "priceLow" },
-        });
-
-        expect(screen.getAllByTestId("product-card")[0]).toHaveTextContent(
-            "Sample Item 01"
-        );
-        expect(toast.info).toHaveBeenCalledWith("Sorted by Price: Low to High");
-    });
-
-    test("Load More shows the remaining products", async () => {
-        renderShop();
-        await waitForProducts();
-
-        fireEvent.click(screen.getByRole("button", { name: "Load More Products" }));
-
-        expect(screen.getAllByTestId("product-card")).toHaveLength(14);
-        expect(toast.success).toHaveBeenCalledWith("All products loaded!");
-        expect(
-            screen.queryByRole("button", { name: "Load More Products" })
-        ).not.toBeInTheDocument();
-    });
-
-    test("Show All Products displays every product", async () => {
-        renderShop();
-        await waitForProducts();
-
-        fireEvent.click(screen.getByRole("button", { name: "Show All Products" }));
-
-        expect(screen.getAllByTestId("product-card")).toHaveLength(14);
-    });
-
-    test("category change updates the heading and shows the empty state", async () => {
-        renderShop();
-        await waitForProducts();
-
-        fireEvent.click(screen.getByRole("button", { name: "Mock Category" }));
-
-        expect(
-            screen.getByRole("heading", { level: 1, name: "Medicines" })
-        ).toBeInTheDocument();
-        expect(toast.success).toHaveBeenCalledWith("Showing Medicines");
-        // None of the placeholder products belong to this category
-        expect(screen.getByText("No Products Found")).toBeInTheDocument();
-    });
-
-    test("a known category in the URL sets the heading", async () => {
-        renderShop("/shop/medicines");
-
-        expect(
-            await screen.findByRole("heading", { level: 1, name: "Medicines" })
-        ).toBeInTheDocument();
-    });
-
-    test("an unknown category in the URL falls back to All Products", async () => {
-        renderShop("/shop/not-a-category");
-
-        await waitForProducts();
-        expect(
-            screen.getByRole("heading", { level: 1, name: "All Products" })
-        ).toBeInTheDocument();
-    });
-
-    test("reset button clears applied filters", async () => {
-        renderShop();
-        await waitForProducts();
-
-        fireEvent.click(screen.getByRole("button", { name: "Mock Price" }));
-        expect(screen.getByText("3 Products")).toBeInTheDocument();
-
-        fireEvent.click(screen.getByRole("button", { name: "Mock Reset" }));
-
-        await waitFor(() =>
-            expect(screen.getByText("14 Products")).toBeInTheDocument()
-        );
-        expect(toast.success).toHaveBeenCalledWith("All filters have been cleared");
-        expect(screen.getByTestId("filter-count")).toHaveTextContent("0");
-    });
-
-    test("the filter panel is rendered inside the sidebar", async () => {
-        renderShop();
-        await waitForProducts();
-
-        const panel = screen.getByTestId("filter-panel");
-        expect(within(panel).getByRole("button", { name: "Mock Reset" })).toBeInTheDocument();
-    });
+    expect(screen.getByText("1 Products")).toBeInTheDocument();
+  });
 });

@@ -2,16 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { FaCheck, FaMapMarkerAlt, FaCreditCard, FaUniversity, FaMoneyBillWave, FaTruck, FaBolt, FaClock, FaPlus, FaMinus, FaLocationArrow, FaEdit, FaMap, } from "react-icons/fa";
-import {
-    getCheckoutCart,
-    saveCheckoutAddress,
-    createCheckoutOrder,
-    validateCheckoutCoupon,
-    processCheckoutPayment,
-    getCheckoutConfig,
-    createRazorpayOrder,
-    verifyRazorpayPayment,
-} from "../../api/checkoutApi";
+import { getCheckoutCart, saveCheckoutAddress, createCheckoutOrder, validateCheckoutCoupon, processCheckoutPayment, getCheckoutConfig, createRazorpayOrder, verifyRazorpayPayment, } from "../../api/checkoutApi";
 import { removeCartItem, updateCartItem, } from "../../api/cartApi";
 import { getApiErrorMessage } from "../../services/api";
 import { getProductImage, handleProductImageError, } from "../../utils/productImage";
@@ -43,7 +34,6 @@ const Checkout = () => {
     const checkoutItems = location.state?.checkoutItems;
 
     // ======================= STATES =======================
-
     const [step, setStep] = useState(1);
     const [cartItems, setCartItems] = useState([]);
     const [cartLoading, setCartLoading] = useState(true);
@@ -54,9 +44,7 @@ const Checkout = () => {
     const [paymentRetrying, setPaymentRetrying] = useState(false);
     const visibleCartItems = Array.isArray(buyNowItems) && buyNowItems.length > 0
         ? buyNowItems.map((item) => {
-            const productId = Number(
-                item.product_id ?? item.productId ?? item.id
-            );
+            const productId = Number(item.product_id ?? item.productId ?? item.id);
             const price = Number(
                 item.discountedPrice ??
                 item.discounted_price ??
@@ -80,19 +68,10 @@ const Checkout = () => {
                 String(item.product_id) === String(routeProductId)
         )
         : routeProductId
-        ? cartItems.filter(
-            (item) => String(item.product_id) === String(routeProductId)
-        )
-        : cartItems;
+            ? cartItems.filter((item) => String(item.product_id) === String(routeProductId))
+            : cartItems;
 
-    const [address, setAddress] = useState({
-        name: "",
-        phone: "",
-        address: "",
-        city: "",
-        state: "",
-        pincode: "",
-    });
+    const [address, setAddress] = useState({ name: "", phone: "", address: "", city: "", state: "", pincode: "", });
 
     const [paymentMethod, setPaymentMethod] = useState("COD");
     const [deliveryType, setDeliveryType] = useState("normal");
@@ -106,10 +85,7 @@ const Checkout = () => {
     const [couponError, setCouponError] = useState("");
     const [couponLoading, setCouponLoading] = useState(false);
     const [taxRatePercent, setTaxRatePercent] = useState(0);
-    const [paymentConfig, setPaymentConfig] = useState({
-        mode: "simulator",
-        razorpay_enabled: false,
-    });
+    const [paymentConfig, setPaymentConfig] = useState({ mode: "simulator", razorpay_enabled: false, });
     const [pricingReady, setPricingReady] = useState(false);
     const [pricingError, setPricingError] = useState("");
     const [deliveryConfig, setDeliveryConfig] = useState({
@@ -121,16 +97,13 @@ const Checkout = () => {
         same_day_delivery_charge: 99,
     });
 
-    // NEW:
-    // Address mode = map or manual
+    // NEW: Address mode = map or manual
     const [addressMode, setAddressMode] = useState("form");
 
-    // NEW:
-    // Delivery distance
+    // NEW: Delivery distance
     const [deliveryDistance, setDeliveryDistance] = useState("short");
 
-    // NEW:
-    // Location loading
+    // NEW: Location loading
     const [locationLoading, setLocationLoading] = useState(false);
     const [selectedLocation, setSelectedLocation] = useState(null);
 
@@ -276,11 +249,8 @@ const Checkout = () => {
             const quantity = Number(
                 item.quantity || 1
             );
-
             return total + price * quantity;
-        },
-        0
-    ) * 100) / 100;
+        }, 0) * 100) / 100;
 
     // ======================= DISCOUNT =======================
 
@@ -335,18 +305,11 @@ const Checkout = () => {
 
     let deliveryCharge = 0;
 
-    if (deliveryType === "normal") {
-        deliveryCharge =
-            normalDeliveryCharge;
-    }
+    if (deliveryType === "normal") { deliveryCharge = normalDeliveryCharge; }
 
-    if (deliveryType === "express") {
-        deliveryCharge = deliveryConfig.express_delivery_charge;
-    }
+    if (deliveryType === "express") { deliveryCharge = deliveryConfig.express_delivery_charge; }
 
-    if (deliveryType === "today") {
-        deliveryCharge = deliveryConfig.same_day_delivery_charge;
-    }
+    if (deliveryType === "today") { deliveryCharge = deliveryConfig.same_day_delivery_charge; }
 
     // ======================= PLATFORM FEE =======================
 
@@ -354,12 +317,7 @@ const Checkout = () => {
 
     // ======================= TOTAL =======================
 
-    const totalAmount =
-        productTotal -
-        totalDiscount +
-        taxAmount +
-        deliveryCharge +
-        platformFee;
+    const totalAmount = productTotal - totalDiscount + taxAmount + deliveryCharge + platformFee;
 
     const applyCoupon = async () => {
         const code = couponInput.trim().toUpperCase();
@@ -3215,65 +3173,28 @@ const Checkout = () => {
                             </span>
 
                             <strong>
-                                {deliveryType ===
-                                    "today"
-                                    ? "Today Delivery"
-                                    : deliveryType ===
-                                        "express"
-                                        ? "Express Delivery"
-                                        : "Normal Delivery"}
+                                {deliveryType === "today" ? "Today Delivery" : deliveryType === "express" ? "Express Delivery" : "Normal Delivery"}
                             </strong>
+                        </div>
+
+                        <div>
+                            <span>Delivery Distance</span>
+                            <strong>{getDistanceLabel()}</strong>
 
                         </div>
 
                         <div>
-
-                            <span>
-                                Delivery Distance
-                            </span>
-
-                            <strong>
-                                {
-                                    getDistanceLabel()
-                                }
-                            </strong>
-
+                            <span>Delivery Time</span>
+                            <strong>{getDeliveryTime()}</strong>
                         </div>
 
                         <div>
-
-                            <span>
-                                Delivery Time
-                            </span>
-
-                            <strong>
-                                {
-                                    getDeliveryTime()
-                                }
-                            </strong>
-
+                            <span>Estimated Delivery</span>
+                            <strong>{getDeliveryDate()}</strong>
                         </div>
 
                         <div>
-
-                            <span>
-                                Estimated Delivery
-                            </span>
-
-                            <strong>
-                                {
-                                    getDeliveryDate()
-                                }
-                            </strong>
-
-                        </div>
-
-                        <div>
-
-                            <span>
-                                Total Amount
-                            </span>
-
+                            <span>Total Amount</span>
                             <strong>
                                 ₹
                                 {Number(
@@ -3317,68 +3238,30 @@ const Checkout = () => {
                         <div>
                             <span>Amount</span>
                             <strong data-testid="receipt-amount">
-                                ₹{Number(
-                                    paymentReceipt?.amount ??
-                                    createdOrder?.total_amount ??
-                                    totalAmount
-                                ).toFixed(2)}
+                                ₹{Number(paymentReceipt?.amount ?? createdOrder?.total_amount ?? totalAmount).toFixed(2)}
                             </strong>
                         </div>
                         {paymentReceipt?.transaction_id && (
                             <div>
                                 <span>Transaction reference</span>
-                                <strong data-testid="transaction-id">
-                                    {paymentReceipt.transaction_id}
-                                </strong>
+                                <strong data-testid="transaction-id"> {paymentReceipt.transaction_id} </strong>
                             </div>
                         )}
                         {paymentError && (
-                            <button
-                                type="button"
-                                onClick={() => submitPayment(orderId, paymentMethod)}
-                                disabled={paymentRetrying}
-                                data-testid="retry-payment"
-                            >
-                                {paymentRetrying
-                                    ? "Retrying..."
-                                    : "Retry payment confirmation"}
-                            </button>
+                            <button type="button" onClick={() => submitPayment(orderId, paymentMethod)} disabled={paymentRetrying} data-testid="retry-payment" >
+                                {paymentRetrying ? "Retrying..." : "Retry payment confirmation"} </button>
                         )}
                     </div>
 
                     {/* SUCCESS BUTTONS */}
 
                     <div className="success-buttons">
-
-                        <button
-                            data-testid="view-order"
-                            onClick={() =>
-                                navigate(
-                                    `/orders/${orderId}`
-                                )
-                            }
-                        >
-                            View Order
-                        </button>
-
-                        <button
-                            className="secondary"
-                            onClick={() =>
-                                navigate(
-                                    "/shop"
-                                )
-                            }
-                        >
-                            Continue Shopping
-                        </button>
-
+                        <button data-testid="view-order" onClick={() => navigate(`/orders/${orderId}`)} > View Order </button>
+                        <button className="secondary" onClick={() => navigate("/shop")} > Continue Shopping </button>
                     </div>
-
                 </div>
             )}
         </div>
-
-
     );
 };
 

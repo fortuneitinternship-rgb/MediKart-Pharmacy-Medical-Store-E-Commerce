@@ -52,6 +52,6 @@
     "jest": "^27.5.1",
     "jest-environment-jsdom": "^30.4.1",
     "jsdom": "^29.1.1",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.12"
   }
 }
