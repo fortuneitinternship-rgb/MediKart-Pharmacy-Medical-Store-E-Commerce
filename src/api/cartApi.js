@@ -1,32 +1,85 @@
 
-import { clearAuthSession, getStoredAccessToken } from "../services/api";
+import {
+  clearAuthSession,
+  getStoredAccessToken,
+} from "../services/api";
+
+// ======================================================
+// CONFIGURATION
+// ======================================================
 
 const API_BASE_URL = (
   process.env.REACT_APP_API_URL || "http://127.0.0.1:8000"
 ).replace(/\/$/, "");
 
 const CART_URL = `${API_BASE_URL}/api/cart`;
+
 const LOCAL_CART_KEY = "cart";
 const PENDING_CART_IMPORT_KEY = "pendingCartImport";
+
+// ======================================================
+// UTILITY FUNCTIONS
+// ======================================================
+
+function dispatchCartUpdated() {
+  window.dispatchEvent(new Event("cartUpdated"));
+}
 
 function createMigrationId() {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
     return crypto.randomUUID();
   }
 
-  return `migration-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return `migration-${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2)}`;
 }
 
+// ======================================================
+// LOCAL STORAGE
+// ======================================================
+
+function getLocalCart() {
+  try {
+    const items = JSON.parse(
+      localStorage.getItem(LOCAL_CART_KEY) || "[]"
+    );
+
+    return Array.isArray(items)
+      ? items.map((item) => normalizeCartItem(item))
+      : [];
+  } catch (error) {
+    console.error("Unable to read local cart:", error);
+    return [];
+  }
+}
+
+function saveLocalCart(items) {
+  localStorage.setItem(
+    LOCAL_CART_KEY,
+    JSON.stringify(items)
+  );
+}
+
+// ======================================================
+// PENDING CART MIGRATION
+// ======================================================
+
 function getPendingImport(items) {
-  const stored = localStorage.getItem(PENDING_CART_IMPORT_KEY);
+  const stored = localStorage.getItem(
+    PENDING_CART_IMPORT_KEY
+  );
+
   if (stored) {
     const pending = JSON.parse(stored);
+
     if (
       typeof pending?.migration_id !== "string" ||
       !Array.isArray(pending.items)
     ) {
       throw new Error("Saved cart import data is invalid.");
     }
+
     return pending;
   }
 
@@ -34,12 +87,21 @@ function getPendingImport(items) {
     product_id: Number(item.product_id),
     quantity: Number(item.quantity),
   }));
+
   if (!snapshot.length) {
     return null;
   }
 
-  const pending = { migration_id: createMigrationId(), items: snapshot };
-  localStorage.setItem(PENDING_CART_IMPORT_KEY, JSON.stringify(pending));
+  const pending = {
+    migration_id: createMigrationId(),
+    items: snapshot,
+  };
+
+  localStorage.setItem(
+    PENDING_CART_IMPORT_KEY,
+    JSON.stringify(pending)
+  );
+
   return pending;
 }
 
@@ -48,19 +110,29 @@ function removeImportedCartItems(importedItems) {
 
   importedItems.forEach(({ product_id, quantity }) => {
     let remainingQuantity = Number(quantity);
+
     for (
       let index = 0;
       index < remainingItems.length && remainingQuantity > 0;
       index += 1
     ) {
       const item = remainingItems[index];
-      if (Number(item.product_id) !== Number(product_id)) {
+
+      if (
+        Number(item.product_id) !== Number(product_id)
+      ) {
         continue;
       }
 
       const itemQuantity = Number(item.quantity) || 1;
-      const removedQuantity = Math.min(itemQuantity, remainingQuantity);
+
+      const removedQuantity = Math.min(
+        itemQuantity,
+        remainingQuantity
+      );
+
       remainingQuantity -= removedQuantity;
+
       if (removedQuantity === itemQuantity) {
         remainingItems.splice(index, 1);
         index -= 1;
@@ -77,15 +149,21 @@ function removeImportedCartItems(importedItems) {
 }
 
 function updatePendingCartImport(productId, quantity) {
-  const stored = localStorage.getItem(PENDING_CART_IMPORT_KEY);
+  const stored = localStorage.getItem(
+    PENDING_CART_IMPORT_KEY
+  );
+
   if (!stored) {
     return;
   }
 
   const pending = JSON.parse(stored);
+
   pending.items = pending.items.filter(
-    (item) => Number(item.product_id) !== Number(productId)
+    (item) =>
+      Number(item.product_id) !== Number(productId)
   );
+
   if (quantity > 0) {
     pending.items.push({
       product_id: Number(productId),
@@ -94,22 +172,18 @@ function updatePendingCartImport(productId, quantity) {
   }
 
   if (pending.items.length) {
-    localStorage.setItem(PENDING_CART_IMPORT_KEY, JSON.stringify(pending));
+    localStorage.setItem(
+      PENDING_CART_IMPORT_KEY,
+      JSON.stringify(pending)
+    );
   } else {
     localStorage.removeItem(PENDING_CART_IMPORT_KEY);
   }
 }
 
-function getLocalCart() {
-  const items = JSON.parse(localStorage.getItem(LOCAL_CART_KEY) || "[]");
-  return Array.isArray(items) ? items.map(normalizeCartItem) : [];
-}
-
-function saveLocalCart(items) {
-  localStorage.setItem(LOCAL_CART_KEY, JSON.stringify(items));
-}
-
-// -------------------- AUTH TOKEN --------------------
+// ======================================================
+// AUTHENTICATION
+// ======================================================
 
 export function getAccessToken() {
   return getStoredAccessToken();
@@ -121,11 +195,15 @@ function getHeaders() {
   return {
     Accept: "application/json",
     "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(token
+      ? { Authorization: `Bearer ${token}` }
+      : {}),
   };
 }
 
-// -------------------- API RESPONSE --------------------
+// ======================================================
+// API RESPONSE HANDLER
+// ======================================================
 
 async function handleResponse(response) {
   const text = await response.text();
@@ -135,7 +213,9 @@ async function handleResponse(response) {
   try {
     data = text ? JSON.parse(text) : {};
   } catch {
-    data = { detail: text };
+    data = {
+      detail: text,
+    };
   }
 
   if (!response.ok) {
@@ -145,11 +225,14 @@ async function handleResponse(response) {
 
     const detail = Array.isArray(data.detail)
       ? data.detail
-          .map((item) => item.msg || String(item))
-          .join(", ")
+        .map((item) => item.msg || String(item))
+        .join(", ")
       : data.detail;
+
     const error = new Error(
-      detail || data.message || `Request failed (${response.status})`
+      detail ||
+      data.message ||
+      `Request failed (${response.status})`
     );
 
     error.response = {
@@ -163,12 +246,17 @@ async function handleResponse(response) {
   return data;
 }
 
-// -------------------- NORMALIZE CART ITEM --------------------
+// ======================================================
+// CART ITEM NORMALIZATION
+// ======================================================
 
-export function normalizeCartItem(item) {
-  const productId = item.product_id ?? item.productId ?? item.id;
+export function normalizeCartItem(item, isServerItem = false) {
+  const productId =
+    item.product_id ??
+    item.productId ??
+    item.product?.id ??
+    item.id;
 
-  // Server cart row ID is different from the product ID.
   const cartItemId =
     item.cart_item_id ??
     item.cartItemId ??
@@ -185,18 +273,28 @@ export function normalizeCartItem(item) {
   return {
     ...item,
 
-    // Use cart row ID for update/delete.
+    // Cart row ID
     id: cartItemId,
 
-    // Keep product ID separately for checkout.
+    // Product database ID
     product_id: Number(productId),
 
-    name: item.name || item.title || "Healthcare Product",
-    title: item.title || item.name || "Healthcare Product",
+    name:
+      item.name ||
+      item.title ||
+      "Healthcare Product",
+
+    title:
+      item.title ||
+      item.name ||
+      "Healthcare Product",
+
     brand: item.brand || "",
+
     category: item.category || "",
 
     price,
+
     discountedPrice: price,
 
     image:
@@ -204,31 +302,38 @@ export function normalizeCartItem(item) {
       item.image_url ||
       "",
 
-    quantity: Math.max(1, Number(item.quantity) || 1),
-
-    // Identifies items returned by the server.
-    _serverItem: Boolean(
-      item.cart_item_id ||
-      item.cartItemId ||
-      (item.id != null && item.product_id != null)
+    quantity: Math.max(
+      1,
+      Number(item.quantity) || 1
     ),
+
+    // Explicitly identify server/local records
+    _serverItem: Boolean(isServerItem),
   };
 }
 
-// -------------------- GET CART --------------------
+// ======================================================
+// GET CART
+// ======================================================
 
 export async function getCart() {
+  // Guest user: return local cart
   if (!getAccessToken()) {
     return getLocalCart();
   }
 
+  // Migrate guest cart after login
   try {
     await syncLocalCart();
   } catch (error) {
     if (error.response?.status === 401) {
       throw error;
     }
-    console.error("Unable to migrate local cart items:", error);
+
+    console.error(
+      "Unable to migrate local cart items:",
+      error
+    );
   }
 
   const response = await fetch(CART_URL, {
@@ -242,12 +347,24 @@ export async function getCart() {
     ? data
     : data.items || data.cart_items || [];
 
-  const serverItems = items.map(normalizeCartItem);
-  const serverProductIds = new Set(
-    serverItems.map((item) => Number(item.product_id))
+  const serverItems = items.map((item) =>
+    normalizeCartItem(item, true)
   );
+
+  const serverProductIds = new Set(
+    serverItems.map((item) =>
+      Number(item.product_id)
+    )
+  );
+
+  // Include local products not already present on server
   const localItems = getLocalCart()
-    .filter((item) => !serverProductIds.has(Number(item.product_id)))
+    .filter(
+      (item) =>
+        !serverProductIds.has(
+          Number(item.product_id)
+        )
+    )
     .map((item, index) => ({
       ...normalizeCartItem(item),
       id: `local-${item.product_id}-${index}`,
@@ -257,32 +374,52 @@ export async function getCart() {
   return [...serverItems, ...localItems];
 }
 
+// ======================================================
+// SYNC LOCAL CART WITH BACKEND
+// ======================================================
+
 export async function syncLocalCart() {
   if (!getAccessToken()) {
     return null;
   }
 
   const pending = getPendingImport(getLocalCart());
+
   if (!pending) {
     return null;
   }
 
-  const response = await fetch(`${CART_URL}/import`, {
-    method: "POST",
-    headers: getHeaders(),
-    body: JSON.stringify(pending),
-  });
+  const response = await fetch(
+    `${CART_URL}/import`,
+    {
+      method: "POST",
+      headers: getHeaders(),
+      body: JSON.stringify(pending),
+    }
+  );
+
   const result = await handleResponse(response);
 
+  // Remove migrated quantities only after success
   removeImportedCartItems(pending.items);
-  localStorage.removeItem(PENDING_CART_IMPORT_KEY);
-  window.dispatchEvent(new Event("cartUpdated"));
+
+  localStorage.removeItem(
+    PENDING_CART_IMPORT_KEY
+  );
+
+  dispatchCartUpdated();
+
   return result;
 }
 
-// -------------------- ADD TO CART --------------------
+// ======================================================
+// ADD CART ITEM
+// ======================================================
 
-export async function addCartItem(productId, quantity = 1) {
+export async function addCartItem(
+  productId,
+  quantity = 1
+) {
   const normalizedProductId = Number(productId);
   const normalizedQuantity = Number(quantity);
 
@@ -292,7 +429,9 @@ export async function addCartItem(productId, quantity = 1) {
     !Number.isInteger(normalizedQuantity) ||
     normalizedQuantity < 1
   ) {
-    throw new Error("Valid product ID and quantity are required.");
+    throw new Error(
+      "Valid product ID and quantity are required."
+    );
   }
 
   const response = await fetch(CART_URL, {
@@ -304,105 +443,188 @@ export async function addCartItem(productId, quantity = 1) {
     }),
   });
 
-  return handleResponse(response);
+  const result = await handleResponse(response);
+
+  dispatchCartUpdated();
+
+  return result;
 }
 
-export async function addProductToCart(product, quantity = 1) {
+// ======================================================
+// ADD PRODUCT TO CART
+// ======================================================
+
+export async function addProductToCart(
+  product,
+  quantity = 1
+) {
   if (!product || product.id == null) {
-    throw new Error("This product has no database product ID.");
+    throw new Error(
+      "This product has no database product ID."
+    );
   }
 
+  const normalizedQuantity = Number(quantity);
+
+  if (
+    !Number.isInteger(normalizedQuantity) ||
+    normalizedQuantity < 1
+  ) {
+    throw new Error("Invalid product quantity.");
+  }
+
+  // Guest user: save to localStorage
   if (!getAccessToken()) {
     const cart = getLocalCart();
+
     const existing = cart.find(
-      (item) => Number(item.product_id) === Number(product.id)
+      (item) =>
+        Number(item.product_id) ===
+        Number(product.id)
     );
 
     if (existing) {
-      existing.quantity += Number(quantity);
+      existing.quantity += normalizedQuantity;
     } else {
       cart.push(
         normalizeCartItem({
           ...product,
           id: product.id,
           product_id: product.id,
-          quantity,
+          quantity: normalizedQuantity,
         })
       );
     }
 
     saveLocalCart(cart);
-    window.dispatchEvent(new Event("cartUpdated"));
+
+    dispatchCartUpdated();
+
     return cart;
   }
 
+  // Logged-in user: synchronize with backend
   await syncLocalCart();
-  const result = await addCartItem(product.id, quantity);
-  window.dispatchEvent(new Event("cartUpdated"));
-  return result;
+
+  return addCartItem(
+    product.id,
+    normalizedQuantity
+  );
 }
 
-// -------------------- UPDATE CART QUANTITY --------------------
+// ======================================================
+// UPDATE CART QUANTITY
+// ======================================================
 
-export async function updateCartItem(cartItemId, quantity) {
-  if (!cartItemId || Number(quantity) < 1) {
-    throw new Error("Valid cart item ID and quantity are required.");
+export async function updateCartItem(
+  cartItemId,
+  quantity
+) {
+  const normalizedQuantity = Number(quantity);
+
+  if (
+    !cartItemId ||
+    !Number.isInteger(normalizedQuantity) ||
+    normalizedQuantity < 1
+  ) {
+    throw new Error(
+      "Valid cart item ID and quantity are required."
+    );
   }
 
-  const localItemId = String(cartItemId).startsWith("local-")
+  const localItemId = String(cartItemId).startsWith(
+    "local-"
+  )
     ? Number(String(cartItemId).split("-")[1])
     : null;
+
+  // Guest or local-only item
   if (!getAccessToken() || localItemId) {
+    const targetProductId =
+      localItemId || Number(cartItemId);
+
     const cart = getLocalCart().map((item) =>
-      Number(item.product_id) === (localItemId || Number(cartItemId))
-        ? { ...item, quantity: Number(quantity) }
+      Number(item.product_id) === targetProductId
+        ? {
+          ...item,
+          quantity: normalizedQuantity,
+        }
         : item
     );
+
     saveLocalCart(cart);
+
     if (localItemId) {
-      updatePendingCartImport(localItemId, quantity);
+      updatePendingCartImport(
+        localItemId,
+        normalizedQuantity
+      );
     }
-    window.dispatchEvent(new Event("cartUpdated"));
+
+    dispatchCartUpdated();
+
     return cart;
   }
 
+  // Server cart item
   const response = await fetch(
     `${CART_URL}/${encodeURIComponent(cartItemId)}`,
     {
       method: "PUT",
       headers: getHeaders(),
       body: JSON.stringify({
-        quantity: Number(quantity),
+        quantity: normalizedQuantity,
       }),
     }
   );
 
-  return handleResponse(response);
+  const result = await handleResponse(response);
+
+  dispatchCartUpdated();
+
+  return result;
 }
 
-// -------------------- REMOVE CART ITEM --------------------
+// ======================================================
+// REMOVE CART ITEM
+// ======================================================
 
 export async function removeCartItem(cartItemId) {
   if (!cartItemId) {
     throw new Error("Cart item ID is required.");
   }
 
-  const localItemId = String(cartItemId).startsWith("local-")
+  const localItemId = String(cartItemId).startsWith(
+    "local-"
+  )
     ? Number(String(cartItemId).split("-")[1])
     : null;
+
+  // Guest or local-only item
   if (!getAccessToken() || localItemId) {
+    const targetProductId =
+      localItemId || Number(cartItemId);
+
     const cart = getLocalCart().filter(
       (item) =>
-        Number(item.product_id) !== (localItemId || Number(cartItemId))
+        Number(item.product_id) !== targetProductId
     );
+
     saveLocalCart(cart);
+
     if (localItemId) {
-      updatePendingCartImport(localItemId, 0);
+      updatePendingCartImport(
+        localItemId,
+        0
+      );
     }
-    window.dispatchEvent(new Event("cartUpdated"));
+
+    dispatchCartUpdated();
+
     return cart;
   }
 
+  // Server cart item
   const response = await fetch(
     `${CART_URL}/${encodeURIComponent(cartItemId)}`,
     {
@@ -411,32 +633,53 @@ export async function removeCartItem(cartItemId) {
     }
   );
 
-  return handleResponse(response);
+  const result = await handleResponse(response);
+
+  dispatchCartUpdated();
+
+  return result;
 }
 
-// -------------------- CLEAR CART --------------------
+// ======================================================
+// CLEAR CART
+// ======================================================
 
 export async function clearCart() {
+  // Guest user
   if (!getAccessToken()) {
     saveLocalCart([]);
-    localStorage.removeItem(PENDING_CART_IMPORT_KEY);
-    window.dispatchEvent(new Event("cartUpdated"));
+
+    localStorage.removeItem(
+      PENDING_CART_IMPORT_KEY
+    );
+
+    dispatchCartUpdated();
+
     return [];
   }
 
+  // Logged-in user
   const response = await fetch(CART_URL, {
     method: "DELETE",
     headers: getHeaders(),
   });
 
   const result = await handleResponse(response);
+
   saveLocalCart([]);
-  localStorage.removeItem(PENDING_CART_IMPORT_KEY);
-  window.dispatchEvent(new Event("cartUpdated"));
+
+  localStorage.removeItem(
+    PENDING_CART_IMPORT_KEY
+  );
+
+  dispatchCartUpdated();
+
   return result;
 }
 
-// -------------------- ERROR MESSAGE --------------------
+// ======================================================
+// CART ERROR MESSAGE
+// ======================================================
 
 export function getCartErrorMessage(error) {
   if (error?.response?.status === 401) {
@@ -447,13 +690,19 @@ export function getCartErrorMessage(error) {
   }
 
   if (error?.response?.status === 404) {
-    return "Cart item or product was not found.";
+    return (
+      error?.response?.data?.detail ||
+      "Cart item or product was not found."
+    );
   }
 
   if (error?.response?.status === 422) {
     const detail = error?.response?.data?.detail;
+
     return Array.isArray(detail)
-      ? detail.map((item) => item.msg || String(item)).join(", ")
+      ? detail
+        .map((item) => item.msg || String(item))
+        .join(", ")
       : detail || "Please check the cart information.";
   }
 

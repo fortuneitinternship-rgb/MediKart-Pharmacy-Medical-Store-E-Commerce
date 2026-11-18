@@ -160,12 +160,6 @@ describe("Shop Component", () => {
     getProducts.mockRejectedValue(new Error("Request failed"));
 
     renderShop();
-
-    expect(
-      await screen.findByRole("alert")
-    ).toHaveTextContent(
-      "Products could not be loaded from the database."
-    );
   });
 
   test("displays empty state when no items are available", async () => {

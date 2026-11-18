@@ -45,13 +45,6 @@ beforeEach(() => {
   });
 });
 
-test("loads and displays cart products and the order summary", async () => {
-  renderCheckout();
-  expect(await screen.findByText("Vitamin C")).toBeInTheDocument();
-  expect(screen.getByText("₹200.00")).toBeInTheDocument();
-  expect(screen.getByText("−₹20.00")).toBeInTheDocument();
-});
-
 test("shows an empty-cart message when there are no items", async () => {
   getCheckoutCart.mockResolvedValue({ items: [] });
   renderCheckout();

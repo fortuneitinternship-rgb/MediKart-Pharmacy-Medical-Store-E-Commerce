@@ -39,37 +39,53 @@ from app.api.routers import (
     wishlist,
     checkout,
 )
+
 from app.api.routers.otp import router as otp_router
 
+
+# --------------------------------------------------
+# LOGGING
+# --------------------------------------------------
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("medikart.api")
 
 
+# --------------------------------------------------
+# APPLICATION LIFESPAN
+# --------------------------------------------------
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+
     logger.info("Starting MediKart API...")
     logger.info("Starting MediKart database initialization...")
 
     try:
-        # Ensure the uploads directory exists.
-        settings.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+        # Ensure uploads directory exists.
+        settings.UPLOAD_DIR.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
 
-        # Upgrade old address column names without deleting existing data.
+        # Upgrade legacy address schema.
         upgrade_legacy_address_schema(engine)
 
-        # Create tables that do not already exist.
-        # Note: create_all does not add missing columns to existing tables.
+        # Create missing database tables.
         Base.metadata.create_all(bind=engine)
 
-        # Verify the database connection.
+        # Verify database connection.
         with engine.connect() as connection:
             connection.execute(text("SELECT 1"))
 
-        logger.info("MediKart database initialized successfully.")
+        logger.info(
+            "MediKart database initialized successfully."
+        )
 
     except Exception:
-        logger.exception("MediKart database initialization failed.")
+        logger.exception(
+            "MediKart database initialization failed."
+        )
         raise
 
     logger.info("MediKart API startup completed.")
@@ -79,6 +95,10 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down MediKart API...")
     engine.dispose()
 
+
+# --------------------------------------------------
+# FASTAPI APPLICATION
+# --------------------------------------------------
 
 api = FastAPI(
     title="MEDIKART API",
@@ -91,23 +111,58 @@ api = FastAPI(
 )
 
 
-# CORS configuration.
+# --------------------------------------------------
+# CORS CONFIGURATION
+# --------------------------------------------------
+
+# Read origins from environment/settings.
 frontend_origins = [
-    origin.strip()
+    origin.strip().rstrip("/")
     for origin in settings.FRONTEND_ORIGINS.split(",")
     if origin.strip()
 ]
 
+# Default React development origins.
+default_origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+
+# Combine configured and default origins.
+allowed_origins = list(
+    dict.fromkeys(frontend_origins + default_origins)
+)
+
+# Allow React development servers on other localhost ports.
+allowed_origin_regex = (
+    r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
+)
+
+logger.info(
+    "Allowed CORS origins: %s",
+    allowed_origins,
+)
+
 api.add_middleware(
     CORSMiddleware,
-    allow_origins=frontend_origins,
+    allow_origins=allowed_origins,
+    allow_origin_regex=allowed_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=600,
 )
 
 
-# Register routers.
+# --------------------------------------------------
+# REGISTER API ROUTERS
+# --------------------------------------------------
+
 api.include_router(auth.router)
 api.include_router(otp_router)
 api.include_router(addresses.router)
@@ -132,7 +187,10 @@ api.include_router(submissions.router)
 api.include_router(checkout.router)
 
 
-# Serve uploaded product and other media files.
+# --------------------------------------------------
+# STATIC FILES
+# --------------------------------------------------
+
 api.mount(
     "/uploads",
     StaticFiles(
@@ -143,8 +201,13 @@ api.mount(
 )
 
 
+# --------------------------------------------------
+# ROOT ENDPOINT
+# --------------------------------------------------
+
 @api.get("/", tags=["Health"])
 def root():
+
     return {
         "message": "MEDIKART FastAPI Backend is running",
         "status": "success",
@@ -152,32 +215,67 @@ def root():
     }
 
 
+# --------------------------------------------------
+# DATABASE HEALTH CHECK
+# --------------------------------------------------
+
 @api.get("/health", tags=["Health"])
 def health():
+
     try:
+
         with engine.connect() as connection:
             connection.execute(text("SELECT 1"))
 
         return {
             "status": "healthy",
-            "message": "MEDIKART API and database are working correctly",
+            "message": (
+                "MEDIKART API and database "
+                "are working correctly"
+            ),
         }
 
     except SQLAlchemyError as error:
-        logger.exception("Database health check failed.")
+
+        logger.exception(
+            "Database health check failed."
+        )
+
         raise HTTPException(
             status_code=503,
             detail="Database is unavailable",
         ) from error
 
 
+# --------------------------------------------------
+# API HEALTH CHECK
+# --------------------------------------------------
+
 @api.get("/health/api", tags=["Health"])
 def api_health():
+
     return {
         "status": "success",
         "message": "MediKart API is running",
     }
 
 
-# Keep this name because your Dockerfile and run command use app.main:app.
-app = api
+# --------------------------------------------------
+# CORS WRAPPER
+# --------------------------------------------------
+
+# Keep this as the outermost application middleware.
+# It ensures CORS headers are applied to responses
+# generated by the inner FastAPI application,
+# including unhandled 500 error responses.
+
+app = CORSMiddleware(
+    app=api,
+    allow_origins=allowed_origins,
+    allow_origin_regex=allowed_origin_regex,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=600,
+)
