@@ -1,17 +1,4 @@
-FROM python:3.12-slim
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
-
-WORKDIR /app
-
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt \
-    && addgroup --system app \
-    && adduser --system --ingroup app app
-
-COPY app ./app
-COPY alembic ./alembi
 # ==========================================
 # MediKart - FastAPI Backend Dockerfile
 # ==========================================
@@ -27,7 +14,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # Application directory
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies for MySQL and Python packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     default-libmysqlclient-dev \
@@ -35,7 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for Docker caching
+# Copy requirements
 COPY requirements.txt .
 
 # Install Python dependencies
@@ -48,33 +35,22 @@ RUN groupadd --system app && \
 # Copy backend application
 COPY --chown=app:app app/ ./app/
 
-# Copy Alembic migration files if available
+# Copy Alembic migrations
 COPY --chown=app:app alembic/ ./alembic/
 COPY --chown=app:app alembic.ini ./alembic.ini
 
-# Copy application data if available
+# Copy application data
 COPY --chown=app:app data/ ./data/
 
-# Create required directories
+# Create required directories and set permissions
 RUN mkdir -p /app/uploads /app/logs && \
     chown -R app:app /app/uploads /app/logs /app/data
 
-# Use non-root user
+# Run as non-root user
 USER app
 
 # Expose FastAPI port
 EXPOSE 8000
 
-# Start FastAPI
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
-
-COPY alembic.ini .
-COPY data ./data
-
-RUN mkdir -p /app/uploads && chown app:app /app/uploads
-
-USER app
-
-EXPOSE 8000
-
+# Start FastAPI application
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
