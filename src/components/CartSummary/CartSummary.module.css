@@ -1,0 +1,327 @@
+/* =========================================
+   MEDIKART CART SUMMARY
+   Flipkart Style
+========================================= */
+
+.summary {
+  width: 100%;
+  background: #ffffff;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  padding: 20px;
+  position: sticky;
+  top: 20px;
+}
+
+.title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #212121;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #f1f3f6;
+}
+
+/* ===========================
+   PRODUCT LIST
+=========================== */
+
+.productRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 12px 0;
+  border-bottom: 1px solid #f5f5f5;
+  gap: 15px;
+}
+
+.productRow:last-child {
+  border-bottom: none;
+}
+
+.productRow span:first-child {
+  flex: 1;
+  color: #333;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.productRow span:last-child {
+  font-size: 16px;
+  font-weight: 600;
+  color: #212121;
+}
+
+/* Divider */
+
+.summary hr {
+  border: none;
+  border-top: 1px solid #eeeeee;
+  margin: 18px 0;
+}
+
+/* ===========================
+   PRICE ROWS
+=========================== */
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 14px 0;
+  font-size: 15px;
+  color: #555;
+}
+
+.row span:first-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.row span:last-child {
+  font-weight: 600;
+  color: #212121;
+}
+/* =========================================
+   TOTAL AMOUNT
+========================================= */
+
+.total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 2px dashed #dcdcdc;
+  font-size: 20px;
+  font-weight: 700;
+  color: #212121;
+}
+
+.total span:first-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.total span:last-child {
+  color: #388e3c;
+}
+
+/* =========================================
+   SAVINGS MESSAGE
+========================================= */
+
+.savings {
+  margin-top: 20px;
+  padding: 12px;
+  background: #e8f5e9;
+  color: #2e7d32;
+  border-radius: 5px;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* =========================================
+   BUTTONS
+========================================= */
+
+.buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin-top: 25px;
+}
+
+.continueBtn {
+  width: 100%;
+  padding: 14px;
+  background: #ffffff;
+  color: #2874f0;
+  border: 2px solid #2874f0;
+  border-radius: 4px;
+  text-decoration: none;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.continueBtn:hover {
+  background: #2874f0;
+  color: #ffffff;
+}
+
+.checkoutBtn {
+  width: 100%;
+  padding: 16px;
+  background: #fb641b;
+  color: #ffffff;
+  border: none;
+  border-radius: 4px;
+  font-size: 17px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  transition: all 0.3s ease;
+}
+
+.checkoutBtn:hover {
+  background: #e85a15;
+}
+
+.checkoutBtn:active {
+  transform: scale(0.98);
+}
+/* =========================================
+   RESPONSIVE DESIGN
+========================================= */
+
+@media (max-width: 1024px) {
+
+  .summary {
+    position: static;
+    margin-top: 20px;
+  }
+
+}
+
+@media (max-width: 768px) {
+
+  .summary {
+    padding: 16px;
+    border-radius: 6px;
+  }
+
+  .title {
+    font-size: 20px;
+    margin-bottom: 15px;
+  }
+
+  .productRow {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 12px 0;
+  }
+
+  .productRow span:first-child {
+    font-size: 14px;
+  }
+
+  .productRow span:last-child {
+    font-size: 15px;
+  }
+
+  .row {
+    font-size: 14px;
+    margin: 12px 0;
+  }
+
+  .total {
+    font-size: 18px;
+  }
+
+  .buttons {
+    gap: 12px;
+  }
+
+  .continueBtn,
+  .checkoutBtn {
+    font-size: 15px;
+    padding: 14px;
+  }
+
+}
+
+@media (max-width: 480px) {
+
+  .summary {
+    padding: 12px;
+  }
+
+  .title {
+    font-size: 18px;
+  }
+
+  .productRow {
+    padding: 10px 0;
+  }
+
+  .productRow span:first-child {
+    font-size: 13px;
+  }
+
+  .productRow span:last-child {
+    font-size: 14px;
+  }
+
+  .row {
+    font-size: 13px;
+  }
+
+  .total {
+    font-size: 16px;
+  }
+
+  .continueBtn,
+  .checkoutBtn {
+    width: 100%;
+    padding: 12px;
+    font-size: 14px;
+  }
+
+}
+
+/* =========================================
+   FREE DELIVERY LABEL
+========================================= */
+
+.freeDelivery {
+  color: #388e3c;
+  font-weight: 600;
+}
+
+/* =========================================
+   PRICE HIGHLIGHT
+========================================= */
+
+.price {
+  font-weight: 700;
+  color: #212121;
+}
+
+/* =========================================
+   SECURE PAYMENT NOTE
+========================================= */
+
+.securePayment {
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px solid #eeeeee;
+  text-align: center;
+  color: #757575;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.securePayment strong {
+  color: #388e3c;
+}
+
+/* =========================================
+   EMPTY SUMMARY
+========================================= */
+
+.emptySummary {
+  text-align: center;
+  padding: 30px 15px;
+  color: #757575;
+  font-size: 15px;
+}

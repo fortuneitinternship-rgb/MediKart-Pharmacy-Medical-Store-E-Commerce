@@ -13,6 +13,10 @@
 
 # misc
 .DS_Store
+/backend/.env
+/backend/.env.production
+/backend/medikart.db
+/backend/uploads/
 .env.local
 .env.development.local
 .env.test.local

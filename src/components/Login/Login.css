@@ -1,0 +1,1026 @@
+/* =========================================================
+   LOGIN POPUP OVERLAY
+========================================================= */
+
+.login-popup-overlay {
+  position: fixed;
+  inset: 0;
+
+  width: 100%;
+  height: 100dvh;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 24px;
+
+  background: rgba(8, 29, 51, 0.72);
+
+  backdrop-filter: blur(8px);
+
+  overflow: auto;
+
+  z-index: 99999;
+
+  animation: popupOverlay 0.2s ease;
+}
+
+
+/* =========================================================
+   POPUP
+========================================================= */
+
+.login-popup {
+  position: relative;
+
+  width: min(900px, calc(100vw - 48px));
+  max-width: 100%;
+
+  height: min(570px, calc(100dvh - 48px));
+  max-height: calc(100dvh - 48px);
+
+  display: flex;
+
+  background: #ffffff;
+
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-radius: 22px;
+
+  overflow: hidden;
+
+  box-shadow:
+    0 24px 70px rgba(4, 25, 47, 0.42),
+    0 0 0 6px rgba(46, 196, 182, 0.08);
+
+  animation: popupOpen 0.25s ease;
+
+  flex-shrink: 0;
+}
+
+
+/* =========================================================
+   ANIMATIONS
+========================================================= */
+
+@keyframes popupOpen {
+  from {
+    opacity: 0;
+    transform: scale(0.94) translateY(15px);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes popupOverlay {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+
+/* =========================================================
+   CLOSE BUTTON
+========================================================= */
+
+.login-close-button {
+  position: absolute;
+
+  top: 12px;
+  right: 12px;
+
+  width: 48px;
+  height: 48px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 0;
+
+  border: none;
+  border-radius: 50%;
+
+  background: #ffffff;
+
+  color: #333333;
+
+  font-size: 25px;
+  font-weight: 700;
+
+  cursor: pointer;
+
+  z-index: 100;
+
+  box-shadow:
+    0 3px 12px rgba(0, 0, 0, 0.18);
+
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.login-close-button:hover {
+  background: #ef4444;
+
+  color: #ffffff;
+
+  transform: rotate(90deg) scale(1.08);
+}
+
+.login-close-button:active {
+  transform: rotate(90deg) scale(0.95);
+}
+
+
+/* =========================================================
+   LEFT IMAGE
+========================================================= */
+
+.auth-image-section {
+  position: relative;
+
+  width: 48%;
+  height: 100%;
+
+  overflow: hidden;
+
+  background: #2875e8;
+
+  display: flex;
+  align-items: flex-end;
+
+  flex-shrink: 0;
+}
+
+
+/* =========================================================
+   IMAGE
+========================================================= */
+
+.auth-image {
+  position: absolute;
+
+  inset: 0;
+
+  width: 100%;
+  height: 100%;
+
+  object-fit: cover;
+
+  z-index: 1;
+}
+
+
+/* =========================================================
+   IMAGE OVERLAY
+========================================================= */
+
+.auth-image-section::before {
+  content: "";
+
+  position: absolute;
+
+  inset: 0;
+
+  background:
+    linear-gradient(180deg,
+      rgba(40, 117, 232, 0.15) 0%,
+      rgba(40, 117, 232, 0.4) 50%,
+      rgba(10, 65, 145, 0.95) 100%);
+
+  z-index: 2;
+}
+
+
+/* =========================================================
+   WELCOME TEXT
+========================================================= */
+
+.image-overlay {
+  position: relative;
+
+  width: 100%;
+
+  margin-top: auto;
+
+  padding: 35px;
+
+  z-index: 3;
+
+  color: #ffffff;
+}
+
+.image-overlay h1 {
+  margin: 0 0 10px;
+
+  color: #ffffff;
+
+  font-size: 32px;
+  font-weight: 700;
+
+  line-height: 1.2;
+}
+
+.image-overlay p {
+  margin: 0;
+
+  max-width: 340px;
+
+  color: #ffffff;
+
+  font-size: 15px;
+
+  line-height: 1.5;
+}
+
+
+/* =========================================================
+   RIGHT FORM
+========================================================= */
+
+.auth-form-section {
+  width: 52%;
+  height: 100%;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 30px 40px;
+
+  background: #ffffff;
+
+  overflow-y: auto;
+
+  min-width: 0;
+}
+
+
+/* =========================================================
+   FORM BOX
+========================================================= */
+
+.auth-form-box {
+  width: 100%;
+
+  max-width: 360px;
+}
+
+
+/* =========================================================
+   LOGO
+========================================================= */
+
+.auth-logo {
+  margin-bottom: 22px;
+
+  font-size: 29px;
+
+  font-weight: 700;
+
+  line-height: 1;
+}
+
+.auth-logo span {
+  color: #2875e8;
+}
+
+.auth-logo strong {
+  color: #ff9800;
+}
+
+
+/* =========================================================
+   HEADING
+========================================================= */
+
+.auth-form-box h2 {
+  margin: 0 0 8px;
+
+  color: #111111;
+
+  font-size: 30px;
+
+  font-weight: 700;
+}
+
+.auth-subtitle {
+  margin: 0 0 24px;
+
+  color: #777777;
+
+  font-size: 14px;
+}
+
+
+/* =========================================================
+   INPUT
+========================================================= */
+
+.input-group {
+  width: 100%;
+  height: 50px;
+
+  display: flex;
+  align-items: center;
+
+  padding: 0 14px;
+
+  margin-bottom: 15px;
+
+  border: 1px solid #d5d5d5;
+
+  border-radius: 10px;
+
+  background: #ffffff;
+
+  transition: 0.2s ease;
+}
+
+.input-group:focus-within {
+  border-color: #2875e8;
+
+  box-shadow:
+    0 0 0 3px rgba(40, 117, 232, 0.08);
+}
+
+
+/* =========================================================
+   BIG USER / EMAIL ICON
+========================================================= */
+
+.input-icon {
+  flex-shrink: 0;
+
+  color: #2875e8;
+
+  font-size: 22px;
+}
+
+
+/* =========================================================
+   INPUT TEXT
+========================================================= */
+
+.input-group input {
+  flex: 1;
+
+  width: 100%;
+  height: 100%;
+
+  padding: 0 12px;
+
+  border: none;
+  outline: none;
+
+  background: transparent;
+
+  color: #333333;
+
+  font-size: 14px;
+}
+
+.input-group input::placeholder {
+  color: #999999;
+}
+
+
+/* =========================================================
+   PASSWORD EYE
+========================================================= */
+
+.password-eye {
+  width: 38px;
+  height: 38px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 0;
+
+  border: none;
+
+  border-radius: 8px;
+
+  background: transparent;
+
+  color: #777777;
+
+  font-size: 22px;
+
+  cursor: pointer;
+
+  transition:
+    color 0.2s ease,
+    background 0.2s ease;
+}
+
+.password-eye:hover {
+  color: #2875e8;
+
+  background:
+    rgba(40, 117, 232, 0.08);
+}
+
+
+/* =========================================================
+   OPTIONS
+========================================================= */
+
+.login-options {
+  width: 100%;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  margin: 5px 0 21px;
+
+  font-size: 13px;
+}
+
+.login-options label {
+  display: flex;
+
+  align-items: center;
+
+  gap: 7px;
+
+  color: #555555;
+
+  cursor: pointer;
+}
+
+.login-options input {
+  width: 16px;
+  height: 16px;
+
+  margin: 0;
+
+  accent-color: #2875e8;
+}
+
+.login-options a {
+  color: #2875e8;
+
+  font-weight: 600;
+
+  text-decoration: none;
+}
+
+.login-options a:hover {
+  text-decoration: underline;
+}
+
+
+/* =========================================================
+   LOGIN BUTTON
+========================================================= */
+
+.auth-button {
+  width: 100%;
+  height: 50px;
+
+  border: none;
+
+  border-radius: 3px;
+
+  background: #2875e8;
+
+  color: #ffffff;
+
+  font-size: 16px;
+
+  font-weight: 600;
+
+  cursor: pointer;
+
+  transition: 0.2s ease;
+}
+
+.auth-button:hover {
+  background: #1765d5;
+
+  box-shadow:
+    0 5px 15px rgba(40, 117, 232, 0.25);
+}
+
+
+/* =========================================================
+   OR DIVIDER
+========================================================= */
+
+.or-divider {
+  width: 100%;
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 25px;
+
+  margin: 25px 0;
+
+  color: #999999;
+
+  font-size: 13px;
+}
+
+.or-divider::before,
+.or-divider::after {
+  content: "";
+
+  flex: 1;
+
+  height: 1px;
+
+  background: #dddddd;
+}
+
+.or-divider span {
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+   SOCIAL LOGIN
+   GOOGLE + FACEBOOK + APPLE
+   ONE LINE
+========================================================= */
+
+.social-login {
+  width: 100%;
+
+  display: flex;
+
+  flex-direction: row;
+
+  align-items: center;
+
+  justify-content: center;
+
+  gap: 18px;
+
+  margin-bottom: 20px;
+
+  flex-wrap: nowrap;
+}
+
+
+/* =========================================================
+   SOCIAL BUTTON
+========================================================= */
+
+.social-login button {
+  width: 52px;
+  height: 52px;
+
+  flex: 0 0 52px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 0;
+
+  border: 1px solid #dddddd;
+
+  border-radius: 50%;
+
+  background: #ffffff;
+
+  font-size: 25px;
+
+  cursor: pointer;
+
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    background 0.2s ease;
+}
+
+
+/* =========================================================
+   GOOGLE
+========================================================= */
+
+.social-login button:nth-child(1) {
+  color: #db4437;
+}
+
+.social-login button:nth-child(1):hover {
+  border-color: #db4437;
+
+  background: #fff5f5;
+
+  transform:
+    translateY(-3px) scale(1.05);
+}
+
+
+/* =========================================================
+   FACEBOOK
+========================================================= */
+
+.social-login button:nth-child(2) {
+  color: #1877f2;
+}
+
+.social-login button:nth-child(2):hover {
+  border-color: #1877f2;
+
+  background: #eff6ff;
+
+  transform:
+    translateY(-3px) scale(1.05);
+}
+
+
+/* =========================================================
+   APPLE
+========================================================= */
+
+.social-login button:nth-child(3) {
+  color: #111111;
+}
+
+.social-login button:nth-child(3):hover {
+  border-color: #111111;
+
+  background: #f5f5f5;
+
+  transform:
+    translateY(-3px) scale(1.05);
+}
+
+
+/* =========================================================
+   REGISTER
+========================================================= */
+
+.switch-auth {
+  margin: 0;
+
+  text-align: center;
+
+  color: #777777;
+
+  font-size: 13px;
+}
+
+.switch-auth a {
+  margin-left: 5px;
+
+  color: #2875e8;
+
+  font-weight: 600;
+
+  text-decoration: none;
+}
+
+.switch-auth a:hover {
+  text-decoration: underline;
+}
+
+
+/* =========================================================
+   TABLET
+========================================================= */
+
+@media (max-width: 768px) {
+
+  .login-popup-overlay {
+    padding: 15px;
+  }
+
+  .login-popup {
+    width: 100%;
+
+    height:
+      min(560px,
+        calc(100dvh - 30px));
+  }
+
+  .auth-image-section {
+    width: 42%;
+  }
+
+  .auth-form-section {
+    width: 58%;
+
+    padding: 25px;
+  }
+
+  .image-overlay {
+    padding: 25px;
+  }
+
+  .image-overlay h1 {
+    font-size: 25px;
+  }
+
+  .image-overlay p {
+    font-size: 13px;
+  }
+
+  .auth-logo {
+    font-size: 26px;
+  }
+
+  .auth-form-box h2 {
+    font-size: 27px;
+  }
+
+  .social-login {
+    gap: 12px;
+  }
+
+  .social-login button {
+    width: 48px;
+    height: 48px;
+
+    flex: 0 0 48px;
+
+    font-size: 23px;
+  }
+}
+
+
+/* =========================================================
+   MOBILE
+========================================================= */
+
+@media (max-width: 600px) {
+
+  .login-popup-overlay {
+    padding: 10px;
+  }
+
+  .login-popup {
+    width: 100%;
+
+    height:
+      calc(100dvh - 20px);
+
+    max-height:
+      calc(100dvh - 20px);
+
+    flex-direction: column;
+
+    border-radius: 15px;
+
+    overflow-y: auto;
+  }
+
+
+  /* IMAGE */
+
+  .auth-image-section {
+    width: 100%;
+
+    height: 160px;
+
+    min-height: 160px;
+
+    flex-shrink: 0;
+  }
+
+  .image-overlay {
+    padding: 20px 25px;
+  }
+
+  .image-overlay h1 {
+    font-size: 23px;
+  }
+
+  .image-overlay p {
+    font-size: 12px;
+  }
+
+
+  /* FORM */
+
+  .auth-form-section {
+    width: 100%;
+
+    height: auto;
+
+    min-height: 0;
+
+    padding: 25px 22px;
+
+    overflow: visible;
+
+    align-items: flex-start;
+  }
+
+  .auth-form-box {
+    max-width: 420px;
+
+    margin: 0 auto;
+  }
+
+  .auth-logo {
+    font-size: 25px;
+
+    margin-bottom: 15px;
+  }
+
+  .auth-form-box h2 {
+    font-size: 26px;
+  }
+
+  .auth-subtitle {
+    font-size: 13px;
+
+    margin-bottom: 18px;
+  }
+
+
+  /* X */
+
+  .login-close-button {
+    width: 44px;
+    height: 44px;
+
+    top: 8px;
+    right: 8px;
+
+    font-size: 23px;
+  }
+
+
+  /* SOCIAL */
+
+  .social-login {
+    gap: 14px;
+
+    flex-wrap: nowrap;
+  }
+
+  .social-login button {
+    width: 50px;
+    height: 50px;
+
+    flex: 0 0 50px;
+
+    font-size: 24px;
+  }
+}
+
+
+/* =========================================================
+   SMALL MOBILE
+========================================================= */
+
+@media (max-width: 400px) {
+
+  .login-popup-overlay {
+    padding: 7px;
+  }
+
+  .login-popup {
+    height:
+      calc(100dvh - 14px);
+
+    max-height:
+      calc(100dvh - 14px);
+  }
+
+  .auth-image-section {
+    height: 135px;
+
+    min-height: 135px;
+  }
+
+  .image-overlay {
+    padding: 15px 20px;
+  }
+
+  .image-overlay h1 {
+    font-size: 20px;
+  }
+
+  .image-overlay p {
+    font-size: 11px;
+  }
+
+  .auth-form-section {
+    padding: 20px 18px;
+  }
+
+  .auth-logo {
+    font-size: 23px;
+  }
+
+  .auth-form-box h2 {
+    font-size: 24px;
+  }
+
+  .input-group {
+    height: 46px;
+  }
+
+  .input-icon {
+    font-size: 20px;
+  }
+
+  .password-eye {
+    font-size: 20px;
+  }
+
+  .auth-button {
+    height: 46px;
+  }
+
+
+  /* SOCIAL ICONS STAY IN ONE LINE */
+
+  .social-login {
+    gap: 10px;
+
+    flex-wrap: nowrap;
+  }
+
+  .social-login button {
+    width: 45px;
+    height: 45px;
+
+    flex: 0 0 45px;
+
+    font-size: 21px;
+  }
+
+
+  /* X */
+
+  .login-close-button {
+    width: 40px;
+    height: 40px;
+
+    font-size: 21px;
+  }
+}
+
+
+/* =========================================================
+   SHORT SCREEN
+========================================================= */
+
+@media (max-height: 650px) and (min-width: 601px) {
+
+  .login-popup {
+    height:
+      calc(100dvh - 30px);
+  }
+
+  .auth-form-section {
+    padding-top: 15px;
+
+    padding-bottom: 15px;
+  }
+
+  .auth-logo {
+    margin-bottom: 12px;
+  }
+
+  .auth-subtitle {
+    margin-bottom: 14px;
+  }
+
+  .input-group {
+    height: 44px;
+
+    margin-bottom: 10px;
+  }
+
+  .login-options {
+    margin-bottom: 14px;
+  }
+
+  .auth-button {
+    height: 44px;
+  }
+
+  .or-divider {
+    margin: 15px 0;
+  }
+
+  .social-login {
+    margin-bottom: 12px;
+  }
+}

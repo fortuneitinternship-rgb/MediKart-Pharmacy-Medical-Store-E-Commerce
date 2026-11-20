@@ -1,0 +1,408 @@
+/* =========================================================
+   ACCOUNT DROPDOWN
+========================================================= */
+
+.account-dropdown {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    width: 310px;
+    max-height: 650px;
+    display: flex;
+    flex-direction: column;
+    padding: 8px 0;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow:
+        0 12px 35px rgba(0, 0, 0, 0.16),
+        0 3px 10px rgba(0, 0, 0, 0.08);
+    overflow-y: auto;
+    z-index: 99999;
+    animation: accountDropdownOpen 0.2s ease;
+}
+
+
+/* =========================================================
+   OPEN ANIMATION
+========================================================= */
+
+@keyframes accountDropdownOpen {
+    from {
+        opacity: 0;
+        transform: translateY(-8px) scale(0.98);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+
+/* =========================================================
+   CUSTOM SCROLLBAR
+========================================================= */
+
+.account-dropdown::-webkit-scrollbar {
+    width: 6px;
+}
+
+.account-dropdown::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.account-dropdown::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 10px;
+}
+
+.account-dropdown::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+
+/* =========================================================
+   ACCOUNT HEADER
+========================================================= */
+
+.account-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 18px 18px 15px;
+    background: linear-gradient(135deg, #eef6ff, #ffffff);
+}
+
+
+/* =========================================================
+   ACCOUNT AVATAR
+========================================================= */
+
+.account-avatar {
+    width: 52px;
+    height: 52px;
+    flex-shrink: 0;
+    color: #2875e8;
+    font-size: 52px;
+}
+
+
+/* =========================================================
+   USER INFORMATION
+========================================================= */
+
+.account-user-info {
+    min-width: 0;
+}
+
+.account-user-info h3 {
+    margin: 0 0 4px;
+    color: #111827;
+    font-size: 17px;
+    font-weight: 700;
+}
+
+.account-user-info p {
+    margin: 0;
+    color: #64748b;
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+
+/* =========================================================
+   DIVIDER
+========================================================= */
+
+.account-divider {
+    width: calc(100% - 30px);
+    height: 1px;
+    margin: 5px auto;
+    background: #e5e7eb;
+}
+
+
+/* =========================================================
+   ACCOUNT ITEM
+========================================================= */
+
+.account-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-height: 46px;
+    padding: 10px 18px;
+    color: #374151;
+    background: transparent;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background 0.2s ease, color 0.2s ease, padding-left 0.2s ease;
+}
+
+
+/* =========================================================
+   ITEM ICON
+========================================================= */
+
+.account-item>svg {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    color: #2875e8;
+    font-size: 19px;
+    transition: color 0.2s ease, transform 0.2s ease;
+}
+
+
+/* =========================================================
+   ITEM TEXT
+========================================================= */
+
+.account-item span {
+    flex: 1;
+    line-height: 1.3;
+}
+
+
+/* =========================================================
+   ITEM HOVER
+========================================================= */
+
+.account-item:hover {
+    padding-left: 22px;
+    color: #2875e8;
+    background: #f3f8ff;
+}
+
+.account-item:hover>svg {
+    color: #1765d5;
+    transform: scale(1.12);
+}
+
+
+/* =========================================================
+   ACTIVE ITEM
+========================================================= */
+
+.account-item:active {
+    background: #e8f1ff;
+}
+
+
+/* =========================================================
+   LOGOUT BUTTON
+========================================================= */
+
+.logout-btn {
+    width: calc(100% - 24px);
+    min-height: 46px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 14px;
+    margin: 5px 12px 8px;
+    padding: 10px 14px;
+    border: none;
+    border-radius: 8px;
+    background: #fff1f2;
+    color: #dc2626;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+
+/* =========================================================
+   LOGOUT ICON
+========================================================= */
+
+.logout-btn svg {
+    width: 20px;
+    height: 20px;
+
+    flex-shrink: 0;
+
+    font-size: 18px;
+}
+
+
+/* =========================================================
+   LOGOUT HOVER
+========================================================= */
+
+/* Hover */
+.logout-btn:hover {
+    background-color: #dc3545;
+    color: #ffffff;
+}
+
+
+
+
+/* =========================================================
+   LOGOUT ACTIVE
+========================================================= */
+/* Click / Active */
+.logout-btn:active {
+    background-color: #b02a37;
+    color: #ffffff;
+}
+
+/* =========================================================
+   TABLET
+========================================================= */
+
+@media (max-width: 768px) {
+
+    .account-dropdown {
+        width: 290px;
+        max-height: 600px;
+        right: 0;
+    }
+
+    .account-header {
+        padding: 16px;
+    }
+
+    .account-avatar {
+        width: 48px;
+        height: 48px;
+        font-size: 48px;
+    }
+
+    .account-user-info h3 {
+        font-size: 16px;
+    }
+
+    .account-item {
+        min-height: 44px;
+        padding: 9px 16px;
+        font-size: 13px;
+    }
+
+    .account-item:hover {
+        padding-left: 20px;
+    }
+
+    .logout-btn {
+        min-height: 44px;
+        margin-left: 10px;
+        margin-right: 10px;
+        width: calc(100% - 20px);
+    }
+}
+
+
+/* =========================================================
+   MOBILE
+========================================================= */
+
+@media (max-width: 600px) {
+
+    .account-dropdown {
+        position: fixed;
+        top: 65px;
+        right: 10px;
+        width: min(310px, calc(100vw - 20px));
+        max-height: calc(100dvh - 80px);
+        border-radius: 12px;
+    }
+
+    .account-header {
+        padding: 15px;
+    }
+
+    .account-avatar {
+        width: 46px;
+        height: 46px;
+        font-size: 46px;
+    }
+
+    .account-user-info h3 {
+        font-size: 16px;
+    }
+
+    .account-user-info p {
+        font-size: 12px;
+    }
+
+    .account-item {
+        min-height: 45px;
+        padding: 10px 15px;
+        font-size: 13px;
+        gap: 12px;
+    }
+
+    .account-item>svg {
+        width: 19px;
+        height: 19px;
+    }
+
+    .account-item:hover {
+        padding-left: 19px;
+    }
+
+    .logout-btn {
+        min-height: 45px;
+        margin: 5px 10px 8px;
+        width: calc(100% - 20px);
+    }
+}
+
+
+/* =========================================================
+   SMALL MOBILE
+========================================================= */
+
+@media (max-width: 400px) {
+
+    .account-dropdown {
+        top: 60px;
+        right: 7px;
+        width: calc(100vw - 14px);
+        max-height: calc(100dvh - 70px);
+    }
+
+    .account-header {
+        padding: 14px;
+    }
+
+    .account-avatar {
+        width: 42px;
+        height: 42px;
+        font-size: 42px;
+    }
+
+    .account-user-info h3 {
+        font-size: 15px;
+    }
+
+    .account-user-info p {
+        font-size: 11px;
+    }
+
+    .account-item {
+        min-height: 43px;
+        padding: 9px 13px;
+        font-size: 12px;
+    }
+
+    .account-item>svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    .logout-btn {
+        min-height: 43px;
+        padding: 9px 12px;
+        font-size: 12px;
+    }
+}

@@ -1,0 +1,473 @@
+/* ============================================================
+   MEDIKART FILTER PANEL
+============================================================ */
+
+.filter-panel {
+  width: 100%;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* ============================================================
+   HEADER
+============================================================ */
+
+.filter-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 17px 16px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.filter-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.filter-title svg {
+  color: #16a34a;
+  font-size: 16px;
+}
+
+.filter-title h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.clear-filter-btn {
+  border: none;
+  background: transparent;
+  color: #16a34a;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.clear-filter-btn:hover {
+  text-decoration: underline;
+  background: #f0fdf4;
+}
+
+/* ============================================================
+   FILTER SECTION
+============================================================ */
+
+.filter-section {
+  border-bottom: 1px solid #eeeeee;
+}
+
+/* ============================================================
+   SECTION TITLE
+============================================================ */
+
+.filter-section-title {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 15px 16px;
+  border: none;
+  outline: none;
+  background: #ffffff;
+  color: #1f2937;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: left;
+}
+
+.filter-section-title:hover {
+  background: #f9fafb;
+}
+
+.filter-section-title svg {
+  color: #6b7280;
+  font-size: 11px;
+  transition: transform 0.25s ease;
+}
+
+.filter-section-title svg.rotate {
+  transform: rotate(180deg);
+}
+
+/* ============================================================
+   FILTER OPTIONS
+============================================================ */
+
+.filter-options {
+  padding: 0 16px 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+/* ============================================================
+   SCROLLBAR
+============================================================ */
+
+.filter-options::-webkit-scrollbar {
+  width: 4px;
+}
+
+.filter-options::-webkit-scrollbar-track {
+  background: #f3f4f6;
+}
+
+.filter-options::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 10px;
+}
+
+/* ============================================================
+   OPTION
+============================================================ */
+
+.filter-option {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 24px;
+  color: #4b5563;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.filter-option:hover {
+  color: #16a34a;
+}
+
+.filter-option input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: #16a34a;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.filter-option span {
+  line-height: 1.4;
+}
+
+/* ============================================================
+   RATING
+============================================================ */
+
+.rating-option span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.rating-option span svg {
+  color: #f59e0b;
+  font-size: 12px;
+}
+
+/* ============================================================
+   BRAND
+============================================================ */
+
+.brand-options {
+  max-height: 220px;
+}
+
+.no-brands {
+  margin: 5px 0;
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+/* ============================================================
+   RESET BUTTON
+============================================================ */
+
+.filter-reset-button {
+  width: calc(100% - 32px);
+  height: 40px;
+  margin: 16px;
+  margin-top: 15px;
+  border: 1px solid #16a34a;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #16a34a;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.filter-reset-button:hover {
+  background: #16a34a;
+  color: #ffffff;
+}
+
+/* =========================================================
+   FILTER PANEL - MOBILE SCREEN ONLY
+   ========================================================= */
+
+@media (max-width: 600px) {
+
+  .filter-panel {
+    width: 100%;
+    max-width: 100%;
+    background: #fff;
+    padding: 16px;
+    margin: 0;
+    box-sizing: border-box;
+    border-radius: 0;
+    overflow-x: hidden;
+  }
+
+  /* Header */
+  .filter-header {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 15px;
+    margin-bottom: 5px;
+    border-bottom: 1px solid #e5e5e5;
+  }
+
+  .filter-title {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+  }
+
+  .filter-title svg {
+    font-size: 17px;
+  }
+
+  .filter-title h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+  }
+
+  .clear-filter-btn {
+    border: none;
+    background: transparent;
+    padding: 5px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  /* Filter Sections */
+  .filter-section {
+    width: 100%;
+    border-bottom: 1px solid #e5e5e5;
+    padding: 14px 0;
+  }
+
+  .filter-section-title {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border: none;
+    background: transparent;
+    padding: 2px 0;
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: 700;
+    text-align: left;
+  }
+
+  .filter-section-title svg {
+    font-size: 12px;
+    transition: transform 0.25s ease;
+  }
+
+  .filter-section-title svg.rotate {
+    transform: rotate(180deg);
+  }
+
+  /* Options */
+  .filter-options {
+    width: 100%;
+    padding-top: 10px;
+  }
+
+  .filter-option {
+    width: 100%;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 0;
+    box-sizing: border-box;
+    cursor: pointer;
+    font-size: 13px;
+  }
+
+  .filter-option input[type="radio"] {
+    width: 17px;
+    height: 17px;
+    flex-shrink: 0;
+    margin: 0;
+    cursor: pointer;
+  }
+
+  .filter-option span {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    line-height: 1.4;
+  }
+
+  /* Rating */
+  .rating-option span {
+    gap: 6px;
+  }
+
+  .rating-option span svg {
+    font-size: 12px;
+  }
+
+  /* Brand */
+  .brand-options {
+    max-height: 220px;
+    overflow-y: auto;
+    padding-right: 5px;
+  }
+
+  .brand-options::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .brand-options::-webkit-scrollbar-thumb {
+    border-radius: 10px;
+  }
+
+  .no-brands {
+    margin: 8px 0;
+    font-size: 13px;
+  }
+
+  /* Reset Button */
+  .filter-reset-button {
+    width: 100%;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 18px;
+    padding: 11px 15px;
+    border: 1px solid #ddd;
+    border-radius: 7px;
+    background: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .filter-reset-button svg {
+    font-size: 13px;
+  }
+}
+
+
+/* =========================================================
+   SMALL MOBILE
+   ========================================================= */
+
+@media (max-width: 400px) {
+
+  .filter-panel {
+    padding: 13px;
+  }
+
+  .filter-title h3 {
+    font-size: 17px;
+  }
+
+  .clear-filter-btn {
+    font-size: 12px;
+  }
+
+  .filter-section {
+    padding: 12px 0;
+  }
+
+  .filter-section-title {
+    font-size: 14px;
+  }
+
+  .filter-option {
+    min-height: 36px;
+    font-size: 12px;
+  }
+
+  .filter-option input[type="radio"] {
+    width: 16px;
+    height: 16px;
+  }
+
+  .filter-reset-button {
+    min-height: 42px;
+    font-size: 13px;
+  }
+}
+
+
+/* =========================================================
+   VERY SMALL MOBILE
+   ========================================================= */
+
+@media (max-width: 350px) {
+
+  .filter-panel {
+    padding: 11px;
+  }
+
+  .filter-title h3 {
+    font-size: 16px;
+  }
+
+  .filter-title {
+    gap: 7px;
+  }
+
+  .clear-filter-btn {
+    font-size: 11px;
+  }
+
+  .filter-section-title {
+    font-size: 13px;
+  }
+
+  .filter-option {
+    min-height: 34px;
+    font-size: 11px;
+    gap: 8px;
+  }
+
+  .filter-option input[type="radio"] {
+    width: 15px;
+    height: 15px;
+  }
+
+  .filter-reset-button {
+    font-size: 12px;
+    padding: 10px;
+  }
+}

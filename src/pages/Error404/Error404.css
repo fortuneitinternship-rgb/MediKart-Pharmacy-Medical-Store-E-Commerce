@@ -1,0 +1,77 @@
+.error-page {
+  min-height: 100vh;
+  background: #f8fafc;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.error-content {
+  max-width: 600px;
+}
+
+.error-page h1 {
+  font-size: 120px;
+  color: #16a34a;
+  margin: 0;
+  font-weight: 700;
+}
+
+.error-page h2 {
+  font-size: 38px;
+  color: #1f2937;
+  margin: 15px 0;
+}
+
+.error-page p {
+  font-size: 18px;
+  color: #6b7280;
+  line-height: 1.8;
+  margin-bottom: 30px;
+}
+
+.error-btn {
+  display: inline-block;
+  padding: 14px 30px;
+  background: #16a34a;
+  color: #fff;
+  text-decoration: none;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 17px;
+  font-weight: 600;
+  transition: 0.3s;
+}
+
+.error-btn:hover {
+  background: #15803d;
+  transform: translateY(-3px);
+}
+
+.error-icon {
+  font-size: 100px;
+  color: #16a34a;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 768px) {
+  .error-page h1 {
+    font-size: 80px;
+  }
+
+  .error-page h2 {
+    font-size: 28px;
+  }
+
+  .error-page p {
+    font-size: 16px;
+  }
+
+  .error-btn {
+    width: 100%;
+    padding: 14px;
+  }
+}

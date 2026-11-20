@@ -1,0 +1,989 @@
+/* =====================================================
+   MEDIKART TRACK ORDER
+===================================================== */
+
+.track-order-page {
+  min-height: 100vh;
+  background: #f5f6f8;
+  color: #212121;
+}
+
+
+/* =====================================================
+   HEADER
+===================================================== */
+
+.track-header {
+  background: #ffffff;
+  border-bottom: 1px solid #e1e4e8;
+}
+
+.track-header-inner {
+  width: min(1150px, 94%);
+  min-height: 76px;
+
+  margin: auto;
+
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.track-back-btn {
+  width: 38px;
+  height: 38px;
+
+  border: 1px solid #ddd;
+  border-radius: 50%;
+
+  background: #fff;
+
+  color: #555;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  cursor: pointer;
+}
+
+.track-back-btn:hover {
+  border-color: #2874f0;
+  color: #2874f0;
+}
+
+.track-header h1 {
+  margin: 0 0 3px;
+
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.track-header p {
+  margin: 0;
+
+  font-size: 12px;
+  color: #777;
+}
+
+.track-header p strong {
+  color: #333;
+}
+
+.track-home-btn {
+  margin-left: auto;
+
+  height: 38px;
+
+  padding: 0 15px;
+
+  border: 1px solid #2874f0;
+  border-radius: 5px;
+
+  color: #2874f0;
+
+  display: flex;
+  align-items: center;
+  gap: 7px;
+
+  text-decoration: none;
+
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.track-home-btn:hover {
+  background: #2874f0;
+  color: #fff;
+}
+
+
+/* =====================================================
+   MAIN
+===================================================== */
+
+.track-container {
+  width: min(1150px, 94%);
+
+  margin: 22px auto 50px;
+}
+
+
+/* =====================================================
+   COMMON CARD
+===================================================== */
+
+.track-card,
+.track-status-card {
+  background: #fff;
+
+  border: 1px solid #e1e4e8;
+
+  border-radius: 8px;
+
+  margin-bottom: 16px;
+}
+
+
+/* =====================================================
+   STATUS CARD
+===================================================== */
+
+.track-status-card {
+  min-height: 125px;
+
+  padding: 20px 24px;
+
+  box-sizing: border-box;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.track-status-left {
+  display: flex;
+  align-items: center;
+
+  gap: 15px;
+}
+
+.track-truck-icon {
+  width: 58px;
+  height: 58px;
+
+  border-radius: 50%;
+
+  background: #eef4ff;
+
+  color: #2874f0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 25px;
+}
+
+.track-status-left>div:last-child>span {
+  display: block;
+
+  margin-bottom: 3px;
+
+  font-size: 11px;
+
+  color: #888;
+}
+
+.track-status-left h2 {
+  margin: 0 0 6px;
+
+  font-size: 20px;
+
+  color: #2874f0;
+}
+
+.track-status-left p {
+  margin: 0;
+
+  display: flex;
+  align-items: center;
+
+  gap: 6px;
+
+  font-size: 11px;
+
+  color: #777;
+}
+
+.track-status-left p svg {
+  color: #2874f0;
+}
+
+.track-id-box {
+  padding-left: 35px;
+
+  border-left: 1px solid #eee;
+
+  text-align: right;
+}
+
+.track-id-box span {
+  display: block;
+
+  margin-bottom: 5px;
+
+  font-size: 10px;
+
+  color: #999;
+}
+
+.track-id-box strong {
+  font-size: 13px;
+
+  color: #333;
+
+  letter-spacing: 0.3px;
+}
+
+
+/* =====================================================
+   CARD HEADING
+===================================================== */
+
+.track-card {
+  padding: 0;
+}
+
+.track-card-heading {
+  padding: 20px 24px;
+
+  border-bottom: 1px solid #eee;
+}
+
+.track-card-heading h2 {
+  margin: 0 0 5px;
+
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.track-card-heading p {
+  margin: 0;
+
+  font-size: 11px;
+
+  color: #888;
+}
+
+
+/* =====================================================
+   TRACKING TIMELINE
+===================================================== */
+
+.track-timeline {
+  padding: 28px 35px 32px;
+}
+
+.track-step {
+  display: flex;
+
+  min-height: 82px;
+}
+
+.track-step-left {
+  width: 42px;
+
+  flex-shrink: 0;
+
+  position: relative;
+
+  display: flex;
+  justify-content: center;
+}
+
+.track-step-circle {
+  width: 32px;
+  height: 32px;
+
+  border: 2px solid #d9dde2;
+
+  border-radius: 50%;
+
+  background: #fff;
+
+  color: #aeb4bb;
+
+  z-index: 2;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 12px;
+}
+
+.track-step-line {
+  position: absolute;
+
+  top: 32px;
+
+  bottom: 0;
+
+  left: 20px;
+
+  width: 2px;
+
+  background: #e2e5e8;
+
+  transform: translateX(-50%);
+}
+
+
+/* =====================================================
+   STEP CONTENT
+===================================================== */
+
+.track-step-content {
+  flex: 1;
+
+  padding-left: 17px;
+}
+
+.track-step-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 20px;
+}
+
+.track-step-title h3 {
+  margin: 5px 0 4px;
+
+  font-size: 14px;
+
+  color: #777;
+
+  font-weight: 500;
+}
+
+.track-step-title span {
+  font-size: 10px;
+
+  color: #999;
+}
+
+.track-step-content p {
+  margin: 0;
+
+  font-size: 11px;
+
+  line-height: 1.5;
+
+  color: #aaa;
+}
+
+
+/* =====================================================
+   COMPLETED
+===================================================== */
+
+.track-step.completed .track-step-circle {
+  border-color: #2874f0;
+
+  background: #2874f0;
+
+  color: #fff;
+}
+
+.track-step.completed .track-step-line {
+  background: #2874f0;
+}
+
+.track-step.completed h3 {
+  color: #333;
+}
+
+.track-step.completed p {
+  color: #777;
+}
+
+
+/* =====================================================
+   ACTIVE
+===================================================== */
+
+.track-step.active .track-step-circle {
+  width: 36px;
+  height: 36px;
+
+  margin-top: -2px;
+
+  border-color: #2874f0;
+
+  background: #2874f0;
+
+  color: #fff;
+
+  box-shadow:
+    0 0 0 5px rgba(40, 116, 240, 0.12);
+
+  font-size: 14px;
+}
+
+.track-step.active h3 {
+  color: #2874f0;
+
+  font-size: 15px;
+
+  font-weight: 700;
+}
+
+.track-step.active p {
+  color: #555;
+}
+
+.track-active {
+  display: inline-block;
+
+  margin-top: 8px;
+
+  padding: 4px 8px;
+
+  border-radius: 3px;
+
+  background: #eef4ff;
+
+  color: #2874f0 !important;
+
+  font-size: 9px !important;
+
+  font-weight: 700;
+}
+
+
+/* =====================================================
+   PRODUCTS
+===================================================== */
+
+.track-products {
+  padding: 5px 24px 0;
+}
+
+.track-product-row {
+  min-height: 90px;
+
+  padding: 14px 0;
+
+  border-bottom: 1px solid #eee;
+
+  display: flex;
+  align-items: center;
+
+  gap: 15px;
+}
+
+.track-product-row:last-child {
+  border-bottom: none;
+}
+
+.track-product-img {
+  width: 75px;
+  height: 75px;
+
+  flex-shrink: 0;
+
+  border: 1px solid #eee;
+  border-radius: 6px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: #fff;
+
+  overflow: hidden;
+
+  color: #aaa;
+
+  font-size: 25px;
+}
+
+.track-product-img img {
+  width: 100%;
+  height: 100%;
+
+  object-fit: contain;
+}
+
+.track-product-details {
+  flex: 1;
+}
+
+.track-product-details h3 {
+  margin: 0 0 7px;
+
+  font-size: 13px;
+
+  font-weight: 500;
+
+  color: #333;
+}
+
+.track-product-details p {
+  margin: 0;
+
+  font-size: 11px;
+
+  color: #888;
+}
+
+.track-product-row>strong {
+  font-size: 14px;
+}
+
+.track-no-products {
+  padding: 25px;
+
+  text-align: center;
+
+  color: #999;
+}
+
+.track-no-products svg {
+  font-size: 25px;
+
+  margin-bottom: 7px;
+}
+
+.track-no-products p {
+  margin: 0;
+
+  font-size: 12px;
+}
+
+
+/* =====================================================
+   TOTAL
+===================================================== */
+
+.track-total {
+  min-height: 55px;
+
+  padding: 0 24px;
+
+  border-top: 1px solid #eee;
+
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+
+  gap: 35px;
+}
+
+.track-total span {
+  font-size: 12px;
+
+  color: #777;
+}
+
+.track-total strong {
+  font-size: 18px;
+}
+
+
+/* =====================================================
+   SHIPMENT
+===================================================== */
+
+.track-shipment-grid {
+  padding: 22px 24px;
+
+  display: grid;
+
+  grid-template-columns: repeat(3, 1fr);
+
+  gap: 22px;
+}
+
+.track-shipment-grid span {
+  display: block;
+
+  margin-bottom: 6px;
+
+  font-size: 10px;
+
+  color: #999;
+}
+
+.track-shipment-grid strong {
+  font-size: 12px;
+
+  color: #333;
+}
+
+
+/* =====================================================
+   ADDRESS
+===================================================== */
+
+.track-address {
+  padding: 20px 24px;
+
+  display: flex;
+
+  gap: 15px;
+}
+
+.track-address-icon {
+  width: 43px;
+  height: 43px;
+
+  flex-shrink: 0;
+
+  border-radius: 50%;
+
+  background: #eef4ff;
+
+  color: #2874f0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.track-address h3 {
+  margin: 0 0 5px;
+
+  font-size: 13px;
+}
+
+.track-address p {
+  max-width: 650px;
+
+  margin: 0 0 7px;
+
+  font-size: 11px;
+
+  line-height: 1.6;
+
+  color: #666;
+}
+
+.track-address span {
+  display: flex;
+  align-items: center;
+
+  gap: 6px;
+
+  font-size: 11px;
+
+  color: #777;
+}
+
+
+/* =====================================================
+   ACTIONS
+===================================================== */
+
+.track-actions {
+  display: flex;
+
+  gap: 10px;
+
+  margin-bottom: 18px;
+}
+
+.track-actions button,
+.track-actions a {
+  min-height: 42px;
+
+  padding: 0 17px;
+
+  box-sizing: border-box;
+
+  border-radius: 5px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: 7px;
+
+  font-size: 12px;
+
+  font-weight: 600;
+
+  cursor: pointer;
+
+  text-decoration: none;
+}
+
+.track-help-btn {
+  background: #2874f0;
+
+  color: #fff;
+
+  border: 1px solid #2874f0;
+}
+
+.track-help-btn:hover {
+  background: #1765df;
+}
+
+.track-cancel-btn {
+  background: #fff;
+
+  color: #d93025;
+
+  border: 1px solid #ddd;
+}
+
+.track-cancel-btn:hover {
+  border-color: #d93025;
+}
+
+.track-return-btn {
+  background: #fff;
+
+  color: #2874f0;
+
+  border: 1px solid #2874f0;
+}
+
+
+/* =====================================================
+   VIEW ORDERS
+===================================================== */
+
+.track-view-orders {
+  text-align: center;
+}
+
+.track-view-orders a {
+  display: inline-flex;
+
+  align-items: center;
+
+  gap: 7px;
+
+  color: #2874f0;
+
+  text-decoration: none;
+
+  font-size: 13px;
+
+  font-weight: 600;
+}
+
+
+/* =====================================================
+   EMPTY
+===================================================== */
+
+.track-order-empty {
+  min-height: 100vh;
+
+  background: #f5f6f8;
+
+  display: flex;
+  flex-direction: column;
+
+  align-items: center;
+  justify-content: center;
+
+  text-align: center;
+}
+
+.track-empty-icon {
+  width: 75px;
+  height: 75px;
+
+  border-radius: 50%;
+
+  background: #eef4ff;
+
+  color: #2874f0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 30px;
+
+  margin-bottom: 15px;
+}
+
+.track-order-empty h2 {
+  margin: 0 0 7px;
+
+  font-size: 21px;
+}
+
+.track-order-empty p {
+  margin: 0 0 18px;
+
+  font-size: 13px;
+
+  color: #888;
+}
+
+.track-empty-btn {
+  padding: 10px 18px;
+
+  border-radius: 5px;
+
+  background: #2874f0;
+
+  color: #fff;
+
+  text-decoration: none;
+
+  font-size: 12px;
+
+  font-weight: 600;
+}
+
+
+/* =====================================================
+   TABLET
+===================================================== */
+
+@media (max-width: 800px) {
+
+  .track-status-card {
+    align-items: flex-start;
+
+    flex-direction: column;
+
+    gap: 18px;
+  }
+
+  .track-id-box {
+    width: 100%;
+
+    padding: 15px 0 0;
+
+    border-left: none;
+
+    border-top: 1px solid #eee;
+
+    text-align: left;
+  }
+
+  .track-shipment-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+
+/* =====================================================
+   MOBILE
+===================================================== */
+
+@media (max-width: 550px) {
+
+  .track-header-inner {
+    width: 92%;
+  }
+
+  .track-header h1 {
+    font-size: 19px;
+  }
+
+  .track-home-btn {
+    width: 38px;
+
+    padding: 0;
+
+    justify-content: center;
+
+    font-size: 0;
+  }
+
+  .track-home-btn svg {
+    font-size: 14px;
+  }
+
+  .track-container {
+    width: 92%;
+
+    margin-top: 15px;
+  }
+
+  .track-status-card {
+    padding: 17px;
+  }
+
+  .track-truck-icon {
+    width: 48px;
+    height: 48px;
+
+    font-size: 20px;
+  }
+
+  .track-status-left h2 {
+    font-size: 17px;
+  }
+
+  .track-card-heading {
+    padding: 17px;
+  }
+
+  .track-timeline {
+    padding: 22px 15px;
+  }
+
+  .track-step {
+    min-height: 92px;
+  }
+
+  .track-step-content {
+    padding-left: 10px;
+  }
+
+  .track-step-title {
+    align-items: flex-start;
+
+    flex-direction: column;
+
+    gap: 2px;
+  }
+
+  .track-step-title h3 {
+    font-size: 13px;
+  }
+
+  .track-step-title span {
+    font-size: 9px;
+  }
+
+  .track-step-content p {
+    font-size: 10px;
+  }
+
+  .track-products {
+    padding: 5px 15px 0;
+  }
+
+  .track-product-img {
+    width: 60px;
+    height: 60px;
+  }
+
+  .track-product-details h3 {
+    font-size: 11px;
+  }
+
+  .track-product-row>strong {
+    font-size: 12px;
+  }
+
+  .track-total {
+    padding: 0 15px;
+
+    gap: 20px;
+  }
+
+  .track-shipment-grid {
+    padding: 18px 15px;
+
+    grid-template-columns: 1fr 1fr;
+
+    gap: 18px 10px;
+  }
+
+  .track-address {
+    padding: 18px 15px;
+  }
+
+  .track-actions {
+    flex-direction: column;
+  }
+
+  .track-actions a,
+  .track-actions button {
+    width: 100%;
+  }
+}
