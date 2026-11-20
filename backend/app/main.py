@@ -10,7 +10,10 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import settings
 from app.database.database import Base, engine
-from app.database.migrations import upgrade_legacy_address_schema
+from app.database.migrations import (
+    sync_missing_columns,
+    upgrade_legacy_address_schema,
+)
 
 # Import all models so SQLAlchemy registers their tables.
 import app.database.base  # noqa: F401
@@ -73,6 +76,11 @@ async def lifespan(app: FastAPI):
 
         # Create missing database tables.
         Base.metadata.create_all(bind=engine)
+
+        # Add columns missing from tables created by an older schema.
+        added_columns = sync_missing_columns(engine)
+        if added_columns:
+            logger.info("Added missing database columns: %s", added_columns)
 
         # Verify database connection.
         with engine.connect() as connection:

@@ -1,6 +1,6 @@
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
-from sqlalchemy import Boolean, Column, Engine, Float, Integer, String, inspect, text
+from sqlalchemy import Boolean, Column, Engine, Float, Integer, String, false, inspect, text
 
 
 def upgrade_application_schema(engine: Engine) -> None:
@@ -26,7 +26,7 @@ def upgrade_application_schema(engine: Engine) -> None:
                     "stock_reserved",
                     Boolean(),
                     nullable=False,
-                    server_default="false",
+                    server_default=false(),
                 ),
             )
 
@@ -153,3 +153,75 @@ def upgrade_legacy_address_schema(engine: Engine) -> None:
                 "addresses",
                 Column("address_line2", String(255), nullable=True),
             )
+
+
+def _column_default_sql(column, dialect) -> str | None:
+    """Return a literal SQL DEFAULT for a model column, or None."""
+    from sqlalchemy import Boolean as SABoolean
+    from sqlalchemy import DateTime as SADateTime
+
+    if column.server_default is not None:
+        arg = getattr(column.server_default, "arg", None)
+        if isinstance(arg, str):
+            return "'" + arg.replace("'", "''") + "'"
+        if arg is not None:
+            if dialect.name == "sqlite":
+                return None  # SQLite cannot ADD COLUMN with a non-constant default
+            try:
+                compiled = str(
+                    arg.compile(dialect=dialect, compile_kwargs={"literal_binds": True})
+                )
+            except Exception:
+                return None
+            if isinstance(column.type, SADateTime):
+                return "CURRENT_TIMESTAMP"
+            return compiled
+
+    default = getattr(column.default, "arg", None) if column.default is not None else None
+    if default is not None and not callable(default):
+        if isinstance(default, bool) or isinstance(column.type, SABoolean):
+            return "1" if default else "0"
+        if isinstance(default, (int, float)):
+            return str(default)
+        if isinstance(default, str):
+            return "'" + default.replace("'", "''") + "'"
+    return None
+
+
+def sync_missing_columns(engine: Engine) -> list[str]:
+    """
+    Add columns that exist in the SQLAlchemy models but not in an already
+    existing table (for example a database created from an older
+    auth_schema.sql). Nothing is ever dropped or modified.
+    Returns a list of "table.column" names that were added.
+    """
+    from app.database.database import Base
+    import app.database.base  # noqa: F401  (registers every model)
+
+    added: list[str] = []
+    inspector = inspect(engine)
+    existing_tables = set(inspector.get_table_names())
+    dialect = engine.dialect
+    quote = dialect.identifier_preparer.quote
+
+    with engine.begin() as connection:
+        for table in Base.metadata.sorted_tables:
+            if table.name not in existing_tables:
+                continue
+            present = {c["name"] for c in inspector.get_columns(table.name)}
+            for column in table.columns:
+                if column.name in present or column.primary_key:
+                    continue
+                column_type = column.type.compile(dialect=dialect)
+                default_sql = _column_default_sql(column, dialect)
+                parts = [quote(column.name), column_type]
+                if column.nullable or default_sql is None:
+                    parts.append("NULL")  # safe for rows that already exist
+                else:
+                    parts.append("NOT NULL")
+                if default_sql is not None:
+                    parts.append(f"DEFAULT {default_sql}")
+                statement = f"ALTER TABLE {quote(table.name)} ADD COLUMN {' '.join(parts)}"
+                connection.execute(text(statement))
+                added.append(f"{table.name}.{column.name}")
+    return added

@@ -1,6 +1,5 @@
 
 from datetime import datetime
-import logging
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -23,9 +22,6 @@ from app.schemas.product import (
     ProductResponse,
     ProductUpdate,
 )
-
-
-logger = logging.getLogger(__name__)
 
 
 router = APIRouter(
@@ -51,45 +47,31 @@ def calculate_discount(product):
 
 
 def product_response(product):
-    """
-    Convert a SQLAlchemy Product row into the API response shape.
-
-    Some older rows may contain NULL values even where the current model
-    defines Python-side defaults. Normalize those values so one legacy row
-    cannot make the entire /api/products response fail validation.
-    """
-    created_at = product.created_at or datetime.utcnow()
-    updated_at = product.updated_at or created_at
-
     return {
         "id": product.id,
         "name": product.name,
         "brand": product.brand,
         "description": product.description,
-        "price": float(product.price or 0),
-        "discount_price": (
-            float(product.discount_price)
-            if product.discount_price is not None
-            else None
-        ),
+        "price": product.price,
+        "discount_price": product.discount_price,
         "discount_percentage": calculate_discount(product),
         "category": product.category.name if product.category else None,
-        "stock": int(product.stock or 0),
+        "stock": product.stock,
         "image": product.image,
-        "rating": float(product.rating or 0),
-        "reviews": int(product.reviews or 0),
+        "rating": product.rating,
+        "reviews": product.reviews or 0,
         "pack_size": product.pack_size,
         "expiry": product.expiry,
         "delivery": product.delivery,
         "return_policy": product.return_policy,
-        "is_active": bool(product.is_active),
-        "is_featured": bool(product.is_featured),
-        "is_trending": bool(product.is_trending),
-        "is_flash_sale": bool(product.is_flash_sale),
+        "is_active": product.is_active,
+        "is_featured": product.is_featured,
+        "is_trending": product.is_trending,
+        "is_flash_sale": product.is_flash_sale,
         "flash_sale_start": product.flash_sale_start,
         "flash_sale_end": product.flash_sale_end,
-        "created_at": created_at,
-        "updated_at": updated_at,
+        "created_at": product.created_at,
+        "updated_at": product.updated_at,
     }
 
 
@@ -192,100 +174,86 @@ def get_products(
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ):
-    """Return active products for the storefront."""
+
     if (
         min_price is not None
         and max_price is not None
         and min_price > max_price
     ):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=422,
             detail="min_price cannot be greater than max_price.",
         )
 
-    try:
-        query = (
-            db.query(Product)
-            .options(joinedload(Product.category))
-            # Include legacy NULL active flags, but do not expose explicitly
-            # deactivated products to storefront customers.
-            .filter(
-                or_(
-                    Product.is_active.is_(True),
-                    Product.is_active.is_(None),
-                )
+    query = (
+        db.query(Product)
+        .options(joinedload(Product.category))
+        .filter(Product.is_active.is_(True))
+    )
+
+    if q is not None:
+        search = f"%{q.strip()}%"
+
+        query = query.filter(
+            or_(
+                Product.name.ilike(search),
+                Product.brand.ilike(search),
+                Product.description.ilike(search),
             )
         )
 
-        search_text = q.strip() if q else ""
-        if search_text:
-            search = f"%{search_text}%"
-            query = query.filter(
-                or_(
-                    Product.name.ilike(search),
-                    Product.brand.ilike(search),
-                    Product.description.ilike(search),
-                )
+    if category is not None:
+        query = (
+            query.join(Product.category)
+            .filter(
+                func.lower(Category.name) == category.strip().lower(),
+                Category.is_active.is_(True),
             )
+        )
 
-        category_name = category.strip() if category else ""
-        if category_name:
-            query = (
-                query.join(Product.category)
-                .filter(
-                    func.lower(Category.name) == category_name.lower(),
-                    Category.is_active.is_(True),
-                )
-            )
-
-        if min_price is not None:
-            query = query.filter(
-                func.coalesce(
-                    Product.discount_price,
-                    Product.price,
-                ) >= min_price
-            )
-
-        if max_price is not None:
-            query = query.filter(
-                func.coalesce(
-                    Product.discount_price,
-                    Product.price,
-                ) <= max_price
-            )
-
-        sort_columns = {
-            "name": Product.name,
-            "price": func.coalesce(
+    if min_price is not None:
+        query = query.filter(
+            func.coalesce(
                 Product.discount_price,
                 Product.price,
-            ),
-            "rating": Product.rating,
-            "created_at": Product.created_at,
-        }
-        sort_column = sort_columns[sort_by]
+            ) >= min_price
+        )
 
-        query = query.order_by(
-            sort_column.desc() if sort_order == "desc"
-            else sort_column.asc(),
-            Product.id.asc(),
-        ).offset(offset)
+    if max_price is not None:
+        query = query.filter(
+            func.coalesce(
+                Product.discount_price,
+                Product.price,
+            ) <= max_price
+        )
 
-        if limit is not None:
-            query = query.limit(limit)
+    sort_column = {
+        "name": Product.name,
+        "price": func.coalesce(
+            Product.discount_price,
+            Product.price,
+        ),
+        "rating": Product.rating,
+        "created_at": Product.created_at,
+    }[sort_by]
 
-        products = query.all()
+    query = query.order_by(
+        sort_column.desc() if sort_order == "desc"
+        else sort_column.asc(),
+        Product.id.asc(),
+    )
 
-        return [product_response(product) for product in products]
+    query = query.offset(offset)
 
-    except HTTPException:
-        raise
-    except Exception as error:
-        logger.exception("Failed to load products from the database")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Unable to fetch products from database. Check backend logs.",
-        ) from error
+    if limit is not None:
+        query = query.limit(limit)
+
+    products = query.all()
+
+    return [
+        product_response(product)
+        for product in products
+    ]
 
 
 # =================================================

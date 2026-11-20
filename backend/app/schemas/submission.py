@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel, EmailStr, Field, field_validator, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class ContactMessageCreate(BaseModel):
@@ -15,11 +15,6 @@ class ProductReviewCreate(BaseModel):
     product: str = Field(min_length=1, max_length=255)
     rating: int = Field(ge=1, le=5)
     review: str = Field(min_length=1, max_length=5000)
-
-    @field_validator("product", "review", mode="before")
-    @classmethod
-    def strip_review_values(cls, value):
-        return value.strip() if isinstance(value, str) else value
 
     @field_validator("product", "review", mode="before")
     @classmethod
