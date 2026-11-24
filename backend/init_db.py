@@ -9,6 +9,7 @@ What it does (safe to run again and again):
   3. Loads the 200+ product catalog (data/product_catalog.json).
   4. Creates a default admin account if none exists.
 """
+import os
 import sys
 
 from sqlalchemy import create_engine, text
@@ -84,8 +85,13 @@ def create_admin() -> None:
     from app.database.database import SessionLocal
     from app.models.user import User
 
-    email = "admin@medikart.com"
-    password = "Admin@12345"
+    email = os.getenv("ADMIN_EMAIL", "admin@medikart.com")
+    password = os.getenv("ADMIN_PASSWORD")
+    if not password:
+        if settings.APP_ENV == "production":
+            print("[4/4] No admin created: set ADMIN_EMAIL and ADMIN_PASSWORD, then run again.")
+            return
+        password = "Admin@12345"  # development default only
     with SessionLocal() as db:
         if db.query(User).filter(User.is_admin.is_(True)).first():
             print("[4/4] An admin account already exists - skipped.")

@@ -117,10 +117,14 @@ export const getOrderTracking = async (orderId) => {
     }
 };
 
-export const cancelOrder = async (orderId) => {
+export const cancelOrder = async (
+    orderId,
+    reason = "Cancelled by customer"
+) => {
     try {
         const response = await api.patch(
-            `/api/orders/${encodeURIComponent(orderId)}/cancel`
+            `/api/orders/${encodeURIComponent(orderId)}/cancel`,
+            { reason: String(reason || "Cancelled by customer").trim() }
         );
         return response.data;
     } catch (error) {

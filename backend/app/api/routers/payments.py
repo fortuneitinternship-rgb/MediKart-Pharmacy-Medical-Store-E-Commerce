@@ -56,6 +56,27 @@ def money(value) -> Decimal:
     )
 
 
+
+# ---------------------------------------------------------
+# KEEP ORDER.PAYMENT_STATUS IN SYNC WITH THE PAYMENT ROW
+# ---------------------------------------------------------
+
+ONLINE_METHODS = {"CARD", "NETBANKING", "UPI"}
+PROVIDER_METHODS = {"card", "netbanking", "upi"}
+
+
+def set_payment_state(
+    payment: Payment,
+    new_status: str,
+    order: Order | None = None,
+) -> None:
+    """Set the payment status and mirror it on the order."""
+    payment.status = new_status
+    target = order if order is not None else payment.order
+    if target is not None:
+        target.payment_status = new_status
+
+
 # ---------------------------------------------------------
 # REQUEST SCHEMAS
 # ---------------------------------------------------------
@@ -76,7 +97,7 @@ class PaymentWebhookPayload(BaseModel):
     transaction_id: str = Field(min_length=1, max_length=100)
     amount: Decimal = Field(ge=0)
 
-    method: Literal["CARD", "NETBANKING"]
+    method: Literal["CARD", "NETBANKING", "UPI"]
     status: Literal["succeeded", "failed"]
 
     @field_validator("amount")
@@ -168,7 +189,27 @@ def process_payment(
 
     if data.method == "COD":
         payment.transaction_id = None
-        payment.status = "Pending"
+        set_payment_state(payment, "Pending", order)
+
+    elif payment.status == "Paid":
+        # Already paid: return the saved receipt (safe to call twice).
+        pass
+
+    elif (
+        data.method == "UPI"
+        and "fail" in (data.upi_id or "").split("@")[0].lower()
+    ):
+        # Simulator only: a UPI ID containing "fail" is declined so the
+        # failure path can be tested (for example fail@upi).
+        set_payment_state(payment, "Failed", order)
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail=(
+                "Your UPI payment was declined. "
+                "Please try another UPI ID or payment method."
+            ),
+        )
 
     else:
         if not payment.transaction_id:
@@ -176,7 +217,8 @@ def process_payment(
                 "TXN-" + uuid.uuid4().hex[:12].upper()
             )
 
-        payment.status = "Simulated"
+        # Simulator mode: the payment is accepted immediately.
+        set_payment_state(payment, "Paid", order)
 
     db.commit()
     db.refresh(payment)
@@ -220,7 +262,7 @@ def create_razorpay_order(
             detail="Order not found.",
         )
 
-    if order.payment_method not in {"CARD", "NETBANKING"}:
+    if order.payment_method not in ONLINE_METHODS:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="This order is not configured for online payment.",
@@ -443,10 +485,7 @@ def verify_razorpay_payment(
         or provider_payment.get("amount") != expected_amount
         or provider_payment.get("currency") != "INR"
         or provider_payment.get("status") != "captured"
-        or provider_payment.get("method") not in {
-            "card",
-            "netbanking",
-        }
+        or provider_payment.get("method") not in PROVIDER_METHODS
     ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -464,7 +503,7 @@ def verify_razorpay_payment(
 
     payment.transaction_id = payload.razorpay_payment_id
     payment.method = provider_payment["method"].upper()
-    payment.status = "Paid"
+    set_payment_state(payment, "Paid")
 
     db.commit()
     db.refresh(payment)
@@ -579,7 +618,7 @@ async def razorpay_webhook(
     if (
         currency != "INR"
         or amount != expected_amount
-        or method not in {"card", "netbanking"}
+        or method not in PROVIDER_METHODS
     ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -598,10 +637,9 @@ async def razorpay_webhook(
     payment.transaction_id = transaction_id
     payment.method = method.upper()
 
-    payment.status = (
-        "Paid"
-        if event_type == "payment.captured"
-        else "Failed"
+    set_payment_state(
+        payment,
+        "Paid" if event_type == "payment.captured" else "Failed",
     )
 
     db.add(
@@ -775,10 +813,10 @@ async def verify_payment_webhook(
     payment.amount = float(expected_amount)
     payment.method = payload.method
 
-    payment.status = (
-        "Paid"
-        if payload.status == "succeeded"
-        else "Failed"
+    set_payment_state(
+        payment,
+        "Paid" if payload.status == "succeeded" else "Failed",
+        order,
     )
 
     db.add(

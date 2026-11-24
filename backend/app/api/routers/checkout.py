@@ -78,7 +78,7 @@ class CheckoutItemRequest(BaseModel):
 class CheckoutOrderRequest(BaseModel):
     items: list[CheckoutItemRequest] = Field(min_length=1)
     shipping_address: ShippingAddress
-    payment_method: Literal["COD", "CARD", "NETBANKING"]
+    payment_method: Literal["COD", "CARD", "NETBANKING", "UPI"]
     delivery_type: Literal["normal", "express", "today"] = "normal"
     delivery_distance: Literal["short", "medium", "long"] = "short"
     coupon_code: str | None = Field(default=None, min_length=3, max_length=50)

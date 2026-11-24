@@ -11,6 +11,7 @@ import {
 } from "react-icons/fa";
 
 import "./OrderDetails.css";
+import { syncOrdersFromServer } from "../../utils/orders";
 
 const OrderDetails = () => {
   const { id } = useParams();
@@ -19,14 +20,24 @@ const OrderDetails = () => {
   const [order, setOrder] = useState(null);
 
   useEffect(() => {
-    const savedOrders =
-      JSON.parse(localStorage.getItem("orders")) || [];
+    const readOrder = () => {
+      let savedOrders = [];
+      try {
+        savedOrders = JSON.parse(localStorage.getItem("orders")) || [];
+      } catch {
+        savedOrders = [];
+      }
 
-    const selectedOrder = savedOrders.find(
-      (item) => String(item.id) === String(id)
-    );
+      setOrder(
+        savedOrders.find((item) => String(item.id) === String(id))
+      );
+    };
 
-    setOrder(selectedOrder);
+    readOrder();
+    syncOrdersFromServer(); // refresh from the backend, then "ordersUpdated" re-reads
+    window.addEventListener("ordersUpdated", readOrder);
+
+    return () => window.removeEventListener("ordersUpdated", readOrder);
   }, [id]);
 
   if (!order) {

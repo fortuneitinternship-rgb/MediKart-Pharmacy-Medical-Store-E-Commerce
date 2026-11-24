@@ -77,6 +77,7 @@ def serialize_order(order: Order, db: Session) -> dict:
         "status": order.status,
         "cancellation_reason": order.cancellation_reason,
         "cancelled_at": order.cancelled_at,
+        "created_at": order.created_at,
         "items": items,
     }
 

@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { FaBox, FaCalendarAlt, FaCheckCircle, FaTruck } from "react-icons/fa";
 import "./OrderHistory.css";
+import { syncOrdersFromServer } from "../../utils/orders";
 
 const OrderHistory = () => {
     const [orders, setOrders] = useState([]);
 
     useEffect(() => {
         loadOrders();
+        syncOrdersFromServer(); // refresh from the backend
 
         const handleOrderUpdate = () => {
             loadOrders();

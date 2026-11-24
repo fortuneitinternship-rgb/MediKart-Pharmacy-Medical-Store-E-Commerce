@@ -12,6 +12,7 @@ from app.models.category import Category
 from app.models.product import Product
 from app.models.product_image import ProductImage
 from app.models.submission import ( ContactMessage, HealthRecord, OrderFeedback, Prescription, ProductReview,)
+from app.models.cart import Cart
 from app.models.cart_item import CartItem
 from app.models.wishlist import Wishlist
 from app.models.comparison import Comparison

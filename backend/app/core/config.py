@@ -11,7 +11,8 @@ DEFAULT_DATABASE_PATH = Path(__file__).resolve().parents[2] / "medikart.db"
 class Settings(BaseSettings):
     APP_ENV: Literal["development", "production"] = "development"
 
-    DATABASE_URL: str = f"sqlite:///{DEFAULT_DATABASE_PATH.as_posix()}"
+    # Default = local MySQL (root / root). Override with DATABASE_URL in backend/.env
+    DATABASE_URL: str = "mysql+pymysql://root:root@localhost:3306/medikart"
 
     UPLOAD_DIR: Path = Path(__file__).resolve().parents[2] / "uploads"
 

@@ -119,6 +119,7 @@ class OrderResponse(BaseModel):
 
     cancellation_reason: Optional[str] = None
     cancelled_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
 
     items: list[OrderItemResponse] = Field(default_factory=list)
 

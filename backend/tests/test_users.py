@@ -739,7 +739,7 @@ def test_checkout_payment_receipt_is_owned_and_cod_is_not_marked_paid(client, us
     assert mismatched_method.status_code == 409
 
 
-def test_card_payment_receipt_returns_simulated_transaction(client, users):
+def test_card_payment_simulator_marks_payment_and_order_paid(client, users):
     with SessionLocal() as db:
         category = Category(name="Card Payment")
         db.add(category)
@@ -781,9 +781,13 @@ def test_card_payment_receipt_returns_simulated_transaction(client, users):
     )
 
     assert receipt.status_code == 200
-    assert receipt.json()["status"] == "Simulated"
+    assert receipt.json()["status"] == "Paid"
     assert receipt.json()["transaction_id"].startswith("TXN-")
     assert receipt.json()["amount"] == 100
+    saved_order = client.get(
+        f"/api/orders/{order_id}", headers=auth(users["first_token"])
+    )
+    assert saved_order.json()["payment_status"] == "Paid"
 
 
 def test_razorpay_order_uses_server_calculated_amount(client, users, monkeypatch):

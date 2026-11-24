@@ -18,6 +18,9 @@ import {
 import { toast } from "react-toastify";
 
 import "./Orders.css";
+import { cancelOrder } from "../../api/ordersApi";
+import { getStoredAccessToken } from "../../services/api";
+import { syncOrdersFromServer } from "../../utils/orders";
 
 const Orders = () => {
     const navigate = useNavigate();
@@ -54,6 +57,7 @@ const Orders = () => {
 
     useEffect(() => {
         loadOrders();
+        syncOrdersFromServer(); // refresh from the backend (updates the cache + fires "ordersUpdated")
 
         const handleOrderUpdate = () => {
             loadOrders();
@@ -213,12 +217,20 @@ const Orders = () => {
     // CANCEL ORDER
     // =====================================================
 
-    const handleConfirmCancel = () => {
+    const handleConfirmCancel = async () => {
         if (!cancellingOrder) {
             return;
         }
 
         try {
+            // Orders loaded from the backend are cancelled in the database first.
+            if (cancellingOrder.dbId && getStoredAccessToken()) {
+                await cancelOrder(
+                    cancellingOrder.orderId || cancellingOrder.id,
+                    cancelReason
+                );
+            }
+
             const existingOrders = JSON.parse(
                 localStorage.getItem("orders") || "[]"
             );
@@ -262,7 +274,7 @@ const Orders = () => {
         } catch (error) {
             console.error("Error cancelling order:", error);
 
-            toast.error("Failed to cancel order.");
+            toast.error(error?.message || "Failed to cancel order.");
         }
     };
 

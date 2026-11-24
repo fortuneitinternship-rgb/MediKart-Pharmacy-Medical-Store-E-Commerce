@@ -21,8 +21,9 @@ import app.database.base  # noqa: F401
 # Import API routers.
 from app.api.routers import (
     admin,
-    addresses,
+    address,
     auth,
+    categories,
     blog,
     careers,
     cart,
@@ -43,6 +44,7 @@ from app.api.routers import (
     checkout,
 )
 
+from app.api.exceptions import register_exception_handlers
 from app.api.routers.otp import router as otp_router
 
 
@@ -168,12 +170,19 @@ api.add_middleware(
 
 
 # --------------------------------------------------
+# CENTRAL ERROR HANDLING
+# --------------------------------------------------
+
+register_exception_handlers(api)
+
+
+# --------------------------------------------------
 # REGISTER API ROUTERS
 # --------------------------------------------------
 
 api.include_router(auth.router)
 api.include_router(otp_router)
-api.include_router(addresses.router)
+api.include_router(address.router)
 api.include_router(blog.router)
 api.include_router(careers.router)
 api.include_router(newsletter.router)
@@ -189,6 +198,13 @@ api.include_router(wishlist.router)
 api.include_router(orders.router)
 api.include_router(payments.router)
 api.include_router(admin.router)
+# Categories first: /api/products/categories must match before /api/products/{id}.
+api.include_router(categories.router, prefix="/api/categories")
+api.include_router(
+    categories.router,
+    prefix="/api/products/categories",
+    include_in_schema=False,  # legacy URL, same handlers
+)
 api.include_router(products.router)
 api.include_router(users.router)
 api.include_router(submissions.router)
