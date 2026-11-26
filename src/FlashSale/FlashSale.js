@@ -6,7 +6,8 @@ import { toast } from "react-toastify";
 import styles from "./FlashSale.module.css";
 
 import { addProductToCart } from "../api/cartApi";
-import { getFlashSaleProducts } from "../api/productApi";
+import products from "../data/products";
+import { getUniqueProductsByImage } from "../utils/productImage";
 import {
   getProductImage,
   handleProductImageError,
@@ -69,12 +70,15 @@ const FlashSale = () => {
         setLoading(true);
         setError("");
 
-        const response = await getFlashSaleProducts();
+        const saleIds = [350, 200, 300, 148, 169, 144, 120, 354];
+        const catalogSaleProducts = getUniqueProductsByImage(
+          saleIds
+            .map((id) => products.find((product) => Number(product.id) === id))
+            .filter(Boolean)
+        ).slice(0, 8);
 
         if (isMounted) {
-          setFlashSaleProducts(
-            Array.isArray(response) ? response : []
-          );
+          setFlashSaleProducts(catalogSaleProducts);
         }
       } catch (loadError) {
         console.error(
@@ -248,12 +252,14 @@ const FlashSale = () => {
 
               {/* PRICE */}
               <div className={styles.priceSection}>
-                <span className={styles.originalPrice}>
-                  ₹{product.price ?? 0}
-                </span>
-
+                {(product.originalPrice || product.original_price) &&
+                  Number(product.originalPrice || product.original_price) > Number(product.price || 0) && (
+                    <span className={styles.originalPrice}>
+                      ₹{Number(product.originalPrice || product.original_price).toLocaleString("en-IN")}
+                    </span>
+                  )}
                 <span className={styles.discountedPrice}>
-                  ₹{product.discount_price ?? product.price ?? 0}
+                  ₹{Number(product.price || 0).toLocaleString("en-IN")}
                 </span>
               </div>
 

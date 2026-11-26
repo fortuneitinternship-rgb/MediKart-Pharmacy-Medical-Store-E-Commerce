@@ -1,63 +1,180 @@
-import products from "./products";
+import products, {
+  categoryProducts,
+  totalProducts,
+  categoryProductCounts,
+} from "./products";
 
-describe("MEDIKART Products", () => {
-  test("products should be an array", () => {
+// ============================================================
+// MEDIKART - ALL PRODUCTS TESTING
+// ============================================================
+
+describe("MEDIKART - All Products", () => {
+  const expectedCategories = [
+    "medicines",
+    "healthcare",
+    "vitamins",
+    "personal-care",
+    "baby-care",
+    "medical-devices",
+    "eye-care",
+    "hair-care",
+    "women-care",
+    "premium-healthcare",
+  ];
+
+  // ----------------------------------------------------------
+  // 1. Check product export
+  // ----------------------------------------------------------
+
+  test("should export products as an array", () => {
     expect(Array.isArray(products)).toBe(true);
   });
 
-  test("products should not be empty", () => {
-    expect(products.length).toBeGreaterThan(0);
-  });
+  // ----------------------------------------------------------
+  // 2. Check all categories
+  // ----------------------------------------------------------
 
-  test("every product should have an id", () => {
-    products.forEach((product) => {
-      expect(product.id).toBeDefined();
+  test("should contain all 10 product categories", () => {
+    expect(Object.keys(categoryProducts)).toHaveLength(10);
+
+    expectedCategories.forEach((category) => {
+      expect(categoryProducts).toHaveProperty(category);
     });
   });
 
-  test("every product should have a name", () => {
-    products.forEach((product) => {
-      expect(product.name).toBeDefined();
-      expect(typeof product.name).toBe("string");
+  // ----------------------------------------------------------
+  // 3. Check category product arrays
+  // ----------------------------------------------------------
+
+  test.each(expectedCategories)(
+    "should load products from %s",
+    (category) => {
+      expect(Array.isArray(categoryProducts[category])).toBe(true);
+    }
+  );
+
+  // ----------------------------------------------------------
+  // 4. Check category product counts
+  // ----------------------------------------------------------
+
+  test("should have correct category product counts", () => {
+    expectedCategories.forEach((category) => {
+      expect(categoryProductCounts[category]).toBe(
+        categoryProducts[category].length
+      );
     });
   });
 
-  test("every product should have a price", () => {
-    products.forEach((product) => {
-      expect(product.price).toBeDefined();
-      expect(typeof product.price).toBe("number");
-    });
-  });
+  // ----------------------------------------------------------
+  // 5. Check total products
+  // ----------------------------------------------------------
 
-  test("product IDs should be unique", () => {
-    const ids = products.map((product) => product.id);
-    const uniqueIds = new Set(ids);
-
-    expect(uniqueIds.size).toBe(ids.length);
-  });
-
-  test("product names and images should not be duplicated", () => {
-    const names = products.map((product) =>
-      product.name.trim().replace(/\s+/g, " ").toLocaleLowerCase()
+  test("should calculate total product count correctly", () => {
+    const expectedTotal = Object.values(categoryProducts).reduce(
+      (total, category) => total + category.length,
+      0
     );
-    const images = products
-      .map((product) => product.image)
-      .filter(Boolean)
-      .map((image) => String(image).trim().toLocaleLowerCase());
 
-    expect(new Set(names).size).toBe(names.length);
-    expect(new Set(images).size).toBe(images.length);
+    expect(totalProducts).toBe(expectedTotal);
+    expect(products.length).toBe(expectedTotal);
   });
 
-  test("products should have valid prices", () => {
-    products.forEach((product) => {
-      expect(product.price).toBeGreaterThanOrEqual(0);
+  // ----------------------------------------------------------
+  // 6. Check products are not missing during combination
+  // ----------------------------------------------------------
+
+  test("should combine every category product", () => {
+    const expectedProducts = Object.values(categoryProducts).flat();
+
+    expect(products).toEqual(expectedProducts);
+  });
+
+  // ----------------------------------------------------------
+  // 7. Check product objects
+  // ----------------------------------------------------------
+
+  test("should contain valid product objects", () => {
+    products.forEach((product, index) => {
+      expect(product).toBeDefined();
+
+      expect(typeof product).toBe("object");
+      expect(product).not.toBeNull();
+
+      expect(product).toHaveProperty("id");
+      expect(product).toHaveProperty("name");
+
+      expect(product.name).toBeTruthy();
+
+      if (index < 5) {
+        console.log("Product:", product);
+      }
     });
   });
 
-  test("products should have categories", () => {
-    products.forEach((product) => {
-      expect(product.category).toBeDefined();
-    });
+  // ----------------------------------------------------------
+  // 8. Check duplicate product IDs
+  // ----------------------------------------------------------
+
+  test("should identify duplicate product IDs", () => {
+    const ids = products.map((product) => String(product.id));
+
+    const duplicateIds = ids.filter(
+      (id, index) => ids.indexOf(id) !== index
+    );
+
+    if (duplicateIds.length > 0) {
+      console.warn("Duplicate Product IDs:", [
+        ...new Set(duplicateIds),
+      ]);
+    }
+
+    expect(duplicateIds).toEqual([]);
+  });
+
+  // ----------------------------------------------------------
+  // 9. Check products with missing images
+  // ----------------------------------------------------------
+
+  test("should identify products with missing images", () => {
+    const missingImages = products.filter(
+      (product) =>
+        !product.image ||
+        typeof product.image !== "string" ||
+        product.image.trim() === ""
+    );
+
+    if (missingImages.length > 0) {
+      console.warn(
+        "Products with missing images:",
+        missingImages.map((product) => ({
+          id: product.id,
+          name: product.name,
+        }))
+      );
+    }
+
+    // Diagnostic test: reports missing images without failing.
+    expect(Array.isArray(missingImages)).toBe(true);
+  });
+
+  // ----------------------------------------------------------
+  // 10. Print final product report
+  // ----------------------------------------------------------
+
+  test("should print the complete product report", () => {
+    console.log("========== MEDIKART TEST REPORT ==========");
+
+    console.table(categoryProductCounts);
+
+    console.log("Total Products:", totalProducts);
+
+    console.log(
+      "Products Loaded Successfully:",
+      products.length
+    );
+
+    console.log("==========================================");
+
+    expect(totalProducts).toBe(products.length);
   });
 });

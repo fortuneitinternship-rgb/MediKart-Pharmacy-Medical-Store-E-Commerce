@@ -10,11 +10,6 @@ import {
   handleProductImageError,
 } from "../../utils/productImage";
 
-// If these files exist in your project, import them
-import flashSaleProducts from "../../FlashSale/FlashSale.js";
-import trendingProducts from "../../TrendingProducts/TrendingProducts.js";
-import featuredProducts from "../../FeaturedProducts/FeaturedProducts.js";
-
 import "./ProductListings.css";
 
 /* ============================================================
@@ -111,23 +106,7 @@ const matchesCategory = (
    - Featured Products
 */
 
-const allProducts = [
-  ...(Array.isArray(productsData)
-    ? productsData
-    : []),
-
-  ...(Array.isArray(flashSaleProducts)
-    ? flashSaleProducts
-    : []),
-
-  ...(Array.isArray(trendingProducts)
-    ? trendingProducts
-    : []),
-
-  ...(Array.isArray(featuredProducts)
-    ? featuredProducts
-    : []),
-];
+const allProducts = Array.isArray(productsData) ? productsData : [];
 
 
 /* ============================================================

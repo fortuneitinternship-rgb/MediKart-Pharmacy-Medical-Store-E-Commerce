@@ -1,3 +1,4 @@
+
 // ============================================================
 // MEDIKART - ALL PRODUCTS
 // ============================================================
@@ -26,52 +27,87 @@ import eyeCare from "../data/eye-care.js";
 // Hair Care
 import hairCare from "../data/HairCare.js";
 
-// Lab Tests
-import labTests from "../data/womensHealth.js";
+// Women's Health
+import womenCare from "../data/womensHealth.js";
 
 // Premium Healthcare
 import premiumHealthcare from "../data/premium-healthcare.js";
 
-// Wellness
+// ============================================================
+// NORMALIZE PRODUCT DATA
+// Supports arrays and objects containing products/data arrays.
+// ============================================================
+
+const getProducts = (data) => {
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  if (Array.isArray(data?.products)) {
+    return data.products;
+  }
+
+  if (Array.isArray(data?.data)) {
+    return data.data;
+  }
+
+  return [];
+};
+
+// ============================================================
+// CATEGORY PRODUCTS
+// ============================================================
+
+export const categoryProducts = {
+  medicines: getProducts(medicines),
+  healthcare: getProducts(healthcare),
+  vitamins: getProducts(vitamins),
+  "personal-care": getProducts(personalCare),
+  "baby-care": getProducts(babyCare),
+  "medical-devices": getProducts(medicalDevices),
+  "eye-care": getProducts(eyeCare),
+  "hair-care": getProducts(hairCare),
+  "women-care": getProducts(womenCare),
+  "premium-healthcare": getProducts(premiumHealthcare),
+};
 
 // ============================================================
 // COMBINE ALL PRODUCTS
+//
+// IMPORTANT:
+// Do not remove products based on names or images.
+// Different products may share the same image or name.
+// Preserve all records from the source category arrays.
 // ============================================================
 
-const catalogProducts = [
-  ...medicines,
-  ...healthcare,
-  ...vitamins,
-  ...personalCare,
-  ...babyCare,
-  ...medicalDevices,
-  ...eyeCare,
-  ...hairCare,
-  ...labTests,
-  ...premiumHealthcare,
-];
+const products = Object.values(categoryProducts).flat();
 
-const normalizeProductValue = (value) =>
-  String(value || "").trim().replace(/\s+/g, " ").toLocaleLowerCase();
+// ============================================================
+// PRODUCT COUNT
+// ============================================================
 
-const productNames = new Set();
-const productImages = new Set();
-const products = catalogProducts.filter((product) => {
-  const name = normalizeProductValue(product.name);
-  const image = normalizeProductValue(product.image);
-  if (
-    !name ||
-    productNames.has(name) ||
-    (image && productImages.has(image))
-  ) {
-    return false;
-  }
-  productNames.add(name);
-  if (image) {
-    productImages.add(image);
-  }
-  return true;
-});
+export const totalProducts = products.length;
+
+export const categoryProductCounts = Object.fromEntries(
+  Object.entries(categoryProducts).map(([category, items]) => [
+    category,
+    items.length,
+  ])
+);
+
+// ============================================================
+// DEBUG
+// ============================================================
+
+console.log("========== MEDIKART PRODUCT CATALOG ==========");
+
+console.table(categoryProductCounts);
+
+console.log("Total Products:", totalProducts);
+
+console.log("All Products:", products);
+
+console.log("==============================================");
 
 // ============================================================
 // EXPORT

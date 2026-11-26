@@ -457,8 +457,8 @@ export default function Checkout() {
             const response = await validateCheckoutCoupon({
                 code,
                 items: visibleItems.map((item) => ({
-                    product_id: item.product_id,
-                    quantity: item.quantity,
+                    product_id: Number(item.product_id),
+                    quantity: Number(item.quantity),
                 })),
                 subtotal,
             });
@@ -515,6 +515,7 @@ export default function Checkout() {
     }
 
     // PLACE ORDER
+    // PLACE ORDER - PRESERVE PRODUCT IMAGES
     async function placeOrder() {
         if (!visibleItems.length) {
             setError("Your cart is empty.");
@@ -536,7 +537,6 @@ export default function Checkout() {
                 product_id: Number(item.product_id),
                 quantity: Number(item.quantity),
             })),
-
             shipping_address: {
                 name: address.name.trim(),
                 phone: address.phone.trim(),
@@ -545,20 +545,14 @@ export default function Checkout() {
                 state: address.state.trim(),
                 pincode: address.pincode.trim(),
             },
-
             payment_method: paymentMethod,
-
             delivery_type: deliveryType,
             delivery_distance: deliveryDistance,
-
             coupon_code: appliedCoupon?.code || null,
-
-            // Backend should calculate all final prices.
         };
 
         try {
             const response = await createCheckoutOrder(payload);
-
             const created = response?.order ?? response;
 
             const generatedId =
@@ -567,15 +561,83 @@ export default function Checkout() {
                 created?.id;
 
             if (!generatedId) {
-                throw new Error(
-                    "The server did not return an order ID."
-                );
+                throw new Error("The server did not return an order ID.");
             }
+
+            // Save the original product information locally.
+            const orderItems = visibleItems.map((item) => {
+                const image = getProductImage(
+                    item.image ||
+                    item.image_url ||
+                    item.imageUrl ||
+                    item.product_image,
+                    item.name,
+                    item.category
+                );
+
+                return {
+                    id: item.id,
+                    product_id: item.product_id,
+                    name: item.name,
+                    brand: item.brand || "",
+                    category: item.category || "",
+                    image,
+                    image_url: image,
+                    price: Number(item.price || 0),
+                    quantity: Number(item.quantity || 1),
+                };
+            });
 
             const confirmedOrder = {
                 ...created,
+                id: String(generatedId),
                 order_id: String(generatedId),
+                orderId: String(generatedId),
+                orderDate:
+                    created.created_at ||
+                    created.createdAt ||
+                    new Date().toISOString(),
+                status: created.status || "Order Confirmed",
+                paymentMethod,
+                items: orderItems,
+                totalAmount: Number(
+                    created.total_amount ??
+                    created.totalAmount ??
+                    total
+                ),
             };
+
+            // Preserve existing orders.
+            let existingOrders = [];
+
+            try {
+                existingOrders = JSON.parse(
+                    localStorage.getItem("orders") || "[]"
+                );
+
+                if (!Array.isArray(existingOrders)) {
+                    existingOrders = [];
+                }
+            } catch {
+                existingOrders = [];
+            }
+
+            const updatedOrders = [
+                confirmedOrder,
+                ...existingOrders.filter((oldOrder) => {
+                    const oldId =
+                        oldOrder.orderId ||
+                        oldOrder.order_id ||
+                        oldOrder.id;
+
+                    return String(oldId) !== String(generatedId);
+                }),
+            ];
+
+            localStorage.setItem(
+                "orders",
+                JSON.stringify(updatedOrders)
+            );
 
             setOrder(confirmedOrder);
             setCartItems([]);
@@ -589,6 +651,8 @@ export default function Checkout() {
 
             setStep(4);
         } catch (err) {
+            console.error("Order placement failed:", err);
+
             setError(
                 getApiErrorMessage(
                     err,

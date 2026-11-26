@@ -23,6 +23,7 @@ import {
     getOrders,
 } from "../../api/ordersApi";
 
+import { getProductImage, handleProductImageError } from "../../utils/productImage";
 import "./TrackOrder.css";
 
 const TrackOrder = () => {
@@ -119,7 +120,13 @@ const TrackOrder = () => {
                 setOrder({
                     ...orderData,
                     orderId: orderData.order_id || orderData.orderId || cleanId,
-                    orderDate: orderData.created_at || orderData.orderDate || orderData.date,
+                    orderDate:
+                        orderData.created_at ||
+                        orderData.createdAt ||
+                        orderData.order_date ||
+                        orderData.orderDate ||
+                        orderData.ordered_at ||
+                        orderData.date,
                     paymentMethod: orderData.payment_method || orderData.paymentMethod,
                     deliveryType: orderData.delivery_type || orderData.deliveryType,
                     deliveryCharge: orderData.delivery_charge ?? orderData.deliveryCharge,
@@ -139,6 +146,8 @@ const TrackOrder = () => {
                     items: (orderData.items || []).map((item) => ({
                         ...item,
                         name: item.product_name || item.name || item.title,
+                        image: item.image || item.product_image || item.image_url || "",
+                        category: item.category || item.product_category || "",
                     })),
                     status: trackingData.status || orderData.status,
                     trackingNumber: trackingData.tracking_id || trackingData.trackingNumber,
@@ -345,7 +354,14 @@ const TrackOrder = () => {
                             <div>
                                 <FaCalendarAlt />
                                 <span>Order Date</span>
-                                <strong>{formatDate(order.orderDate || order.date)}</strong>
+                                <strong>{formatDate(
+                                    order.orderDate ||
+                                    order.created_at ||
+                                    order.createdAt ||
+                                    order.order_date ||
+                                    order.ordered_at ||
+                                    order.date
+                                )}</strong>
                             </div>
 
                             <div>
@@ -419,11 +435,22 @@ const TrackOrder = () => {
                                         return (
                                             <div className="ordered-item" key={item.id || index}>
                                                 <div className="ordered-image">
-                                                    {item.image ? (
-                                                        <img src={item.image} alt={item.name || item.title} />
-                                                    ) : (
-                                                        <FaBox />
-                                                    )}
+                                                    <img
+                                                        src={getProductImage(
+                                                            item.image,
+                                                            item.name || item.title,
+                                                            item.category
+                                                        )}
+                                                        alt={item.name || item.title || "Ordered product"}
+                                                        loading="lazy"
+                                                        onError={(event) =>
+                                                            handleProductImageError(
+                                                                event,
+                                                                item.name || item.title,
+                                                                item.category
+                                                            )
+                                                        }
+                                                    />
                                                 </div>
 
                                                 <div className="item-details">

@@ -69,7 +69,16 @@ const mockOrder = {
         state: "Sample State",
         pincode: "000000",
     },
-    items: [],
+    items: [
+        {
+            id: 1,
+            product_id: 350,
+            product_name: "Dolo 650 Tablet",
+            quantity: 1,
+            price: 35,
+            image: null,
+        },
+    ],
 };
 
 const mockTracking = {
@@ -1296,5 +1305,21 @@ describe("TrackOrder Component", () => {
             await screen.findByText("2-3 Business Days")
         ).toBeInTheDocument();
     });
+
+
+    test("displays the order date from the backend created_at field", async () => {
+        renderTrackOrder("/track-order?orderId=TEST-001");
+
+        expect(await screen.findByText("10 Nov 2026")).toBeInTheDocument();
+    });
+
+    test("shows ordered product image with a safe catalog fallback", async () => {
+        renderTrackOrder("/track-order?orderId=TEST-001");
+
+        const image = await screen.findByAltText("Dolo 650 Tablet");
+        expect(image).toBeInTheDocument();
+        expect(image.getAttribute("src")).toBeTruthy();
+    });
+
 
 });

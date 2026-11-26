@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "react-toastify";
 import "./TrendingProducts.css";
-
 import { addProductToCart } from "../api/cartApi";
 import products from "../data/products";
 import {
@@ -11,10 +10,13 @@ import {
   handleProductImageError,
 } from "../utils/productImage";
 
-const TRENDING_PRODUCT_IDS = new Set([253, 354, 16, 120]);
+// Exactly four real catalog entries; each links to its own matching detail page.
+const TRENDING_PRODUCT_IDS = [350, 354, 144, 148];
 const trendingCatalogProducts = getUniqueProductsByImage(
-  products.filter((product) => TRENDING_PRODUCT_IDS.has(product.id))
-);
+  TRENDING_PRODUCT_IDS
+    .map((id) => products.find((product) => Number(product.id) === id))
+    .filter(Boolean)
+).slice(0, 4);
 
 function TrendingProducts() {
   const [addedItems, setAddedItems] = useState({});
@@ -22,28 +24,8 @@ function TrendingProducts() {
   const handleAddToCart = async (product) => {
     try {
       await addProductToCart(product);
-      toast.success(`${product.name} added to cart!`, {
-        position: "top-right",
-        autoClose: 2000,
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: true,
-        draggable: true,
-        theme: "colored",
-        icon: "🛒",
-      });
-
-      setAddedItems((prev) => ({
-        ...prev,
-        [product.id]: true,
-      }));
-
-      setTimeout(() => {
-        setAddedItems((prev) => ({
-          ...prev,
-          [product.id]: false,
-        }));
-      }, 2000);
+      toast.success(`${product.name} added to cart!`);
+      setAddedItems((previous) => ({ ...previous, [product.id]: true }));
     } catch (error) {
       toast.error(error.message || "Unable to add this product to your cart.");
     }
@@ -54,48 +36,26 @@ function TrendingProducts() {
       <div className="container">
         <div className="trending-header">
           <h2>Trending Products</h2>
-          <p>
-            Explore the most popular healthcare products on Medikart
-          </p>
+          <p>Explore popular products from the MediKart catalog</p>
         </div>
-
         <div className="trending-grid">
           {trendingCatalogProducts.map((product) => (
             <div className="product-card" key={product.id}>
               <img
-                src={getProductImage(
-                  product.image,
-                  product.name,
-                  product.category
-                )}
+                src={getProductImage(product.image, product.name, product.category)}
                 alt={product.name}
                 className="product-image"
-                onError={(event) =>
-                  handleProductImageError(
-                    event,
-                    product.name,
-                    product.category
-                  )
-                }
+                loading="lazy"
+                onError={(event) => handleProductImageError(event, product.name, product.category)}
               />
-
               <div className="product-info">
                 <h3>{product.name}</h3>
-                <p className="price">
-                  <strong>₹{product.price}</strong>
-                </p>
-                <p className="rating">⭐ {product.rating}</p>
-
+                <p className="price"><strong>₹{Number(product.price || 0).toLocaleString("en-IN")}</strong></p>
+                <p className="rating">⭐ {product.rating || "4.5"}</p>
                 <div className="button-group">
-                  <Link
-                    to={`/product/${product.id}`}
-                    className="view-btn"
-                  >
-                    View Details
-                  </Link>
+                  <Link to={`/product/${product.id}`} className="view-btn">View Details</Link>
                   <button
-                    className={`cart-btn ${addedItems[product.id] ? "added" : ""
-                      }`}
+                    className={`cart-btn ${addedItems[product.id] ? "added" : ""}`}
                     onClick={() => handleAddToCart(product)}
                   >
                     {addedItems[product.id] ? "✓ Added" : "Add to Cart"}

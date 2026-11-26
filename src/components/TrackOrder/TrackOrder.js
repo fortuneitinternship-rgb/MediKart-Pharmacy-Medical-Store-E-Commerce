@@ -3,6 +3,7 @@ import { FaSearch, FaBox, FaTruck, FaCheckCircle, FaMapMarkerAlt, FaCreditCard, 
 import { useNavigate, useParams, useLocation, Link } from "react-router-dom";
 import { toast } from "react-toastify";
 
+import { getProductImage, handleProductImageError } from "../../utils/productImage";
 import "./TrackOrder.css";
 
 const TrackOrder = () => {
@@ -357,7 +358,7 @@ const TrackOrder = () => {
                             <div>
                                 <FaCalendarAlt />
                                 <span>Order Date</span>
-                                <strong>{formatDate(order.orderDate || order.date)}</strong>
+                                <strong>{formatDate(order.orderDate || order.created_at || order.createdAt || order.order_date || order.ordered_at || order.date)}</strong>
                             </div>
 
                             <div>
@@ -431,11 +432,12 @@ const TrackOrder = () => {
                                         return (
                                             <div className="ordered-item" key={item.id || index}>
                                                 <div className="ordered-image">
-                                                    {item.image ? (
-                                                        <img src={item.image} alt={item.name || item.title} />
-                                                    ) : (
-                                                        <FaBox />
-                                                    )}
+                                                    <img
+                                                        src={getProductImage(item.image, item.name || item.title, item.category)}
+                                                        alt={item.name || item.title || "Ordered product"}
+                                                        loading="lazy"
+                                                        onError={(event) => handleProductImageError(event, item.name || item.title, item.category)}
+                                                    />
                                                 </div>
 
                                                 <div className="item-details">

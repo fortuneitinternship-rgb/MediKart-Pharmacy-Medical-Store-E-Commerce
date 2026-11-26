@@ -1,12 +1,13 @@
+
 import React, { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { FaSearch, FaSortAmountDown } from "react-icons/fa";
 import { toast } from "react-toastify";
 
 import ProductCard from "../../components/ProductCard/ProductCard";
 import FilterPanel from "../../components/FilterPanel/FilterPanel";
 import { getProducts } from "../../api/productApi";
-import { getUniqueProductsByImage } from "../../utils/productImage";
+
 import "./Shop.css";
 
 /* ============================================================
@@ -27,21 +28,128 @@ const CATEGORY_NAMES = {
   "premium-healthcare": "Premium Healthcare",
 };
 
-const normalizeCategory = (category) =>
-  category.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+/* ============================================================
+   CATEGORY URLS
+============================================================ */
 
-const categorySlug = (category) => {
-  const knownCategory = Object.entries(CATEGORY_NAMES).find(
-    ([, label]) => label.toLowerCase() === category.toLowerCase()
+const CATEGORY_URLS = {
+  all: "/shop",
+  medicines: "/shop/medicines",
+  healthcare: "/shop/healthcare",
+  vitamins: "/shop/vitamins",
+  "personal-care": "/shop/personal-care",
+  "baby-care": "/shop/baby-care",
+  "medical-devices": "/shop/medical-devices",
+  "women-care": "/shop/womencare",
+  "hair-care": "/shop/haircare",
+  "eye-care": "/shop/eyecare",
+  "premium-healthcare": "/shop/premiumhealthcare",
+};
+
+/* ============================================================
+   CATEGORY NORMALIZATION
+============================================================ */
+
+const normalizeCategory = (value) => {
+  if (!value) return "";
+
+  return String(
+    typeof value === "object"
+      ? value.name || value.title || ""
+      : value
+  )
+    .toLowerCase()
+    .trim()
+    .replace(/&/g, "and")
+    .replace(/['']/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+};
+
+const CATEGORY_ALIASES = {
+  all: "all",
+  "all-products": "all",
+
+  medicine: "medicines",
+  medicines: "medicines",
+
+  healthcare: "healthcare",
+
+  vitamin: "vitamins",
+  vitamins: "vitamins",
+  "vitamins-and-supplements": "vitamins",
+  "vitamins-supplements": "vitamins",
+
+  personalcare: "personal-care",
+  "personal-care": "personal-care",
+
+  babycare: "baby-care",
+  "baby-care": "baby-care",
+
+  medicaldevices: "medical-devices",
+  "medical-devices": "medical-devices",
+
+  womencare: "women-care",
+  "womens-health": "women-care",
+  "women-health": "women-care",
+  "women-care": "women-care",
+
+  haircare: "hair-care",
+  "hair-care": "hair-care",
+
+  eyecare: "eye-care",
+  "eye-care": "eye-care",
+
+  premiumhealthcare: "premium-healthcare",
+  "premium-healthcare": "premium-healthcare",
+};
+
+const resolveCategory = (value) => {
+  const normalized = normalizeCategory(value);
+
+  return CATEGORY_ALIASES[normalized] || normalized;
+};
+
+/* ============================================================
+   PRODUCT HELPERS
+============================================================ */
+
+const getProductList = (response) => {
+  if (Array.isArray(response)) {
+    return response;
+  }
+
+  if (Array.isArray(response?.products)) {
+    return response.products;
+  }
+
+  if (Array.isArray(response?.data)) {
+    return response.data;
+  }
+
+  if (Array.isArray(response?.items)) {
+    return response.items;
+  }
+
+  return [];
+};
+
+const getProductCategory = (product) => {
+  return resolveCategory(product?.category);
+};
+
+const getProductPrice = (product) => {
+  return Number(
+    product?.discount_price ??
+    product?.discountedPrice ??
+    product?.discounted_price ??
+    product?.price ??
+    0
   );
-  return (
-    knownCategory?.[0] ||
-    category
-      .toLowerCase()
-      .replace(/&/g, "and")
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "")
-  );
+};
+
+const getProductRating = (product) => {
+  return Number(product?.rating ?? 0);
 };
 
 /* ============================================================
@@ -49,6 +157,7 @@ const categorySlug = (category) => {
 ============================================================ */
 
 const Shop = () => {
+  const navigate = useNavigate();
   const { category } = useParams();
 
   /* ==========================================================
@@ -58,83 +167,144 @@ const Shop = () => {
   const [products, setProducts] = useState([]);
 
   const [searchTerm, setSearchTerm] = useState("");
-
   const [sortBy, setSortBy] = useState("default");
 
-  const categories = useMemo(() => {
-    const categoryMap = new Map(
-      Object.entries(CATEGORY_NAMES)
-        .filter(([value]) => value !== "all")
-        .map(([value, label]) => [normalizeCategory(label), { value, label }])
-    );
-
-    products.forEach((product) => {
-      if (product.category?.trim()) {
-        const label = product.category.trim();
-        const normalizedLabel = normalizeCategory(label);
-        if (!categoryMap.has(normalizedLabel)) {
-          categoryMap.set(normalizedLabel, {
-            value: categorySlug(label),
-            label,
-          });
-        }
-      }
-    });
-
-    return [
-      { value: "all", label: CATEGORY_NAMES.all },
-      ...categoryMap.values(),
-    ];
-  }, [products]);
-
-  const currentCategory = categories.some(
-    (categoryOption) => categoryOption.value === category
-  )
-    ? category
-    : "all";
-
-  const [selectedCategory, setSelectedCategory] = useState(currentCategory);
   const [priceRange, setPriceRange] = useState("all");
   const [selectedRating, setSelectedRating] = useState("all");
   const [selectedBrand, setSelectedBrand] = useState("all");
+
   const [visibleProducts, setVisibleProducts] = useState(12);
+
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
 
-  const selectedCategoryName = categories.find(
-    (categoryOption) => categoryOption.value === selectedCategory
-  )?.label;
+  /* ==========================================================
+     SELECTED CATEGORY FROM URL
+  ========================================================== */
+
+  const selectedCategory = category
+    ? resolveCategory(category)
+    : "all";
+
+  const selectedCategoryName =
+    CATEGORY_NAMES[selectedCategory] ||
+    (selectedCategory === "all"
+      ? CATEGORY_NAMES.all
+      : category || "All Products");
 
   /* ==========================================================
      LOAD PRODUCTS
   ========================================================== */
 
   useEffect(() => {
-    setLoading(true);
-    setLoadError("");
-    getProducts()
-      .then((items) => setProducts(getUniqueProductsByImage(items)))
-      .catch((error) => {
+    let active = true;
+
+    const loadProducts = async () => {
+      try {
+        setLoading(true);
+        setLoadError("");
+
+        const response = await getProducts();
+
+        const items = getProductList(response);
+
+        if (!active) return;
+
+        // IMPORTANT:
+        // Do not remove products based on duplicate images.
+        // Two different products can share the same image.
+        setProducts(items);
+
+        console.log("Total API products:", items.length);
+
+        console.table(
+          items.reduce((counts, product) => {
+            const name =
+              getProductCategory(product) || "uncategorized";
+
+            counts[name] = (counts[name] || 0) + 1;
+
+            return counts;
+          }, {})
+        );
+      } catch (error) {
         console.error("Unable to load products:", error);
-        setLoadError("Products could not be loaded from the database.");
-      })
-      .finally(() => setLoading(false));
-    setVisibleProducts(12);
+
+        if (active) {
+          setLoadError(
+            "Products could not be loaded from the database."
+          );
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadProducts();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   /* ==========================================================
-     RESET FILTERS WHEN CATEGORY CHANGES
+     RESET FILTERS WHEN URL CATEGORY CHANGES
   ========================================================== */
 
   useEffect(() => {
-    setSelectedCategory(currentCategory);
     setPriceRange("all");
     setSelectedRating("all");
     setSelectedBrand("all");
     setSearchTerm("");
     setSortBy("default");
     setVisibleProducts(12);
-  }, [currentCategory]);
+  }, [selectedCategory]);
+
+  /* ==========================================================
+     CATEGORY LIST
+  ========================================================== */
+
+  const categories = useMemo(() => {
+    return [
+      { value: "all", label: "All Products" },
+      { value: "medicines", label: "Medicines" },
+      { value: "healthcare", label: "Healthcare" },
+      {
+        value: "vitamins",
+        label: "Vitamins & Supplements",
+      },
+      {
+        value: "personal-care",
+        label: "Personal Care",
+      },
+      {
+        value: "baby-care",
+        label: "Baby Care",
+      },
+      {
+        value: "medical-devices",
+        label: "Medical Devices",
+      },
+      {
+        value: "women-care",
+        label: "Women's Health",
+      },
+      {
+        value: "hair-care",
+        label: "Hair Care",
+      },
+      {
+        value: "eye-care",
+        label: "Eye Care",
+      },
+      {
+        value: "premium-healthcare",
+        label: "Premium Healthcare",
+      },
+    ];
+  }, []);
 
   /* ==========================================================
      BRANDS
@@ -142,10 +312,9 @@ const Shop = () => {
 
   const brands = useMemo(() => {
     const brandList = products
-      .map((product) => product.brand)
+      .map((product) => product?.brand)
       .filter(
         (brand) =>
-          brand &&
           typeof brand === "string" &&
           brand.trim() !== ""
       );
@@ -156,28 +325,44 @@ const Shop = () => {
   }, [products]);
 
   /* ==========================================================
+     CATEGORY PRODUCTS
+  ========================================================== */
+
+  const categoryProducts = useMemo(() => {
+    if (selectedCategory === "all") {
+      return products;
+    }
+
+    return products.filter((product) => {
+      return (
+        getProductCategory(product) === selectedCategory
+      );
+    });
+  }, [products, selectedCategory]);
+
+  /* ==========================================================
      FILTER PRODUCTS
   ========================================================== */
 
   const filteredProducts = useMemo(() => {
-    let result = [...products];
+    let result = [...categoryProducts];
 
-    /* ========================================================
-       SEARCH
-    ======================================================== */
+    /* SEARCH */
 
     if (searchTerm.trim()) {
       const search = searchTerm.toLowerCase().trim();
 
       result = result.filter((product) => {
-        const name =
-          product.name?.toLowerCase() || "";
+        const name = String(product?.name || "").toLowerCase();
 
-        const brand =
-          product.brand?.toLowerCase() || "";
+        const brand = String(product?.brand || "").toLowerCase();
 
-        const productCategory =
-          product.category?.toLowerCase() || "";
+        const productCategory = String(
+          product?.category?.name ??
+          product?.category?.title ??
+          product?.category ??
+          ""
+        ).toLowerCase();
 
         return (
           name.includes(search) ||
@@ -187,30 +372,15 @@ const Shop = () => {
       });
     }
 
-    /* ========================================================
-       CATEGORY
-    ======================================================== */
-
-    if (selectedCategory !== "all" && selectedCategoryName) {
-      result = result.filter((item) =>
-        normalizeCategory(item.category || "") ===
-        normalizeCategory(selectedCategoryName)
-      );
-    }
-
-    /* ========================================================
-       PRICE
-    ======================================================== */
+    /* PRICE */
 
     if (priceRange !== "all") {
       result = result.filter((product) => {
-        const price = Number(
-          product.discount_price ?? product.price ?? 0
-        );
+        const price = getProductPrice(product);
 
         switch (priceRange) {
           case "0-199":
-            return price <= 199;
+            return price >= 0 && price <= 199;
 
           case "200-499":
             return price >= 200 && price <= 499;
@@ -230,66 +400,50 @@ const Shop = () => {
       });
     }
 
-    /* ========================================================
-       RATING
-    ======================================================== */
+    /* RATING */
 
     if (selectedRating !== "all") {
-      const minimumRating =
-        Number(selectedRating);
-
       result = result.filter(
         (product) =>
-          Number(product.rating || 0) >=
-          minimumRating
+          getProductRating(product) >= Number(selectedRating)
       );
     }
 
-    /* ========================================================
-       BRAND
-    ======================================================== */
+    /* BRAND */
 
     if (selectedBrand !== "all") {
       result = result.filter(
         (product) =>
-          product.brand?.toLowerCase() ===
+          String(product?.brand || "").toLowerCase() ===
           selectedBrand.toLowerCase()
       );
     }
 
-    /* ========================================================
-       SORT
-    ======================================================== */
+    /* SORT */
 
     switch (sortBy) {
       case "priceLow":
         result.sort(
-          (a, b) =>
-            Number(a.price || 0) -
-            Number(b.price || 0)
+          (a, b) => getProductPrice(a) - getProductPrice(b)
         );
         break;
 
       case "priceHigh":
         result.sort(
-          (a, b) =>
-            Number(b.price || 0) -
-            Number(a.price || 0)
+          (a, b) => getProductPrice(b) - getProductPrice(a)
         );
         break;
 
       case "rating":
         result.sort(
-          (a, b) =>
-            Number(b.rating || 0) -
-            Number(a.rating || 0)
+          (a, b) => getProductRating(b) - getProductRating(a)
         );
         break;
 
       case "name":
         result.sort((a, b) =>
-          (a.name || "").localeCompare(
-            b.name || ""
+          String(a?.name || "").localeCompare(
+            String(b?.name || "")
           )
         );
         break;
@@ -300,10 +454,8 @@ const Shop = () => {
 
     return result;
   }, [
-    products,
+    categoryProducts,
     searchTerm,
-    selectedCategory,
-    selectedCategoryName,
     priceRange,
     selectedRating,
     selectedBrand,
@@ -315,22 +467,45 @@ const Shop = () => {
   ========================================================== */
 
   const displayedProducts = useMemo(() => {
-    return filteredProducts.slice(
-      0,
-      visibleProducts
-    );
+    return filteredProducts.slice(0, visibleProducts);
   }, [filteredProducts, visibleProducts]);
 
   /* ==========================================================
-     HANDLERS
+     CATEGORY CHANGE
+  ========================================================== */
+
+  const handleCategoryChange = (value) => {
+    const selected = resolveCategory(value);
+
+    if (!CATEGORY_URLS[selected]) {
+      console.error("Invalid category:", value);
+      toast.error("Category not found");
+      return;
+    }
+
+    setSearchTerm("");
+    setPriceRange("all");
+    setSelectedRating("all");
+    setSelectedBrand("all");
+    setSortBy("default");
+    setVisibleProducts(12);
+
+    // Update browser URL.
+    navigate(CATEGORY_URLS[selected]);
+  };
+
+  /* ==========================================================
+     SEARCH
   ========================================================== */
 
   const handleSearch = (event) => {
-    const value = event.target.value;
-
-    setSearchTerm(value);
+    setSearchTerm(event.target.value);
     setVisibleProducts(12);
   };
+
+  /* ==========================================================
+     SORT
+  ========================================================== */
 
   const handleSort = (event) => {
     const value = event.target.value;
@@ -338,62 +513,43 @@ const Shop = () => {
     setSortBy(value);
     setVisibleProducts(12);
 
-    if (value === "priceLow") {
-      toast.info("Sorted by Price: Low to High");
-    }
+    const messages = {
+      priceLow: "Sorted by Price: Low to High",
+      priceHigh: "Sorted by Price: High to Low",
+      rating: "Sorted by Highest Rating",
+      name: "Sorted by Name: A-Z",
+    };
 
-    if (value === "priceHigh") {
-      toast.info("Sorted by Price: High to Low");
-    }
-
-    if (value === "rating") {
-      toast.info("Sorted by Highest Rating");
-    }
-
-    if (value === "name") {
-      toast.info("Sorted by Name: A-Z");
+    if (messages[value]) {
+      toast.info(messages[value]);
     }
   };
 
-  const handleCategoryChange = (value) => {
-    setSelectedCategory(value);
-    setVisibleProducts(12);
-
-    const categoryName =
-      CATEGORY_NAMES[value] || "All Products";
-
-    toast.success(
-      `Showing ${categoryName}`
-    );
-  };
+  /* ==========================================================
+     PRICE FILTER
+  ========================================================== */
 
   const handlePriceChange = (value) => {
     setPriceRange(value);
     setVisibleProducts(12);
-
-    if (value !== "all") {
-      toast.info("Price filter applied");
-    }
   };
+
+  /* ==========================================================
+     RATING FILTER
+  ========================================================== */
 
   const handleRatingChange = (value) => {
     setSelectedRating(value);
     setVisibleProducts(12);
-
-    if (value !== "all") {
-      toast.info(
-        `Showing products rated ${value}★ and above`
-      );
-    }
   };
+
+  /* ==========================================================
+     BRAND FILTER
+  ========================================================== */
 
   const handleBrandChange = (value) => {
     setSelectedBrand(value);
     setVisibleProducts(12);
-
-    if (value !== "all") {
-      toast.info(`Brand filter: ${value}`);
-    }
   };
 
   /* ==========================================================
@@ -401,19 +557,9 @@ const Shop = () => {
   ========================================================== */
 
   const loadMore = () => {
-    const newVisibleCount =
-      visibleProducts + 12;
-
-    setVisibleProducts(newVisibleCount);
-
-    if (
-      newVisibleCount >=
-      filteredProducts.length
-    ) {
-      toast.success("All products loaded!");
-    } else {
-      toast.success("More products loaded!");
-    }
+    setVisibleProducts((previous) =>
+      Math.min(previous + 12, filteredProducts.length)
+    );
   };
 
   const showAllProducts = () => {
@@ -425,7 +571,6 @@ const Shop = () => {
   ========================================================== */
 
   const resetFilters = () => {
-    setSelectedCategory(currentCategory);
     setPriceRange("all");
     setSelectedRating("all");
     setSelectedBrand("all");
@@ -433,7 +578,7 @@ const Shop = () => {
     setSortBy("default");
     setVisibleProducts(12);
 
-    toast.success("All filters have been cleared");
+    toast.success("Filters cleared successfully");
   };
 
   /* ==========================================================
@@ -448,24 +593,18 @@ const Shop = () => {
   ].filter(Boolean).length;
 
   /* ==========================================================
-     JSX
+     RENDER
   ========================================================== */
 
   return (
     <div className="shop-page">
 
-      {/* ====================================================
-          HEADER
-      ==================================================== */}
+      {/* HEADER */}
 
       <div className="shop-header">
 
-        {/* TITLE */}
-
         <div className="shop-title">
-          <h1>
-            {selectedCategoryName || CATEGORY_NAMES.all}
-          </h1>
+          <h1>{selectedCategoryName}</h1>
 
           <span>
             {filteredProducts.length} Products
@@ -488,12 +627,8 @@ const Shop = () => {
             <button
               type="button"
               className="clear-search"
-              onClick={() => {
-                setSearchTerm("");
-                setVisibleProducts(12);
-                toast.info("Search cleared");
-              }}
               aria-label="Clear search"
+              onClick={() => setSearchTerm("")}
             >
               ×
             </button>
@@ -509,139 +644,122 @@ const Shop = () => {
             value={sortBy}
             onChange={handleSort}
           >
-            <option value="default">
-              Sort By
-            </option>
-
+            <option value="default">Sort By</option>
             <option value="priceLow">
               Price: Low to High
             </option>
-
             <option value="priceHigh">
               Price: High to Low
             </option>
-
             <option value="rating">
               Highest Rating
             </option>
-
             <option value="name">
               Name: A-Z
             </option>
           </select>
         </div>
+
       </div>
 
-      {/* ====================================================
-          CONTENT
-      ==================================================== */}
+      {/* SHOP CONTENT */}
 
       <div className="shop-content">
 
-        {/* ==================================================
-            FILTER
-        ================================================== */}
+        {/* FILTER PANEL */}
 
         <aside className="shop-filter">
 
           <FilterPanel
-            selectedCategory={
-              selectedCategory
-            }
-            setSelectedCategory={
-              handleCategoryChange
-            }
+            selectedCategory={selectedCategory}
+            setSelectedCategory={handleCategoryChange}
 
             priceRange={priceRange}
-            setPriceRange={
-              handlePriceChange
-            }
+            setPriceRange={handlePriceChange}
 
-            selectedRating={
-              selectedRating
-            }
-            setSelectedRating={
-              handleRatingChange
-            }
+            selectedRating={selectedRating}
+            setSelectedRating={handleRatingChange}
 
             selectedBrand={selectedBrand}
-            setSelectedBrand={
-              handleBrandChange
-            }
+            setSelectedBrand={handleBrandChange}
 
             brands={brands}
             categories={categories}
 
             onReset={resetFilters}
 
-            activeFilterCount={
-              activeFilterCount
-            }
+            activeFilterCount={activeFilterCount}
           />
 
         </aside>
 
-        {/* ==================================================
-            PRODUCTS
-        ================================================== */}
+        {/* PRODUCTS SECTION */}
 
         <main className="shop-products">
 
-          {/* =================================================
-              LOADING
-          ================================================= */}
+          {/* LOADING */}
 
           {loading && (
             <div className="loading-container">
-
               <div className="loader"></div>
-
-              <h3>
-                Loading Products...
-              </h3>
-
+              <h3>Loading Products...</h3>
             </div>
           )}
 
+          {/* ERROR */}
+
           {!loading && loadError && (
-            <p role="alert" className="error">{loadError}</p>
+            <div className="empty-products">
+              <h2>Unable to Load Products</h2>
+              <p>{loadError}</p>
+
+              <button
+                onClick={() => window.location.reload()}
+                className="reset-empty-btn"
+              >
+                Try Again
+              </button>
+            </div>
           )}
 
-          {/* =================================================
-              EMPTY PRODUCTS
-          ================================================= */}
+          {/* NO PRODUCTS */}
 
           {!loading &&
             !loadError &&
             filteredProducts.length === 0 && (
               <div className="empty-products">
 
-                <div className="empty-icon">
-                  🔍
-                </div>
+                <div className="empty-icon">🔍</div>
 
-                <h2>
-                  No Products Found
-                </h2>
+                <h2>No Products Found</h2>
 
                 <p>
-                  Try changing your search
-                  or filters.
+                  {categoryProducts.length === 0
+                    ? `No products found in ${selectedCategoryName}. Check the category values returned by your API.`
+                    : "Try changing your search or filters."}
                 </p>
 
                 <button
+                  type="button"
                   className="reset-empty-btn"
                   onClick={resetFilters}
                 >
                   Clear Filters
                 </button>
 
+                {categoryProducts.length === 0 && (
+                  <button
+                    type="button"
+                    onClick={() => navigate("/shop")}
+                  >
+                    View All Products
+                  </button>
+                )}
+
               </div>
             )}
 
-          {/* =================================================
-              PRODUCTS
-          ================================================= */}
+          {/* PRODUCT GRID */}
 
           {!loading &&
             !loadError &&
@@ -650,47 +768,59 @@ const Shop = () => {
 
                 <div className="products-grid">
 
-                  {displayedProducts.map(
-                    (product) => (
-                      <ProductCard
-                        key={product.id}
-                        product={product}
-                        showWishlist={false}
-                      />
-                    )
-                  )}
+                  {displayedProducts.map((product, index) => (
+                    <ProductCard
+                      key={
+                        product.id ??
+                        product.product_id ??
+                        `${product.name}-${index}`
+                      }
+                      product={product}
+                      showWishlist={false}
+                    />
+                  ))}
 
                 </div>
 
-                {/* =================================================
-                    LOAD MORE
-                ================================================= */}
+                {/* LOAD MORE */}
 
-                {visibleProducts <
-                  filteredProducts.length && (
-                    <div className="load-more">
+                {visibleProducts < filteredProducts.length && (
+                  <div className="load-more">
 
-                      <button
-                        onClick={loadMore}
-                      >
-                        Load More Products
-                      </button>
+                    <button
+                      type="button"
+                      onClick={loadMore}
+                    >
+                      Load More Products
+                    </button>
 
-                      <button
-                        type="button"
-                        onClick={showAllProducts}
-                      >
-                        Show All Products
-                      </button>
+                    <button
+                      type="button"
+                      onClick={showAllProducts}
+                    >
+                      Show All Products
+                    </button>
 
-                    </div>
-                  )}
+                  </div>
+                )}
+
+                {/* ALL PRODUCTS LOADED */}
+
+                {visibleProducts >= filteredProducts.length && (
+                  <div className="all-products-loaded">
+                    <p>
+                      Showing all {filteredProducts.length} products.
+                    </p>
+                  </div>
+                )}
 
               </>
             )}
 
         </main>
+
       </div>
+
     </div>
   );
 };

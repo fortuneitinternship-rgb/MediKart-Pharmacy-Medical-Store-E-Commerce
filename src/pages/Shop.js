@@ -1,5 +1,6 @@
+
 import React, { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { FaSearch, FaSortAmountDown } from "react-icons/fa";
 import { toast } from "react-toastify";
 
@@ -16,28 +17,30 @@ import womenCare from "../../data/womensHealth";
 import hairCare from "../../data/HairCare";
 import eyeCare from "../../data/eye-care";
 import premiumHealthcare from "../../data/premium-healthcare";
+
 import "./Shop.css";
 
-/* ============================================================
-   CATEGORY DATA
-============================================================ */
-
-const CATEGORY_DATA = {
-  medicines,
-  healthcare,
-  vitamins,
-  "personal-care": personalCare,
-  "baby-care": babyCare,
-  "medical-devices": medicalDevices,
-  "women-care": womenCare,
-  "hair-care": hairCare,
-  "eye-care": eyeCare,
-  "premium-healthcare": premiumHealthcare,
+const getProductList = (data) => {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.products)) return data.products;
+  if (Array.isArray(data?.data)) return data.data;
+  return [];
 };
 
-/* ============================================================
-   CATEGORY NAMES
-============================================================ */
+const CATEGORY_DATA = {
+  medicines: getProductList(medicines),
+  healthcare: getProductList(healthcare),
+  vitamins: getProductList(vitamins),
+  "personal-care": getProductList(personalCare),
+  "baby-care": getProductList(babyCare),
+  "medical-devices": getProductList(medicalDevices),
+  "women-care": getProductList(womenCare),
+  "hair-care": getProductList(hairCare),
+  "eye-care": getProductList(eyeCare),
+  "premium-healthcare": getProductList(premiumHealthcare),
+};
+
+const ALL_PRODUCTS = Object.values(CATEGORY_DATA).flat();
 
 const CATEGORY_NAMES = {
   all: "All Products",
@@ -53,621 +56,321 @@ const CATEGORY_NAMES = {
   "premium-healthcare": "Premium Healthcare",
 };
 
-/* ============================================================
-   ALL PRODUCTS
-============================================================ */
+const CATEGORY_URLS = {
+  all: "/shop",
+  medicines: "/shop/medicines",
+  healthcare: "/shop/healthcare",
+  vitamins: "/shop/vitamins",
+  "personal-care": "/shop/personal-care",
+  "baby-care": "/shop/baby-care",
+  "medical-devices": "/shop/medical-devices",
+  "women-care": "/shop/womencare",
+  "hair-care": "/shop/haircare",
+  "eye-care": "/shop/eyecare",
+  "premium-healthcare": "/shop/premiumhealthcare",
+};
 
-const ALL_PRODUCTS = Object.values(CATEGORY_DATA).flat();
+const normalizeCategory = (value) => {
+  if (!value || !String(value).trim()) return "all";
 
-/* ============================================================
-   SHOP COMPONENT
-============================================================ */
+  const key = String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+
+  const aliases = {
+    all: "all",
+    "all-products": "all",
+    medicines: "medicines",
+    medicine: "medicines",
+    healthcare: "healthcare",
+    vitamins: "vitamins",
+    "vitamins-and-supplements": "vitamins",
+    "vitamins-supplements": "vitamins",
+    "personal-care": "personal-care",
+    personalcare: "personal-care",
+    "baby-care": "baby-care",
+    babycare: "baby-care",
+    "medical-devices": "medical-devices",
+    medicaldevices: "medical-devices",
+    "women-care": "women-care",
+    womencare: "women-care",
+    "hair-care": "hair-care",
+    haircare: "hair-care",
+    "eye-care": "eye-care",
+    eyecare: "eye-care",
+    "premium-healthcare": "premium-healthcare",
+    premiumhealthcare: "premium-healthcare",
+  };
+
+  return aliases[key] || null;
+};
+
+const getPrice = (product) =>
+  Number(
+    product?.discountedPrice ??
+    product?.discounted_price ??
+    product?.salePrice ??
+    product?.sale_price ??
+    product?.price ??
+    0
+  );
+
+const getCategoryName = (product) => {
+  const category = product?.category;
+  if (category && typeof category === "object") {
+    return String(category.name ?? category.title ?? "");
+  }
+  return String(category ?? "");
+};
 
 const Shop = () => {
+  const navigate = useNavigate();
   const { category } = useParams();
 
-  const currentCategory =
-    category && CATEGORY_DATA[category] ? category : "all";
-
-  /* ==========================================================
-     STATES
-  ========================================================== */
-
-  const [products, setProducts] = useState([]);
+  const selectedCategory = normalizeCategory(category) || "all";
 
   const [searchTerm, setSearchTerm] = useState("");
-
   const [sortBy, setSortBy] = useState("default");
-
-  const [selectedCategory, setSelectedCategory] = useState(currentCategory);
-
   const [priceRange, setPriceRange] = useState("all");
-
   const [selectedRating, setSelectedRating] = useState("all");
-
   const [selectedBrand, setSelectedBrand] = useState("all");
-
   const [visibleProducts, setVisibleProducts] = useState(12);
 
-  const [loading, setLoading] = useState(true);
-
-  /* ==========================================================
-     LOAD PRODUCTS
-  ========================================================== */
-
   useEffect(() => {
-    setLoading(true);
-
-    const timer = setTimeout(() => {
-      const data =
-        currentCategory === "all"
-          ? ALL_PRODUCTS
-          : CATEGORY_DATA[currentCategory] || [];
-
-      setProducts(data);
-      setVisibleProducts(12);
-      setLoading(false);
-    }, 400);
-
-    return () => clearTimeout(timer);
-  }, [currentCategory]);
-
-  /* ==========================================================
-     RESET FILTERS WHEN CATEGORY CHANGES
-  ========================================================== */
-
-  useEffect(() => {
-    setSelectedCategory(currentCategory);
+    setSearchTerm("");
+    setSortBy("default");
     setPriceRange("all");
     setSelectedRating("all");
     setSelectedBrand("all");
-    setSearchTerm("");
-    setSortBy("default");
     setVisibleProducts(12);
-  }, [currentCategory]);
+  }, [selectedCategory]);
 
-  /* ==========================================================
-     BRANDS
-  ========================================================== */
+  const products = useMemo(() => {
+    if (selectedCategory === "all") return ALL_PRODUCTS;
+    return CATEGORY_DATA[selectedCategory] || [];
+  }, [selectedCategory]);
+
+  useEffect(() => {
+    console.table(
+      Object.entries(CATEGORY_DATA).map(([name, items]) => ({
+        category: name,
+        count: items.length,
+      }))
+    );
+    console.log("Total products:", ALL_PRODUCTS.length);
+    console.log("Selected category:", selectedCategory);
+    console.log("Current products:", products.length);
+  }, [selectedCategory, products]);
 
   const brands = useMemo(() => {
-    const brandList = products
-      .map((product) => product.brand)
-      .filter(
-        (brand) =>
-          brand &&
-          typeof brand === "string" &&
-          brand.trim() !== ""
-      );
+    const values = products
+      .map((product) => product?.brand)
+      .filter((brand) => typeof brand === "string" && brand.trim());
 
-    return [...new Set(brandList)].sort((a, b) =>
-      a.localeCompare(b)
-    );
+    return [...new Set(values)].sort();
   }, [products]);
-
-  /* ==========================================================
-     FILTER PRODUCTS
-  ========================================================== */
 
   const filteredProducts = useMemo(() => {
     let result = [...products];
 
-    /* ========================================================
-       SEARCH
-    ======================================================== */
-
     if (searchTerm.trim()) {
-      const search = searchTerm.toLowerCase().trim();
+      const search = searchTerm.trim().toLowerCase();
 
-      result = result.filter((product) => {
-        const name =
-          product.name?.toLowerCase() || "";
-
-        const brand =
-          product.brand?.toLowerCase() || "";
-
-        const productCategory =
-          product.category?.toLowerCase() || "";
-
-        return (
-          name.includes(search) ||
-          brand.includes(search) ||
-          productCategory.includes(search)
-        );
-      });
-    }
-
-    /* ========================================================
-       CATEGORY
-    ======================================================== */
-
-    if (
-      selectedCategory !== "all" &&
-      CATEGORY_DATA[selectedCategory]
-    ) {
-      const selectedProducts =
-        CATEGORY_DATA[selectedCategory];
-
-      const ids = new Set(
-        selectedProducts.map((item) => item.id)
-      );
-
-      result = result.filter((item) =>
-        ids.has(item.id)
+      result = result.filter((product) =>
+        String(product?.name ?? "").toLowerCase().includes(search) ||
+        String(product?.brand ?? "").toLowerCase().includes(search) ||
+        getCategoryName(product).toLowerCase().includes(search)
       );
     }
-
-    /* ========================================================
-       PRICE
-    ======================================================== */
 
     if (priceRange !== "all") {
       result = result.filter((product) => {
-        const price = Number(product.price || 0);
+        const price = getPrice(product);
 
         switch (priceRange) {
-          case "0-199":
-            return price <= 199;
-
-          case "200-499":
-            return price >= 200 && price <= 499;
-
-          case "500-999":
-            return price >= 500 && price <= 999;
-
-          case "1000-1999":
-            return price >= 1000 && price <= 1999;
-
-          case "2000":
-            return price >= 2000;
-
-          default:
-            return true;
+          case "0-199": return price >= 0 && price <= 199;
+          case "200-499": return price >= 200 && price <= 499;
+          case "500-999": return price >= 500 && price <= 999;
+          case "1000-1999": return price >= 1000 && price <= 1999;
+          case "2000": return price >= 2000;
+          default: return true;
         }
       });
     }
 
-    /* ========================================================
-       RATING
-    ======================================================== */
-
     if (selectedRating !== "all") {
-      const minimumRating =
-        Number(selectedRating);
-
       result = result.filter(
-        (product) =>
-          Number(product.rating || 0) >=
-          minimumRating
+        (product) => Number(product?.rating ?? 0) >= Number(selectedRating)
       );
     }
-
-    /* ========================================================
-       BRAND
-    ======================================================== */
 
     if (selectedBrand !== "all") {
       result = result.filter(
         (product) =>
-          product.brand?.toLowerCase() ===
+          String(product?.brand ?? "").toLowerCase() ===
           selectedBrand.toLowerCase()
       );
     }
 
-    /* ========================================================
-       SORT
-    ======================================================== */
-
     switch (sortBy) {
       case "priceLow":
-        result.sort(
-          (a, b) =>
-            Number(a.price || 0) -
-            Number(b.price || 0)
-        );
+        result.sort((a, b) => getPrice(a) - getPrice(b));
         break;
-
       case "priceHigh":
-        result.sort(
-          (a, b) =>
-            Number(b.price || 0) -
-            Number(a.price || 0)
-        );
+        result.sort((a, b) => getPrice(b) - getPrice(a));
         break;
-
       case "rating":
-        result.sort(
-          (a, b) =>
-            Number(b.rating || 0) -
-            Number(a.rating || 0)
-        );
+        result.sort((a, b) => Number(b.rating ?? 0) - Number(a.rating ?? 0));
         break;
-
       case "name":
         result.sort((a, b) =>
-          (a.name || "").localeCompare(
-            b.name || ""
-          )
+          String(a.name ?? "").localeCompare(String(b.name ?? ""))
         );
         break;
-
       default:
         break;
     }
 
     return result;
-  }, [
-    products,
-    searchTerm,
-    selectedCategory,
-    priceRange,
-    selectedRating,
-    selectedBrand,
-    sortBy,
-  ]);
+  }, [products, searchTerm, priceRange, selectedRating, selectedBrand, sortBy]);
 
-  /* ==========================================================
-     DISPLAY PRODUCTS
-  ========================================================== */
-
-  const displayedProducts = useMemo(() => {
-    return filteredProducts.slice(
-      0,
-      visibleProducts
-    );
-  }, [filteredProducts, visibleProducts]);
-
-  /* ==========================================================
-     HANDLERS
-  ========================================================== */
-
-  const handleSearch = (event) => {
-    const value = event.target.value;
-
-    setSearchTerm(value);
-    setVisibleProducts(12);
-  };
-
-  const handleSort = (event) => {
-    const value = event.target.value;
-
-    setSortBy(value);
-    setVisibleProducts(12);
-
-    if (value === "priceLow") {
-      toast.info("Sorted by Price: Low to High");
-    }
-
-    if (value === "priceHigh") {
-      toast.info("Sorted by Price: High to Low");
-    }
-
-    if (value === "rating") {
-      toast.info("Sorted by Highest Rating");
-    }
-
-    if (value === "name") {
-      toast.info("Sorted by Name: A-Z");
-    }
-  };
+  const displayedProducts = filteredProducts.slice(0, visibleProducts);
 
   const handleCategoryChange = (value) => {
-    setSelectedCategory(value);
-    setVisibleProducts(12);
-
-    const categoryName =
-      CATEGORY_NAMES[value] || "All Products";
-
-    toast.success(
-      `Showing ${categoryName}`
-    );
-  };
-
-  const handlePriceChange = (value) => {
-    setPriceRange(value);
-    setVisibleProducts(12);
-
-    if (value !== "all") {
-      toast.info("Price filter applied");
-    }
-  };
-
-  const handleRatingChange = (value) => {
-    setSelectedRating(value);
-    setVisibleProducts(12);
-
-    if (value !== "all") {
-      toast.info(
-        `Showing products rated ${value}★ and above`
-      );
-    }
-  };
-
-  const handleBrandChange = (value) => {
-    setSelectedBrand(value);
-    setVisibleProducts(12);
-
-    if (value !== "all") {
-      toast.info(`Brand filter: ${value}`);
-    }
-  };
-
-  /* ==========================================================
-     LOAD MORE
-  ========================================================== */
-
-  const loadMore = () => {
-    const newVisibleCount =
-      visibleProducts + 12;
-
-    setVisibleProducts(newVisibleCount);
+    const nextCategory = normalizeCategory(value);
 
     if (
-      newVisibleCount >=
-      filteredProducts.length
+      !nextCategory ||
+      (nextCategory !== "all" && !CATEGORY_DATA[nextCategory])
     ) {
-      toast.success("All products loaded!");
-    } else {
-      toast.success("More products loaded!");
+      console.error("Unknown category:", value);
+      toast.error("Category not found");
+      return;
     }
-  };
 
-  /* ==========================================================
-     RESET FILTERS
-  ========================================================== */
-
-  const resetFilters = () => {
-    setSelectedCategory(currentCategory);
+    setSearchTerm("");
+    setSortBy("default");
     setPriceRange("all");
     setSelectedRating("all");
     setSelectedBrand("all");
-    setSearchTerm("");
-    setSortBy("default");
     setVisibleProducts(12);
 
-    toast.success("All filters have been cleared");
+    navigate(CATEGORY_URLS[nextCategory]);
   };
 
-  /* ==========================================================
-     ACTIVE FILTER COUNT
-  ========================================================== */
-
-  const activeFilterCount = [
-    priceRange !== "all",
-    selectedRating !== "all",
-    selectedBrand !== "all",
-    searchTerm.trim() !== "",
-  ].filter(Boolean).length;
-
-  /* ==========================================================
-     JSX
-  ========================================================== */
+  const resetFilters = () => {
+    setSearchTerm("");
+    setSortBy("default");
+    setPriceRange("all");
+    setSelectedRating("all");
+    setSelectedBrand("all");
+    setVisibleProducts(12);
+  };
 
   return (
     <div className="shop-page">
-
-      {/* ====================================================
-          HEADER
-      ==================================================== */}
-
       <div className="shop-header">
-
-        {/* TITLE */}
-
         <div className="shop-title">
-          <h1>
-            {CATEGORY_NAMES[selectedCategory] ||
-              "All Products"}
-          </h1>
-
-          <span>
-            {filteredProducts.length} Products
-          </span>
+          <h1>{CATEGORY_NAMES[selectedCategory] || "All Products"}</h1>
+          <span>{filteredProducts.length} Products</span>
         </div>
-
-        {/* SEARCH */}
 
         <div className="shop-search">
           <FaSearch />
-
           <input
             type="text"
             placeholder="Search medicines, healthcare products..."
             value={searchTerm}
-            onChange={handleSearch}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setVisibleProducts(12);
+            }}
           />
-
-          {searchTerm && (
-            <button
-              type="button"
-              className="clear-search"
-              onClick={() => {
-                setSearchTerm("");
-                setVisibleProducts(12);
-                toast.info("Search cleared");
-              }}
-              aria-label="Clear search"
-            >
-              ×
-            </button>
-          )}
         </div>
-
-        {/* SORT */}
 
         <div className="shop-sort">
           <FaSortAmountDown />
-
           <select
             value={sortBy}
-            onChange={handleSort}
+            onChange={(e) => {
+              setSortBy(e.target.value);
+              setVisibleProducts(12);
+            }}
           >
-            <option value="default">
-              Sort By
-            </option>
-
-            <option value="priceLow">
-              Price: Low to High
-            </option>
-
-            <option value="priceHigh">
-              Price: High to Low
-            </option>
-
-            <option value="rating">
-              Highest Rating
-            </option>
-
-            <option value="name">
-              Name: A-Z
-            </option>
+            <option value="default">Sort By</option>
+            <option value="priceLow">Price: Low to High</option>
+            <option value="priceHigh">Price: High to Low</option>
+            <option value="rating">Highest Rating</option>
+            <option value="name">Name: A-Z</option>
           </select>
         </div>
       </div>
 
-      {/* ====================================================
-          CONTENT
-      ==================================================== */}
-
       <div className="shop-content">
-
-        {/* ==================================================
-            FILTER
-        ================================================== */}
-
         <aside className="shop-filter">
-
           <FilterPanel
-            selectedCategory={
-              selectedCategory
-            }
-            setSelectedCategory={
-              handleCategoryChange
-            }
-
+            selectedCategory={selectedCategory}
+            setSelectedCategory={handleCategoryChange}
             priceRange={priceRange}
-            setPriceRange={
-              handlePriceChange
-            }
-
-            selectedRating={
-              selectedRating
-            }
-            setSelectedRating={
-              handleRatingChange
-            }
-
+            setPriceRange={setPriceRange}
+            selectedRating={selectedRating}
+            setSelectedRating={setSelectedRating}
             selectedBrand={selectedBrand}
-            setSelectedBrand={
-              handleBrandChange
-            }
-
+            setSelectedBrand={setSelectedBrand}
             brands={brands}
-
             onReset={resetFilters}
-
-            activeFilterCount={
-              activeFilterCount
-            }
           />
-
         </aside>
 
-        {/* ==================================================
-            PRODUCTS
-        ================================================== */}
-
         <main className="shop-products">
-
-          {/* =================================================
-              LOADING
-          ================================================= */}
-
-          {loading && (
-            <div className="loading-container">
-
-              <div className="loader"></div>
-
-              <h3>
-                Loading Products...
-              </h3>
-
+          {filteredProducts.length === 0 ? (
+            <div className="empty-products">
+              <div className="empty-icon">🔍</div>
+              <h2>No Products Found</h2>
+              <p>
+                {products.length === 0
+                  ? "No products are exported from this category data file."
+                  : "Try changing your search or filters."}
+              </p>
+              <button
+                type="button"
+                className="reset-empty-btn"
+                onClick={resetFilters}
+              >
+                Clear Filters
+              </button>
             </div>
-          )}
-
-          {/* =================================================
-              EMPTY PRODUCTS
-          ================================================= */}
-
-          {!loading &&
-            filteredProducts.length === 0 && (
-              <div className="empty-products">
-
-                <div className="empty-icon">
-                  🔍
-                </div>
-
-                <h2>
-                  No Products Found
-                </h2>
-
-                <p>
-                  Try changing your search
-                  or filters.
-                </p>
-
-                <button
-                  className="reset-empty-btn"
-                  onClick={resetFilters}
-                >
-                  Clear Filters
-                </button>
-
+          ) : (
+            <>
+              <div className="products-grid">
+                {displayedProducts.map((product, index) => (
+                  <ProductCard
+                    key={`${product?.id ?? product?.name ?? "product"}-${index}`}
+                    product={product}
+                    showWishlist={false}
+                  />
+                ))}
               </div>
-            )}
 
-          {/* =================================================
-              PRODUCTS
-          ================================================= */}
-
-          {!loading &&
-            filteredProducts.length > 0 && (
-              <>
-
-                <div className="products-grid">
-
-                  {displayedProducts.map(
-                    (product) => (
-                      <ProductCard
-                        key={product.id}
-                        product={product}
-                        showWishlist={false}
-                      />
-                    )
-                  )}
-
+              {visibleProducts < filteredProducts.length && (
+                <div className="load-more">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setVisibleProducts((previous) =>
+                        Math.min(previous + 12, filteredProducts.length)
+                      )
+                    }
+                  >
+                    Load More Products
+                  </button>
                 </div>
-
-                {/* =================================================
-                    LOAD MORE
-                ================================================= */}
-
-                {visibleProducts <
-                  filteredProducts.length && (
-                    <div className="load-more">
-
-                      <button
-                        onClick={loadMore}
-                      >
-                        Load More Products
-                      </button>
-
-                    </div>
-                  )}
-
-              </>
-            )}
-
+              )}
+            </>
+          )}
         </main>
       </div>
     </div>
