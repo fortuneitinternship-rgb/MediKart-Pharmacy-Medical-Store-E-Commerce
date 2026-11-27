@@ -61,14 +61,10 @@ def import_local_wishlist(
         .all()
     }
     products_by_id = {product.id: product for product in products}
-    missing_product_ids = product_ids.difference(products_by_id)
-    if missing_product_ids:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Products not found: {sorted(missing_product_ids)}.",
-        )
+    # Unknown products are skipped so a stale local item cannot block the import.
+    valid_product_ids = product_ids.intersection(products_by_id)
 
-    for product_id in product_ids - existing_product_ids:
+    for product_id in valid_product_ids - existing_product_ids:
         db.add(
             Wishlist(
                 user_id=current_user.id,

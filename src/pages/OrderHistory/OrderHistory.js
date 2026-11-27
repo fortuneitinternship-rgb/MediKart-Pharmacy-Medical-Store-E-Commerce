@@ -1,17 +1,6 @@
-import React, {
-    useCallback,
-    useEffect,
-    useMemo,
-    useState,
-} from "react";
+import React, { useCallback, useEffect, useMemo, useState, } from "react";
 
-import {
-    FaBox,
-    FaCalendarAlt,
-    FaCheckCircle,
-    FaTruck,
-    FaImage,
-} from "react-icons/fa";
+import { FaBox, FaCalendarAlt, FaCheckCircle, FaTruck, FaImage, } from "react-icons/fa";
 
 import { getProducts } from "../../api/productApi";
 import { getProductImage } from "../../utils/productImage";

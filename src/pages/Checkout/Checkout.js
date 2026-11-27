@@ -11,6 +11,7 @@ import {
 
 import { getApiErrorMessage } from "../../services/api";
 import { getProductImage } from "../../utils/productImage";
+import { payForOrder } from "../../utils/payment";
 
 import "./Checkout.css";
 
@@ -105,6 +106,7 @@ export default function Checkout() {
 
     const [error, setError] = useState("");
     const [order, setOrder] = useState(null);
+    const [paymentNotice, setPaymentNotice] = useState("");
 
     // PAYMENT STATES
     const [upiApp, setUpiApp] = useState("Google Pay");
@@ -564,6 +566,26 @@ export default function Checkout() {
                 throw new Error("The server did not return an order ID.");
             }
 
+            // Record the payment in the database. The order already exists,
+            // so a payment failure is shown to the customer instead of
+            // discarding the order; they can retry from My Orders.
+            let paymentReceipt = null;
+            let paymentFailure = "";
+
+            try {
+                paymentReceipt = await payForOrder({
+                    orderId: generatedId,
+                    method: paymentMethod,
+                    upiId,
+                });
+            } catch (paymentError) {
+                console.error("Payment failed:", paymentError);
+                paymentFailure =
+                    paymentError?.message ||
+                    "Payment could not be completed. You can retry from My Orders.";
+            }
+            setPaymentNotice(paymentFailure);
+
             // Save the original product information locally.
             const orderItems = visibleItems.map((item) => {
                 const image = getProductImage(
@@ -598,6 +620,10 @@ export default function Checkout() {
                     created.createdAt ||
                     new Date().toISOString(),
                 status: created.status || "Order Confirmed",
+                payment_status:
+                    paymentReceipt?.status ||
+                    created.payment_status ||
+                    "Pending",
                 paymentMethod,
                 items: orderItems,
                 totalAmount: Number(
@@ -702,6 +728,12 @@ export default function Checkout() {
                     <h1>Order placed successfully!</h1>
 
                     <p>Your order has been saved.</p>
+
+                    {paymentNotice && (
+                        <p className="checkout-error" role="alert">
+                            {paymentNotice}
+                        </p>
+                    )}
 
                     <p>
                         <strong>Order ID:</strong> {order.order_id}

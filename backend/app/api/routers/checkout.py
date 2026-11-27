@@ -15,6 +15,7 @@ from app.models.cart_item import CartItem
 from app.models.coupon import Coupon
 from app.models.order import Order
 from app.models.order_item import OrderItem
+from app.models.payment import Payment
 from app.models.product import Product
 from app.services.coupons import calculate_coupon_discount
 
@@ -407,6 +408,17 @@ def create_checkout_order(
             )
             db.add(order_item)
 
+        # Every order gets a payment row right away (status "Pending").
+        # /api/payments/process updates this same row when the customer pays.
+        db.add(
+            Payment(
+                order_id=order.id,
+                amount=float(total),
+                method=payload.payment_method,
+                status="Pending",
+            )
+        )
+
         if coupon is not None:
             coupon.usage_count += 1
 
@@ -434,28 +446,49 @@ def create_checkout_order(
         db.rollback()
         raise
 
+    saved_items = (
+        db.query(OrderItem)
+        .filter(OrderItem.order_id == order.id)
+        .all()
+    )
+
     return {
         "message": "Order created successfully.",
         "order": {
             "id": order.id,
-            "order_id": getattr(order, "order_id", None) or order.id,
-            "total_amount": float(total),
-            "status": getattr(order, "status", "Pending"),
-            "payment_method": payload.payment_method,
+            "order_id": order.order_id,
+            "user_id": order.user_id,
+            "customer_name": order.customer_name,
+            "phone": order.phone,
+            "address": order.address,
+            "city": order.city,
+            "state": order.state,
+            "pincode": order.pincode,
+            "payment_method": order.payment_method,
+            "payment_status": order.payment_status,
+            "delivery_type": order.delivery_type,
+            "delivery_distance": order.delivery_distance,
+            "product_amount": order.product_amount,
+            "discount": order.discount,
+            "tax_amount": order.tax_amount,
+            "delivery_charge": order.delivery_charge,
+            "total_amount": order.total_amount,
+            "status": order.status,
+            "created_at": order.created_at,
             "items": [
                 {
-                    "product_id": line["product_id"],
-                    "quantity": line["quantity"],
-                    "price": float(line["unit_price"]),
-                    "total": float(line["line_total"]),
+                    "id": item.id,
+                    "product_id": item.product_id,
+                    "product_name": item.product_name,
+                    "image": item.image,
+                    "quantity": item.quantity,
+                    "price": item.price,
+                    "total": item.total,
                 }
-                for line in order_lines
+                for item in saved_items
             ],
             "subtotal": float(subtotal),
-            "discount": float(discount),
             "coupon_discount": float(coupon_discount),
-            "tax_amount": float(tax_amount),
             "tax_rate_percent": settings.GST_RATE_PERCENT,
-            "delivery_charge": float(delivery_charge),
         },
     }

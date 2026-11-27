@@ -1,5 +1,6 @@
 import axios from "axios";
 import { addProductToCart } from "./cartApi";
+import { getProductImage } from "../utils/productImage";
 import {
     clearAuthSession,
     getStoredAccessToken,
@@ -64,6 +65,11 @@ const normalizeWishlistItem = (item) => {
     const product = item.product || item;
     return {
         ...product,
+        image: getProductImage(
+            product.image || product.image_url || "",
+            product.name,
+            product.category
+        ),
         id: Number(product.id ?? item.product_id ?? item.id),
         wishlist_id: item.id,
         product_id: Number(item.product_id ?? product.id ?? item.id),

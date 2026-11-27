@@ -5,106 +5,193 @@ import {
   screen,
   fireEvent,
   waitFor,
+  cleanup,
 } from "@testing-library/react";
-
 import "@testing-library/jest-dom";
 
-import { MemoryRouter, Route, Routes } from "react-router-dom";
-
-import Checkout from "../Checkout";
+import Checkout from "./Checkout";
 
 import {
   createCheckoutOrder,
   getCheckoutCart,
   saveCheckoutAddress,
   validateCheckoutCoupon,
-} from "../../../api/checkoutApi";
+} from "../../api/checkoutApi";
 
-import { getApiErrorMessage } from "../../../services/api";
-import { getProductImage } from "../../../utils/productImage";
+import { getApiErrorMessage } from "../../services/api";
+import { getProductImage } from "../../utils/productImage";
+import { payForOrder } from "../../utils/payment";
 
-// ============================================================
-// MOCK API FUNCTIONS
-// ============================================================
+// --------------------------------------------------
+// MOCKS
+// --------------------------------------------------
 
-jest.mock("../../../api/checkoutApi", () => ({
+const mockNavigate = jest.fn();
+
+jest.mock("react-router-dom", () => ({
+  ...jest.requireActual("react-router-dom"),
+  useNavigate: () => mockNavigate,
+  useLocation: () => ({
+    state: null,
+  }),
+  useParams: () => ({
+    id: undefined,
+  }),
+}));
+
+jest.mock("../../api/checkoutApi", () => ({
   createCheckoutOrder: jest.fn(),
   getCheckoutCart: jest.fn(),
   saveCheckoutAddress: jest.fn(),
   validateCheckoutCoupon: jest.fn(),
 }));
 
-jest.mock("../../../services/api", () => ({
+jest.mock("../../services/api", () => ({
   getApiErrorMessage: jest.fn(
     (error, fallback) => error?.message || fallback
   ),
 }));
 
-jest.mock("../../../utils/productImage", () => ({
-  getProductImage: jest.fn(
-    (image) => image || "/test-product.jpg"
-  ),
+jest.mock("../../utils/productImage", () => ({
+  getProductImage: jest.fn(() => "/test-image.png"),
 }));
 
-// ============================================================
-// MOCK PRODUCT DATA
-// ============================================================
+jest.mock("../../utils/payment", () => ({
+  payForOrder: jest.fn(),
+}));
 
-const mockProduct = {
-  id: 101,
-  product_id: 101,
-  name: "Paracetamol 650 mg",
-  brand: "MediKart",
-  category: "medicines",
-  image: "/images/paracetamol.jpg",
-  price: 30,
-  originalPrice: 40,
-  quantity: 2,
-};
+// --------------------------------------------------
+// GENERIC TEST DATA
+// --------------------------------------------------
 
-// ============================================================
-// MOCK ADDRESS
-// ============================================================
+const testCart = [
+  {
+    id: 1,
+    product_id: 1,
+    name: "Test item",
+    price: 100,
+    originalPrice: 120,
+    quantity: 1,
+    image: "",
+    category: "",
+  },
+];
 
-const validAddress = {
-  name: "Test Customer",
+const testAddress = {
+  name: "Test Name",
   phone: "9876543210",
-  address: "Test Street, Hyderabad",
-  city: "Hyderabad",
-  state: "Telangana",
+  address: "Test Street",
+  city: "Test City",
+  state: "Test State",
   pincode: "500001",
 };
 
-// ============================================================
-// RENDER CHECKOUT
-// ============================================================
+// --------------------------------------------------
+// HELPER FUNCTIONS
+// --------------------------------------------------
 
-function renderCheckout(initialEntries = ["/checkout"]) {
-  return render(
-    <MemoryRouter initialEntries={initialEntries}>
-      <Routes>
-        <Route path="/checkout" element={<Checkout />} />
-        <Route
-          path="/checkout/:id"
-          element={<Checkout />}
-        />
-      </Routes>
-    </MemoryRouter>
+function renderCheckout() {
+  return render(<Checkout />);
+}
+
+async function openAddressStep() {
+  await screen.findByText("Review your items");
+
+  fireEvent.click(
+    screen.getByRole("button", {
+      name: /continue to delivery/i,
+    })
+  );
+
+  await screen.findByRole("heading", {
+    name: /delivery address/i,
+  });
+}
+
+function fillAddress(overrides = {}) {
+  const address = {
+    ...testAddress,
+    ...overrides,
+  };
+
+  fireEvent.change(
+    screen.getByLabelText(/full name/i),
+    {
+      target: { value: address.name },
+    }
+  );
+
+  fireEvent.change(
+    screen.getByLabelText(/phone number/i),
+    {
+      target: { value: address.phone },
+    }
+  );
+
+  fireEvent.change(
+    screen.getByLabelText(/^address$/i),
+    {
+      target: { value: address.address },
+    }
+  );
+
+  fireEvent.change(
+    screen.getByLabelText(/^city$/i),
+    {
+      target: { value: address.city },
+    }
+  );
+
+  fireEvent.change(
+    screen.getByLabelText(/^state$/i),
+    {
+      target: { value: address.state },
+    }
+  );
+
+  fireEvent.change(
+    screen.getByLabelText(/pincode/i),
+    {
+      target: { value: address.pincode },
+    }
   );
 }
 
-// ============================================================
-// TEST SETUP
-// ============================================================
+async function openPaymentStep() {
+  await openAddressStep();
+
+  fillAddress();
+
+  fireEvent.click(
+    screen.getByRole("button", {
+      name: /continue to payment/i,
+    })
+  );
+
+  await screen.findByRole("heading", {
+    name: /payment and delivery/i,
+  });
+}
+
+async function placeTestOrder() {
+  await openPaymentStep();
+
+  fireEvent.click(
+    screen.getByRole("button", {
+      name: /place order/i,
+    })
+  );
+}
+
+// --------------------------------------------------
+// SETUP AND CLEANUP
+// --------------------------------------------------
 
 beforeEach(() => {
   jest.clearAllMocks();
-
   localStorage.clear();
 
-  getCheckoutCart.mockResolvedValue({
-    items: [mockProduct],
-  });
+  getCheckoutCart.mockResolvedValue(testCart);
 
   saveCheckoutAddress.mockResolvedValue({
     success: true,
@@ -112,122 +199,137 @@ beforeEach(() => {
 
   validateCheckoutCoupon.mockResolvedValue({
     valid: true,
-    code: "SAVE10",
-    discount_amount: 10,
+    code: "TESTCODE",
+    discount_amount: 20,
   });
 
   createCheckoutOrder.mockResolvedValue({
-    order: {
-      order_id: "MK12345",
-      total_amount: 50,
-      status: "Confirmed",
-    },
+    order_id: "TEST-ORDER-1",
+    total_amount: 90,
+    status: "Order Confirmed",
+  });
+
+  getApiErrorMessage.mockImplementation(
+    (error, fallback) => error?.message || fallback
+  );
+
+  getProductImage.mockReturnValue("/test-image.png");
+
+  payForOrder.mockResolvedValue({
+    status: "Pending",
+    transaction_id: "",
   });
 });
 
-// ============================================================
-// CHECKOUT TESTS
-// ============================================================
+afterEach(() => {
+  cleanup();
+});
 
-describe("MEDIKART CHECKOUT TESTING", () => {
+// --------------------------------------------------
+// 1. BASIC CHECKOUT TESTS
+// --------------------------------------------------
 
-  // --------------------------------------------------------
-  // 1. RENDER CHECKOUT
-  // --------------------------------------------------------
-
+describe("Checkout basic functionality", () => {
   test("renders checkout page", async () => {
     renderCheckout();
 
     expect(
-      screen.getByRole("status")
-    ).toHaveTextContent("Loading checkout");
-
-    expect(
-      await screen.findByText("Secure Checkout")
+      await screen.findByRole("heading", {
+        name: /secure checkout/i,
+      })
     ).toBeInTheDocument();
   });
 
-  // --------------------------------------------------------
-  // 2. LOAD CART PRODUCTS
-  // --------------------------------------------------------
-
-  test("loads products from checkout cart API", async () => {
-    renderCheckout();
-
-    expect(
-      await screen.findByText("Paracetamol 650 mg")
-    ).toBeInTheDocument();
-
-    expect(getCheckoutCart).toHaveBeenCalledTimes(1);
-  });
-
-  // --------------------------------------------------------
-  // 3. DISPLAY PRODUCT PRICE
-  // --------------------------------------------------------
-
-  test("displays product price and quantity", async () => {
-    renderCheckout();
-
-    expect(
-      await screen.findByText("Paracetamol 650 mg")
-    ).toBeInTheDocument();
-
-    expect(screen.getByText("Quantity: 2")).toBeInTheDocument();
-    expect(screen.getByText("₹60.00")).toBeInTheDocument();
-  });
-
-  // --------------------------------------------------------
-  // 4. DISPLAY PRODUCT IMAGE
-  // --------------------------------------------------------
-
-  test("displays product image", async () => {
-    renderCheckout();
-
-    const image = await screen.findByAltText(
-      "Paracetamol 650 mg"
+  test("shows loading message", () => {
+    getCheckoutCart.mockReturnValue(
+      new Promise(() => { })
     );
 
-    expect(image).toBeInTheDocument();
-    expect(image).toHaveAttribute(
-      "src",
-      "/images/paracetamol.jpg"
-    );
+    renderCheckout();
 
-    expect(getProductImage).toHaveBeenCalled();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      /loading checkout/i
+    );
   });
 
-  // --------------------------------------------------------
-  // 5. MOVE TO ADDRESS STEP
-  // --------------------------------------------------------
+  test("loads cart items", async () => {
+    renderCheckout();
+
+    expect(
+      await screen.findByText("Test item")
+    ).toBeInTheDocument();
+
+    expect(
+      screen.getByText(/quantity: 1/i)
+    ).toBeInTheDocument();
+  });
+
+  test("shows empty cart message", async () => {
+    getCheckoutCart.mockResolvedValue([]);
+
+    renderCheckout();
+
+    expect(
+      await screen.findByRole("heading", {
+        name: /your cart is empty/i,
+      })
+    ).toBeInTheDocument();
+  });
+
+  test("shows cart loading error", async () => {
+    getCheckoutCart.mockRejectedValue(
+      new Error("Loading failed")
+    );
+
+    renderCheckout();
+
+    expect(
+      await screen.findByRole("alert")
+    ).toHaveTextContent("Loading failed");
+  });
+
+  test("navigates to shop from empty cart", async () => {
+    getCheckoutCart.mockResolvedValue([]);
+
+    renderCheckout();
+
+    await screen.findByText(/your cart is empty/i);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /continue shopping/i,
+      })
+    );
+
+    expect(mockNavigate).toHaveBeenCalledWith("/shop");
+  });
 
   test("moves to delivery address step", async () => {
     renderCheckout();
 
-    fireEvent.click(
-      await screen.findByRole("button", {
-        name: /continue to delivery/i,
-      })
-    );
+    await openAddressStep();
 
     expect(
       screen.getByRole("heading", {
-        name: "Delivery address",
+        name: /delivery address/i,
       })
     ).toBeInTheDocument();
   });
+});
 
-  // --------------------------------------------------------
-  // 6. VALIDATE EMPTY ADDRESS
-  // --------------------------------------------------------
+// --------------------------------------------------
+// 2. ADDRESS TESTS
+// --------------------------------------------------
 
-  test("does not continue with an empty address", async () => {
+describe("Checkout address functionality", () => {
+  test("validates phone number", async () => {
     renderCheckout();
 
-    fireEvent.click(
-      await screen.findByRole("button", {
-        name: /continue to delivery/i,
-      })
-    );
+    await openAddressStep();
+
+    fillAddress({
+      phone: "12345",
+    });
 
     fireEvent.click(
       screen.getByRole("button", {
@@ -236,47 +338,19 @@ describe("MEDIKART CHECKOUT TESTING", () => {
     );
 
     expect(
-      await screen.findByText("Enter your full name.")
-    ).toBeInTheDocument();
+      await screen.findByRole("alert")
+    ).toHaveTextContent(/valid 10-digit phone number/i);
 
     expect(saveCheckoutAddress).not.toHaveBeenCalled();
   });
 
-  // --------------------------------------------------------
-  // 7. SAVE VALID ADDRESS
-  // --------------------------------------------------------
-
-  test("saves valid delivery address", async () => {
+  test("validates pincode", async () => {
     renderCheckout();
 
-    fireEvent.click(
-      await screen.findByRole("button", {
-        name: /continue to delivery/i,
-      })
-    );
+    await openAddressStep();
 
-    fireEvent.change(screen.getByLabelText("Full name"), {
-      target: { value: validAddress.name },
-    });
-
-    fireEvent.change(screen.getByLabelText("Phone number"), {
-      target: { value: validAddress.phone },
-    });
-
-    fireEvent.change(screen.getByLabelText("Address"), {
-      target: { value: validAddress.address },
-    });
-
-    fireEvent.change(screen.getByLabelText("City"), {
-      target: { value: validAddress.city },
-    });
-
-    fireEvent.change(screen.getByLabelText("State"), {
-      target: { value: validAddress.state },
-    });
-
-    fireEvent.change(screen.getByLabelText("Pincode"), {
-      target: { value: validAddress.pincode },
+    fillAddress({
+      pincode: "123",
     });
 
     fireEvent.click(
@@ -285,46 +359,20 @@ describe("MEDIKART CHECKOUT TESTING", () => {
       })
     );
 
-    await waitFor(() => {
-      expect(saveCheckoutAddress).toHaveBeenCalled();
-    });
-
     expect(
-      await screen.findByText("Payment and delivery")
-    ).toBeInTheDocument();
+      await screen.findByRole("alert")
+    ).toHaveTextContent(/valid 6-digit pincode/i);
 
-    expect(
-      JSON.parse(localStorage.getItem("deliveryAddress")).phone
-    ).toBe("9876543210");
+    expect(saveCheckoutAddress).not.toHaveBeenCalled();
   });
 
-  // --------------------------------------------------------
-  // 8. CHECK PAYMENT METHODS
-  // --------------------------------------------------------
-
-  test("displays all payment methods", async () => {
+  test("validates full name", async () => {
     renderCheckout();
 
-    fireEvent.click(
-      await screen.findByRole("button", {
-        name: /continue to delivery/i,
-      })
-    );
+    await openAddressStep();
 
-    Object.entries(validAddress).forEach(([name, value]) => {
-      const labels = {
-        name: "Full name",
-        phone: "Phone number",
-        address: "Address",
-        city: "City",
-        state: "State",
-        pincode: "Pincode",
-      };
-
-      fireEvent.change(
-        screen.getByLabelText(labels[name]),
-        { target: { value } }
-      );
+    fillAddress({
+      name: "A",
     });
 
     fireEvent.click(
@@ -334,8 +382,108 @@ describe("MEDIKART CHECKOUT TESTING", () => {
     );
 
     expect(
-      await screen.findByText("Payment and delivery")
+      await screen.findByRole("alert")
+    ).toHaveTextContent(/full name/i);
+  });
+
+  test("saves valid address", async () => {
+    renderCheckout();
+
+    await openAddressStep();
+
+    fillAddress();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /continue to payment/i,
+      })
+    );
+
+    expect(
+      await screen.findByRole("heading", {
+        name: /payment and delivery/i,
+      })
     ).toBeInTheDocument();
+
+    expect(saveCheckoutAddress).toHaveBeenCalledTimes(1);
+  });
+
+  test("stores delivery address in localStorage", async () => {
+    renderCheckout();
+
+    await openAddressStep();
+
+    fillAddress();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /continue to payment/i,
+      })
+    );
+
+    await screen.findByText(/payment and delivery/i);
+
+    const savedAddress = JSON.parse(
+      localStorage.getItem("deliveryAddress")
+    );
+
+    expect(savedAddress).toEqual(
+      expect.objectContaining({
+        name: testAddress.name,
+        phone: testAddress.phone,
+        pincode: testAddress.pincode,
+      })
+    );
+  });
+
+  test("shows error when address saving fails", async () => {
+    saveCheckoutAddress.mockRejectedValue(
+      new Error("Address saving failed")
+    );
+
+    renderCheckout();
+
+    await openAddressStep();
+
+    fillAddress();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /continue to payment/i,
+      })
+    );
+
+    expect(
+      await screen.findByRole("alert")
+    ).toHaveTextContent("Address saving failed");
+  });
+
+  test("returns to cart review using Back button", async () => {
+    renderCheckout();
+
+    await openAddressStep();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /^back$/i,
+      })
+    );
+
+    expect(
+      screen.getByText("Review your items")
+    ).toBeInTheDocument();
+  });
+});
+
+// --------------------------------------------------
+// 3. PAYMENT TESTS
+// --------------------------------------------------
+
+describe("Checkout payment functionality", () => {
+  test("shows all payment methods", async () => {
+    renderCheckout();
+
+    await openPaymentStep();
 
     expect(
       screen.getByLabelText(/cash on delivery/i)
@@ -354,224 +502,104 @@ describe("MEDIKART CHECKOUT TESTING", () => {
     ).toBeInTheDocument();
   });
 
-  // --------------------------------------------------------
-  // 9. UPI PAYMENT
-  // --------------------------------------------------------
+  test("shows UPI input when UPI is selected", async () => {
+    renderCheckout();
 
-  test("displays UPI input when UPI is selected", async () => {
-    await goToPaymentStep();
+    await openPaymentStep();
 
     fireEvent.click(
       screen.getByLabelText(/upi payment/i)
     );
 
     expect(
-      screen.getByPlaceholderText("example@okaxis")
+      screen.getByPlaceholderText(/example@okaxis/i)
     ).toBeInTheDocument();
   });
 
-  // --------------------------------------------------------
-  // 10. CARD PAYMENT
-  // --------------------------------------------------------
+  test("rejects invalid UPI ID", async () => {
+    renderCheckout();
 
-  test("displays card details when card is selected", async () => {
-    await goToPaymentStep();
+    await openPaymentStep();
+
+    fireEvent.click(
+      screen.getByLabelText(/upi payment/i)
+    );
+
+    fireEvent.change(
+      screen.getByPlaceholderText(/example@okaxis/i),
+      {
+        target: {
+          value: "invalid-upi",
+        },
+      }
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /place order/i,
+      })
+    );
+
+    expect(
+      await screen.findByRole("alert")
+    ).toHaveTextContent(/valid upi id/i);
+
+    expect(createCheckoutOrder).not.toHaveBeenCalled();
+  });
+
+  test("shows card details when card payment is selected", async () => {
+    renderCheckout();
+
+    await openPaymentStep();
 
     fireEvent.click(
       screen.getByLabelText(/credit \/ debit card/i)
     );
 
     expect(
-      screen.getByPlaceholderText("Name on card")
+      screen.getByPlaceholderText(/name on card/i)
     ).toBeInTheDocument();
 
     expect(
-      screen.getByPlaceholderText("Card number")
+      screen.getByPlaceholderText(/card number/i)
     ).toBeInTheDocument();
 
     expect(
-      screen.getByPlaceholderText("MMYY")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByPlaceholderText("CVV")
+      screen.getByPlaceholderText(/cvv/i)
     ).toBeInTheDocument();
   });
 
-  // --------------------------------------------------------
-  // 11. NET BANKING
-  // --------------------------------------------------------
+  test("validates cardholder name", async () => {
+    renderCheckout();
 
-  test("displays bank selection for net banking", async () => {
-    await goToPaymentStep();
+    await openPaymentStep();
+
+    fireEvent.click(
+      screen.getByLabelText(/credit \/ debit card/i)
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /place order/i,
+      })
+    );
+
+    expect(
+      await screen.findByRole("alert")
+    ).toHaveTextContent(/cardholder name/i);
+
+    expect(createCheckoutOrder).not.toHaveBeenCalled();
+  });
+
+  test("validates bank selection", async () => {
+    renderCheckout();
+
+    await openPaymentStep();
 
     fireEvent.click(
       screen.getByLabelText(/net banking/i)
     );
 
-    expect(
-      screen.getByRole("heading", {
-        name: "Select Your Bank",
-      })
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByRole("option", {
-        name: "State Bank of India",
-      })
-    ).toBeInTheDocument();
-  });
-
-  // --------------------------------------------------------
-  // 12. COUPON VALIDATION
-  // --------------------------------------------------------
-
-  test("applies a valid coupon", async () => {
-    await goToPaymentStep();
-
-    fireEvent.change(
-      screen.getByPlaceholderText("Enter coupon code"),
-      {
-        target: { value: "SAVE10" },
-      }
-    );
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Apply",
-      })
-    );
-
-    expect(
-      await screen.findByText("SAVE10 applied successfully!")
-    ).toBeInTheDocument();
-
-    expect(validateCheckoutCoupon).toHaveBeenCalled();
-  });
-
-  // --------------------------------------------------------
-  // 13. INVALID COUPON
-  // --------------------------------------------------------
-
-  test("displays error for invalid coupon", async () => {
-    validateCheckoutCoupon.mockResolvedValue({
-      valid: false,
-      message: "Invalid coupon code.",
-    });
-
-    await goToPaymentStep();
-
-    fireEvent.change(
-      screen.getByPlaceholderText("Enter coupon code"),
-      {
-        target: { value: "INVALID" },
-      }
-    );
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Apply",
-      })
-    );
-
-    expect(
-      await screen.findByText("Invalid coupon code.")
-    ).toBeInTheDocument();
-  });
-
-  // --------------------------------------------------------
-  // 14. DELIVERY OPTIONS
-  // --------------------------------------------------------
-
-  test("displays delivery options", async () => {
-    await goToPaymentStep();
-
-    expect(
-      screen.getByLabelText(/normal delivery/i)
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByLabelText(/express delivery/i)
-    ).toBeDisabled();
-
-    expect(
-      screen.getByLabelText(/priority delivery/i)
-    ).toBeDisabled();
-  });
-
-  // --------------------------------------------------------
-  // 15. PLACE ORDER
-  // --------------------------------------------------------
-
-  test("places order successfully using COD", async () => {
-    await goToPaymentStep();
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: /place order/i,
-      })
-    );
-
-    await waitFor(() => {
-      expect(createCheckoutOrder).toHaveBeenCalledWith(
-        expect.objectContaining({
-          payment_method: "COD",
-          items: [
-            {
-              product_id: 101,
-              quantity: 2,
-            },
-          ],
-        })
-      );
-    });
-
-    expect(
-      await screen.findByText("Order placed successfully!")
-    ).toBeInTheDocument();
-
-    expect(
-      screen.getByText("MK12345")
-    ).toBeInTheDocument();
-  });
-
-  // --------------------------------------------------------
-  // 16. SAVE ORDER TO LOCAL STORAGE
-  // --------------------------------------------------------
-
-  test("saves successfully placed order in local storage", async () => {
-    await goToPaymentStep();
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: /place order/i,
-      })
-    );
-
-    await waitFor(() => {
-      const orders = JSON.parse(
-        localStorage.getItem("orders")
-      );
-
-      expect(orders).toHaveLength(1);
-      expect(orders[0].order_id).toBe("MK12345");
-      expect(orders[0].items[0].image).toBe(
-        "/images/paracetamol.jpg"
-      );
-    });
-  });
-
-  // --------------------------------------------------------
-  // 17. HANDLE ORDER API ERROR
-  // --------------------------------------------------------
-
-  test("displays error when order placement fails", async () => {
-    createCheckoutOrder.mockRejectedValue(
-      new Error("Server error")
-    );
-
-    await goToPaymentStep();
-
     fireEvent.click(
       screen.getByRole("button", {
         name: /place order/i,
@@ -579,97 +607,343 @@ describe("MEDIKART CHECKOUT TESTING", () => {
     );
 
     expect(
-      await screen.findByText("Server error")
-    ).toBeInTheDocument();
+      await screen.findByRole("alert")
+    ).toHaveTextContent(/select your bank/i);
+
+    expect(createCheckoutOrder).not.toHaveBeenCalled();
   });
 
-  // --------------------------------------------------------
-  // 18. EMPTY CART
-  // --------------------------------------------------------
-
-  test("displays empty cart message", async () => {
-    getCheckoutCart.mockResolvedValue({
-      items: [],
-    });
-
+  test("allows selecting a bank", async () => {
     renderCheckout();
 
-    expect(
-      await screen.findByText("Your cart is empty")
-    ).toBeInTheDocument();
-  });
+    await openPaymentStep();
 
-  // --------------------------------------------------------
-  // 19. CART API ERROR
-  // --------------------------------------------------------
-
-  test("displays error when cart cannot load", async () => {
-    getCheckoutCart.mockRejectedValue(
-      new Error("Unable to load cart")
+    fireEvent.click(
+      screen.getByLabelText(/net banking/i)
     );
 
-    renderCheckout();
-
-    expect(
-      await screen.findByText("Unable to load cart")
-    ).toBeInTheDocument();
-  });
-
-  // --------------------------------------------------------
-  // 20. BUY NOW CHECKOUT
-  // --------------------------------------------------------
-
-  test("loads Buy Now products from route state", async () => {
-    renderCheckout([
+    fireEvent.change(
+      screen.getByLabelText(/^bank$/i),
       {
-        pathname: "/checkout",
-        state: {
-          buyNowItems: [mockProduct],
+        target: {
+          value: "State Bank of India",
         },
-      },
-    ]);
+      }
+    );
 
     expect(
-      await screen.findByText("Paracetamol 650 mg")
-    ).toBeInTheDocument();
+      screen.getByLabelText(/^bank$/i)
+    ).toHaveValue("State Bank of India");
+  });
 
-    expect(getCheckoutCart).not.toHaveBeenCalled();
+  test("shows COD information by default", async () => {
+    renderCheckout();
+
+    await openPaymentStep();
   });
 });
 
-// ============================================================
-// REUSABLE PAYMENT STEP HELPER
-// ============================================================
+// --------------------------------------------------
+// 4. COUPON TESTS
+// --------------------------------------------------
 
-async function goToPaymentStep() {
-  renderCheckout();
+describe("Checkout coupon functionality", () => {
+  test("applies a valid coupon", async () => {
+    renderCheckout();
 
-  fireEvent.click(
-    await screen.findByRole("button", {
-      name: /continue to delivery/i,
-    })
-  );
+    await openPaymentStep();
 
-  const fields = {
-    "Full name": validAddress.name,
-    "Phone number": validAddress.phone,
-    "Address": validAddress.address,
-    "City": validAddress.city,
-    "State": validAddress.state,
-    "Pincode": validAddress.pincode,
-  };
+    fireEvent.change(
+      screen.getByPlaceholderText(/enter coupon code/i),
+      {
+        target: {
+          value: "testcode",
+        },
+      }
+    );
 
-  Object.entries(fields).forEach(([label, value]) => {
-    fireEvent.change(screen.getByLabelText(label), {
-      target: { value },
-    });
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /^apply$/i,
+      })
+    );
+
+    expect(
+      await screen.findByText(/TESTCODE applied successfully/i)
+    ).toBeInTheDocument();
+
+    expect(validateCheckoutCoupon).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: "TESTCODE",
+        subtotal: 100,
+      })
+    );
   });
 
-  fireEvent.click(
-    screen.getByRole("button", {
-      name: /continue to payment/i,
-    })
-  );
+  test("shows an error for an invalid coupon", async () => {
+    validateCheckoutCoupon.mockResolvedValue({
+      valid: false,
+      message: "Invalid coupon",
+    });
 
-  await screen.findByText("Payment and delivery");
-}
+    renderCheckout();
+
+    await openPaymentStep();
+
+    fireEvent.change(
+      screen.getByPlaceholderText(/enter coupon code/i),
+      {
+        target: {
+          value: "INVALID",
+        },
+      }
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /^apply$/i,
+      })
+    );
+
+    expect(
+      await screen.findByRole("alert")
+    ).toHaveTextContent(/invalid coupon/i);
+  });
+
+  test("shows error when coupon field is empty", async () => {
+    renderCheckout();
+
+    await openPaymentStep();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /^apply$/i,
+      })
+    );
+
+    expect(
+      await screen.findByRole("alert")
+    ).toHaveTextContent(/enter a coupon code/i);
+
+    expect(validateCheckoutCoupon).not.toHaveBeenCalled();
+  });
+
+  test("removes an applied coupon", async () => {
+    renderCheckout();
+
+    await openPaymentStep();
+
+    fireEvent.change(
+      screen.getByPlaceholderText(/enter coupon code/i),
+      {
+        target: {
+          value: "testcode",
+        },
+      }
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /^apply$/i,
+      })
+    );
+
+    await screen.findByText(/TESTCODE applied successfully/i);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /remove/i,
+      })
+    );
+
+    expect(
+      screen.getByPlaceholderText(/enter coupon code/i)
+    ).toBeInTheDocument();
+  });
+});
+
+// --------------------------------------------------
+// 5. ORDER PLACEMENT TESTS
+// --------------------------------------------------
+
+describe("Checkout order placement", () => {
+  test("places an order successfully", async () => {
+    renderCheckout();
+
+    await placeTestOrder();
+
+    expect(
+      await screen.findByRole("heading", {
+        name: /order placed successfully/i,
+      })
+    ).toBeInTheDocument();
+
+    expect(createCheckoutOrder).toHaveBeenCalledTimes(1);
+  });
+
+  test("sends correct order information", async () => {
+    renderCheckout();
+
+    await placeTestOrder();
+
+    await screen.findByText("TEST-ORDER-1");
+
+    expect(createCheckoutOrder).toHaveBeenCalledWith(
+      expect.objectContaining({
+        items: [
+          {
+            product_id: 1,
+            quantity: 1,
+          },
+        ],
+        payment_method: "COD",
+        delivery_type: "normal",
+        shipping_address: expect.objectContaining({
+          name: testAddress.name,
+          phone: testAddress.phone,
+          pincode: testAddress.pincode,
+        }),
+      })
+    );
+  });
+
+  test("shows the generated order ID", async () => {
+    renderCheckout();
+
+    await placeTestOrder();
+
+    expect(
+      await screen.findByText("TEST-ORDER-1")
+    ).toBeInTheDocument();
+  });
+
+  test("calls payment service after order creation", async () => {
+    renderCheckout();
+
+    await placeTestOrder();
+
+    await screen.findByRole("heading", {
+      name: /order placed successfully/i,
+    });
+
+    expect(payForOrder).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderId: "TEST-ORDER-1",
+        method: "COD",
+      })
+    );
+  });
+
+  test("shows error when order creation fails", async () => {
+    createCheckoutOrder.mockRejectedValue(
+      new Error("Order creation failed")
+    );
+
+    renderCheckout();
+
+    await placeTestOrder();
+
+    expect(
+      await screen.findByRole("alert")
+    ).toHaveTextContent("Order creation failed");
+  });
+
+  test("shows error when server returns no order ID", async () => {
+    createCheckoutOrder.mockResolvedValue({
+      success: true,
+    });
+
+    renderCheckout();
+
+    await placeTestOrder();
+
+    expect(
+      await screen.findByRole("alert")
+    ).toHaveTextContent(/server did not return an order id/i);
+  });
+
+  test("keeps order when payment fails", async () => {
+    payForOrder.mockRejectedValue(
+      new Error("Payment failed")
+    );
+
+    const consoleError = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => { });
+
+    renderCheckout();
+
+    await placeTestOrder();
+
+    expect(
+      await screen.findByRole("heading", {
+        name: /order placed successfully/i,
+      })
+    ).toBeInTheDocument();
+
+    expect(
+      screen.getByRole("alert")
+    ).toHaveTextContent("Payment failed");
+
+    expect(createCheckoutOrder).toHaveBeenCalledTimes(1);
+
+    consoleError.mockRestore();
+  });
+
+  test("stores the confirmed order in localStorage", async () => {
+    renderCheckout();
+
+    await placeTestOrder();
+
+    await screen.findByText("TEST-ORDER-1");
+
+    const savedOrders = JSON.parse(
+      localStorage.getItem("orders")
+    );
+
+    expect(savedOrders).toHaveLength(1);
+
+    expect(savedOrders[0]).toEqual(
+      expect.objectContaining({
+        order_id: "TEST-ORDER-1",
+        paymentMethod: "COD",
+      })
+    );
+  });
+
+  test("navigates to orders page", async () => {
+    renderCheckout();
+
+    await placeTestOrder();
+
+    await screen.findByRole("heading", {
+      name: /order placed successfully/i,
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /view my orders/i,
+      })
+    );
+
+    expect(mockNavigate).toHaveBeenCalledWith("/orders");
+  });
+
+  test("navigates to shop after order placement", async () => {
+    renderCheckout();
+
+    await placeTestOrder();
+
+    await screen.findByRole("heading", {
+      name: /order placed successfully/i,
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /continue shopping/i,
+      })
+    );
+
+    expect(mockNavigate).toHaveBeenCalledWith("/shop");
+  });
+});

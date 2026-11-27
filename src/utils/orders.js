@@ -1,5 +1,6 @@
 import { getOrders } from "../api/ordersApi";
 import { getStoredAccessToken } from "../services/api";
+import { getProductImage } from "./productImage";
 
 const PAYMENT_LABELS = {
   COD: "Cash on Delivery",
@@ -41,7 +42,7 @@ export function normalizeApiOrder(order = {}) {
     product_id: item.product_id,
     name: item.product_name,
     title: item.product_name,
-    image: item.image || "",
+    image: getProductImage(item.image || "", item.product_name, ""),
     price: Number(item.price) || 0,
     discountedPrice: Number(item.price) || 0,
     quantity: Number(item.quantity) || 1,

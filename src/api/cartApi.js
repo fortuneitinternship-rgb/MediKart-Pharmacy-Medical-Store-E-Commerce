@@ -3,6 +3,7 @@ import {
   clearAuthSession,
   getStoredAccessToken,
 } from "../services/api";
+import { getProductImage } from "../utils/productImage";
 
 // ======================================================
 // CONFIGURATION
@@ -297,10 +298,11 @@ export function normalizeCartItem(item, isServerItem = false) {
 
     discountedPrice: price,
 
-    image:
-      item.image ||
-      item.image_url ||
-      "",
+    image: getProductImage(
+      item.image || item.image_url || "",
+      item.name || item.title,
+      item.category
+    ),
 
     quantity: Math.max(
       1,

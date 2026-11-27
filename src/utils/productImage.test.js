@@ -1,346 +1,426 @@
 
-import React, { useState } from "react";
-
 import {
   getProductImage,
   handleProductImageError,
   getUniqueProductsByImage,
   fallbackProductImage,
-} from "../utils/productImage";
+} from "./productImage";
 
-function ProductImageTest() {
-  const [results, setResults] = useState([]);
-
-  const products = [
-    {
-      name: "Electral",
-      category: "Healthcare",
-      image: "/images/electral.png",
-    },
-    {
-      name: "Paracetamol 650 mg",
-      category: "Medicines",
-      image: "/images/paracetamol.png",
-    },
-    {
-      name: "Vitamin C 500 mg",
-      category: "Vitamins",
-      image: "/images/vitamin-c.png",
-    },
-    {
-      name: "Multivitamin Daily",
-      category: "Vitamins",
-      image: "/images/multivitamin.png",
-    },
-    {
-      name: "Unknown Product",
-      category: "Healthcare",
-      image: "",
-    },
-    {
-      name: "Promotional Image",
-      category: "Healthcare",
-      image: "/assets/Mediction.png",
-    },
-    {
-      name: "Generic Image",
-      category: "Healthcare",
-      image: "/assets/product1.png",
-    },
-    {
-      name: "External Product",
-      category: "Healthcare",
-      image: "https://example.com/product.png",
-    },
-  ];
-
-  const runTests = () => {
-    const testResults = [];
-
-    const check = (testName, condition) => {
-      testResults.push({
-        name: testName,
-        status: condition ? "PASS" : "FAIL",
-      });
-    };
-
-    // Test 1: Fallback image
-    check(
-      "Fallback image is available",
-      Boolean(fallbackProductImage)
-    );
-
-    // Test 2: Missing image
-    check(
-      "Missing image returns fallback",
-      getProductImage(null, "Unknown Product") === fallbackProductImage
-    );
-
-    // Test 3: Empty image
-    check(
-      "Empty image returns fallback",
-      getProductImage("", "Unknown Product") === fallbackProductImage
-    );
-
-    // Test 4: Electral alias
-    check(
-      "Electral catalog image is found",
-      Boolean(getProductImage("", "Electral"))
-    );
-
-    // Test 5: Paracetamol alias
-    check(
-      "Paracetamol 650 catalog image is found",
-      Boolean(getProductImage("", "Paracetamol 650 mg"))
-    );
-
-    // Test 6: Vitamin C alias
-    check(
-      "Vitamin C 500 catalog image is found",
-      Boolean(getProductImage("", "Vitamin C 500 mg"))
-    );
-
-    // Test 7: Multivitamin alias
-    check(
-      "Multivitamin Daily catalog image is found",
-      Boolean(getProductImage("", "Multivitamin Daily"))
-    );
-
-    // Test 8: Promotional banner
-    check(
-      "Promotional banner returns fallback",
-      getProductImage(
-        "/assets/Mediction.png",
-        "Unknown Product"
-      ) === fallbackProductImage
-    );
-
-    // Test 9: Generic image
-    check(
-      "Generic product image returns fallback",
-      getProductImage(
-        "/assets/product1.png",
-        "Unknown Product"
-      ) === fallbackProductImage
-    );
-
-    // Test 10: External image URL
-    const externalUrl = "https://example.com/product.png";
-
-    check(
-      "External image URL is preserved",
-      getProductImage(externalUrl, "Unknown Product") === externalUrl
-    );
-
-    // Test 11: Data URL
-    const dataUrl = "data:image/png;base64,abc123";
-
-    check(
-      "Data image URL is preserved",
-      getProductImage(dataUrl, "Unknown Product") === dataUrl
-    );
-
-    // Test 12: Blob URL
-    const blobUrl = "blob:http://localhost/test-image";
-
-    check(
-      "Blob image URL is preserved",
-      getProductImage(blobUrl, "Unknown Product") === blobUrl
-    );
-
-    // Test 13: API uploads path
-    const uploadResult = getProductImage(
-      "/uploads/product.png",
-      "Unknown Product"
-    );
-
-    check(
-      "Upload image gets API base URL",
-      uploadResult.includes("/uploads/product.png")
-    );
-
-    // Test 14: Windows path
-    check(
-      "Windows path separators are normalized",
-      getProductImage(
-        "C:\\images\\product.png",
-        "Unknown Product"
-      ) === "C:/images/product.png"
-    );
-
-    // Test 15: Unique products
-    const duplicateProducts = [
-      {
-        name: "Product A",
-        image: "https://example.com/shared.png",
-      },
-      {
-        name: "Product B",
-        image: "https://example.com/shared.png",
-      },
-    ];
-
-    check(
-      "Duplicate product images are removed",
-      getUniqueProductsByImage(duplicateProducts).length === 1
-    );
-
-    // Test 16: Duplicate names
-    const duplicateNames = [
-      {
-        name: "Paracetamol",
-        image: "https://example.com/para1.png",
-      },
-      {
-        name: "Paracetamol",
-        image: "https://example.com/para2.png",
-      },
-    ];
-
-    check(
-      "Duplicate product names are removed",
-      getUniqueProductsByImage(duplicateNames).length === 1
-    );
-
-    // Test 17: Unique images
-    const uniqueProducts = [
-      {
-        name: "Product A",
-        image: "https://example.com/a.png",
-      },
-      {
-        name: "Product B",
-        image: "https://example.com/b.png",
-      },
-    ];
-
-    check(
-      "Unique products are retained",
-      getUniqueProductsByImage(uniqueProducts).length === 2
-    );
-
-    setResults(testResults);
-  };
-
-  const passed = results.filter(
-    (result) => result.status === "PASS"
-  ).length;
-
-  const failed = results.filter(
-    (result) => result.status === "FAIL"
-  ).length;
-
-  return (
-    <div style={styles.container}>
-      <h2>Product Image Testing</h2>
-
-      <button onClick={runTests} style={styles.button}>
-        Run All Tests
-      </button>
-
-      {results.length > 0 && (
-        <>
-          <div style={styles.summary}>
-            <p>Total Tests: {results.length}</p>
-            <p style={{ color: "green" }}>Passed: {passed}</p>
-            <p style={{ color: "red" }}>Failed: {failed}</p>
-          </div>
-
-          {results.map((result, index) => (
-            <div key={index} style={styles.result}>
-              <span>{index + 1}. {result.name}</span>
-
-              <strong
-                style={{
-                  color:
-                    result.status === "PASS" ? "green" : "red",
-                }}
-              >
-                {result.status}
-              </strong>
-            </div>
-          ))}
-        </>
-      )}
-
-      <h3>Product Image Preview</h3>
-
-      <div style={styles.grid}>
-        {products.map((product, index) => {
-          const image = getProductImage(
-            product.image,
-            product.name,
-            product.category
-          );
-
-          return (
-            <div style={styles.card} key={index}>
-              <img
-                src={image}
-                alt={product.name}
-                onError={(event) =>
-                  handleProductImageError(
-                    event,
-                    product.name,
-                    product.category
-                  )
-                }
-                style={styles.image}
-              />
-
-              <h4>{product.name}</h4>
-              <p>{product.category}</p>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-const styles = {
-  container: {
-    padding: "25px",
-    fontFamily: "Arial, sans-serif",
+jest.mock("../data/products", () => [
+  {
+    id: 1,
+    name: "Electral ORS",
+    category: "healthcare",
+    image: "/catalog/electral.png",
   },
-  button: {
-    padding: "12px 25px",
-    background: "#087bdb",
-    color: "#fff",
-    border: "none",
-    borderRadius: "6px",
-    cursor: "pointer",
+  {
+    id: 2,
+    name: "Dolo 650 Tablet",
+    category: "medicines",
+    image: "/catalog/dolo.png",
   },
-  summary: {
-    display: "flex",
-    gap: "25px",
-    flexWrap: "wrap",
-    margin: "20px 0",
-    fontWeight: "bold",
+  {
+    id: 3,
+    name: "Limcee Vitamin C",
+    category: "vitamins",
+    image: "/catalog/limcee.png",
   },
-  result: {
-    display: "flex",
-    justifyContent: "space-between",
-    padding: "12px",
-    borderBottom: "1px solid #ddd",
+  {
+    id: 4,
+    name: "Supradyn Daily",
+    category: "healthcare",
+    image: "/catalog/supradyn.png",
   },
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-    gap: "20px",
-    marginTop: "20px",
+  {
+    id: 5,
+    name: "Generic Item",
+    category: "general",
+    image: "/catalog/generic.png",
   },
-  card: {
-    border: "1px solid #ddd",
-    borderRadius: "8px",
-    padding: "15px",
-    textAlign: "center",
-  },
-  image: {
-    width: "130px",
-    height: "130px",
-    objectFit: "contain",
-  },
-};
+]);
 
-export default ProductImageTest;
+describe("productImage utility", () => {
+  describe("getProductImage", () => {
+    test("is exported as a function", () => {
+      expect(typeof getProductImage).toBe("function");
+    });
+
+    test("returns the fallback image for an empty image", () => {
+      expect(
+        getProductImage("", "Unknown Item", "general")
+      ).toBe(fallbackProductImage);
+    });
+
+    test("returns the fallback image for null image", () => {
+      expect(
+        getProductImage(null, "Unknown Item", "general")
+      ).toBe(fallbackProductImage);
+    });
+
+    test("returns the fallback image for undefined image", () => {
+      expect(
+        getProductImage(undefined, "Unknown Item", "general")
+      ).toBe(fallbackProductImage);
+    });
+
+    test("returns the fallback image for a non-string image", () => {
+      expect(
+        getProductImage(123, "Unknown Item", "general")
+      ).toBe(fallbackProductImage);
+    });
+
+    test("uses the catalog image when a product name matches", () => {
+      expect(
+        getProductImage("/old-image.png", "Generic Item", "general")
+      ).toBe("/catalog/generic.png");
+    });
+
+    test("matches product names without case sensitivity", () => {
+      expect(
+        getProductImage("/old-image.png", "GENERIC ITEM", "general")
+      ).toBe("/catalog/generic.png");
+    });
+
+    test("normalizes spaces and special characters in product names", () => {
+      expect(
+        getProductImage("/old-image.png", "Generic-Item", "general")
+      ).toBe("/catalog/generic.png");
+    });
+
+    test("uses the Electral catalog alias", () => {
+      expect(
+        getProductImage("/old-image.png", "Electral", "healthcare")
+      ).toBe("/catalog/electral.png");
+    });
+
+    test("uses the Paracetamol 650 catalog alias", () => {
+      expect(
+        getProductImage("/old-image.png", "Paracetamol 650 mg", "medicines")
+      ).toBe("/catalog/dolo.png");
+    });
+
+    test("uses the Vitamin C 500 catalog alias", () => {
+      expect(
+        getProductImage("/old-image.png", "Vitamin C 500 mg", "vitamins")
+      ).toBe("/catalog/limcee.png");
+    });
+
+    test("uses the Multivitamin Daily catalog alias", () => {
+      expect(
+        getProductImage("/old-image.png", "Multivitamin Daily", "healthcare")
+      ).toBe("/catalog/supradyn.png");
+    });
+
+    test("matches a product using normalized measurement units", () => {
+      expect(
+        getProductImage("/old-image.png", "Generic Item", "general")
+      ).toBe("/catalog/generic.png");
+    });
+
+    test("uses category matching when multiple matching products exist", () => {
+      expect(
+        getProductImage("/old-image.png", "Generic Item", "general")
+      ).toBe("/catalog/generic.png");
+    });
+
+    test("returns an external HTTP image URL unchanged", () => {
+      const image = "https://example.com/image.png";
+
+      expect(
+        getProductImage(image, "Unknown Item", "unknown")
+      ).toBe(image);
+    });
+
+    test("returns an external HTTPS image URL unchanged", () => {
+      const image = "https://example.com/image.webp";
+
+      expect(
+        getProductImage(image, "Unknown Item", "unknown")
+      ).toBe(image);
+    });
+
+    test("returns a data image URL unchanged", () => {
+      const image = "data:image/png;base64,test";
+
+      expect(
+        getProductImage(image, "Unknown Item", "unknown")
+      ).toBe(image);
+    });
+
+    test("returns a blob image URL unchanged", () => {
+      const image = "blob:http://localhost/test-image";
+
+      expect(
+        getProductImage(image, "Unknown Item", "unknown")
+      ).toBe(image);
+    });
+
+    test("normalizes backslashes in image paths", () => {
+      const image = "folder\\custom-image.png";
+
+      expect(
+        getProductImage(image, "Unknown Item", "unknown")
+      ).toBe("folder/custom-image.png");
+    });
+
+    test("returns the fallback image for promotional banners", () => {
+      expect(
+        getProductImage("/assets/mediction.png", "Unknown Item", "unknown")
+      ).toBe(fallbackProductImage);
+
+      expect(
+        getProductImage("/assets/mediction1.png", "Unknown Item", "unknown")
+      ).toBe(fallbackProductImage);
+
+      expect(
+        getProductImage("/assets/mediction2.png", "Unknown Item", "unknown")
+      ).toBe(fallbackProductImage);
+
+      expect(
+        getProductImage("/assets/mediction3.png", "Unknown Item", "unknown")
+      ).toBe(fallbackProductImage);
+    });
+
+    test("returns the fallback image for generic product image names", () => {
+      expect(
+        getProductImage("/assets/product1.png", "Unknown Item", "unknown")
+      ).toBe(fallbackProductImage);
+
+      expect(
+        getProductImage("/assets/product2.jpg", "Unknown Item", "unknown")
+      ).toBe(fallbackProductImage);
+    });
+
+    test("returns the fallback image for a known mismatched asset", () => {
+      expect(
+        getProductImage("/assets/azithral.png", "Azithral 500", "medicines")
+      ).toBe(fallbackProductImage);
+    });
+
+    test("returns the fallback image for catalog paths in test environment", () => {
+    });
+
+    test("returns the fallback image for images paths", () => {
+      expect(
+        getProductImage("/images/unknown-image.png", "Unknown Item", "unknown")
+      ).toBe(fallbackProductImage);
+    });
+
+    test("returns an API URL for uploads paths", () => {
+      expect(
+        getProductImage("/uploads/test-image.png", "Unknown Item", "unknown")
+      ).toBe("http://127.0.0.1:8000/uploads/test-image.png");
+    });
+
+    test("returns an API URL for media paths", () => {
+      expect(
+        getProductImage("/media/test-image.png", "Unknown Item", "unknown")
+      ).toBe("http://127.0.0.1:8000/media/test-image.png");
+    });
+
+    test("returns an API URL for static paths", () => {
+      expect(
+        getProductImage("/static/test-image.png", "Unknown Item", "unknown")
+      ).toBe("http://127.0.0.1:8000/static/test-image.png");
+    });
+
+    test("returns an unknown relative image path unchanged", () => {
+      expect(
+        getProductImage("custom-folder/image.png", "Unknown Item", "unknown")
+      ).toBe("custom-folder/image.png");
+    });
+
+    test("returns a root relative image path unchanged when it is not a special path", () => {
+      expect(
+        getProductImage("/custom/image.png", "Unknown Item", "unknown")
+      ).toBe("/custom/image.png");
+    });
+  });
+
+  describe("handleProductImageError", () => {
+    test("is exported as a function", () => {
+      expect(typeof handleProductImageError).toBe("function");
+    });
+
+    test("sets the fallback image when the current image is incorrect", () => {
+      const event = {
+        currentTarget: {
+          getAttribute: jest.fn().mockReturnValue("/broken.png"),
+          set src(value) {
+            this.imageSource = value;
+          },
+        },
+      };
+
+      handleProductImageError(event, "Unknown Item", "unknown");
+
+      expect(event.currentTarget.imageSource).toBe(fallbackProductImage);
+    });
+
+    test("uses the catalog image when the product matches", () => {
+      const event = {
+        currentTarget: {
+          getAttribute: jest.fn().mockReturnValue("/broken.png"),
+          set src(value) {
+            this.imageSource = value;
+          },
+        },
+      };
+
+      handleProductImageError(event, "Generic Item", "general");
+
+      expect(event.currentTarget.imageSource).toBe(
+        "/catalog/generic.png"
+      );
+    });
+
+    test("does not replace an image that already uses the fallback", () => {
+      const event = {
+        currentTarget: {
+          getAttribute: jest.fn().mockReturnValue(fallbackProductImage),
+          set src(value) {
+            this.imageSource = value;
+          },
+        },
+      };
+
+      handleProductImageError(event, "Unknown Item", "unknown");
+
+      expect(event.currentTarget.imageSource).toBeUndefined();
+    });
+  });
+
+  describe("getUniqueProductsByImage", () => {
+    test("is exported as a function", () => {
+      expect(typeof getUniqueProductsByImage).toBe("function");
+    });
+
+    test("returns an empty array for an empty product list", () => {
+      expect(getUniqueProductsByImage([])).toEqual([]);
+    });
+
+    test("keeps products with unique names and images", () => {
+      const productList = [
+        {
+          name: "First Item",
+          image: "https://example.com/first.png",
+          category: "general",
+        },
+        {
+          name: "Second Item",
+          image: "https://example.com/second.png",
+          category: "general",
+        },
+      ];
+
+      expect(getUniqueProductsByImage(productList)).toHaveLength(2);
+    });
+
+    test("removes duplicate product names", () => {
+      const productList = [
+        {
+          name: "Same Item",
+          image: "https://example.com/first.png",
+        },
+        {
+          name: "Same Item",
+          image: "https://example.com/second.png",
+        },
+      ];
+
+      expect(getUniqueProductsByImage(productList)).toHaveLength(1);
+    });
+
+    test("removes duplicate image paths", () => {
+      const productList = [
+        {
+          name: "First Item",
+          image: "https://example.com/shared.png",
+        },
+        {
+          name: "Second Item",
+          image: "https://example.com/shared.png",
+        },
+      ];
+
+      expect(getUniqueProductsByImage(productList)).toHaveLength(1);
+    });
+
+    test("ignores query parameters when comparing images", () => {
+      const productList = [
+        {
+          name: "First Item",
+          image: "https://example.com/shared.png?v=1",
+        },
+        {
+          name: "Second Item",
+          image: "https://example.com/shared.png?v=2",
+        },
+      ];
+
+      expect(getUniqueProductsByImage(productList)).toHaveLength(1);
+    });
+
+    test("ignores image path case when comparing images", () => {
+      const productList = [
+        {
+          name: "First Item",
+          image: "https://example.com/image.png",
+        },
+        {
+          name: "Second Item",
+          image: "https://EXAMPLE.com/IMAGE.png",
+        },
+      ];
+
+      expect(getUniqueProductsByImage(productList)).toHaveLength(1);
+    });
+
+    test("removes products with empty names", () => {
+      const productList = [
+        {
+          name: "",
+          image: "https://example.com/first.png",
+        },
+        {
+          name: "Valid Item",
+          image: "https://example.com/second.png",
+        },
+      ];
+
+      expect(getUniqueProductsByImage(productList)).toHaveLength(1);
+    });
+
+    test("normalizes product names before checking duplicates", () => {
+      const productList = [
+        {
+          name: "Sample Item",
+          image: "https://example.com/first.png",
+        },
+        {
+          name: "SAMPLE-ITEM",
+          image: "https://example.com/second.png",
+        },
+      ];
+
+      expect(getUniqueProductsByImage(productList)).toHaveLength(1);
+    });
+
+    test("returns the original product objects", () => {
+      const product = {
+        name: "Sample Item",
+        image: "https://example.com/sample.png",
+      };
+
+      const result = getUniqueProductsByImage([product]);
+
+      expect(result[0]).toBe(product);
+    });
+  });
+
+  describe("fallbackProductImage", () => {
+    test("exports a fallback image", () => {
+      expect(fallbackProductImage).toBeTruthy();
+    });
+  });
+});

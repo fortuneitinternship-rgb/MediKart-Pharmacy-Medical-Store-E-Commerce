@@ -383,16 +383,15 @@ def import_local_cart(
         for product in products
     }
 
-    missing_product_ids = (
+    # Products that no longer exist are skipped instead of blocking the whole
+    # import, so one stale guest-cart item cannot stop everything else syncing.
+    skipped_product_ids = sorted(
         set(quantities.keys())
         - set(products_by_id.keys())
     )
 
-    if missing_product_ids:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Products not found: {sorted(missing_product_ids)}.",
-        )
+    for product_id in skipped_product_ids:
+        quantities.pop(product_id, None)
 
     # Validate stock.
     for product_id, quantity in quantities.items():
@@ -482,6 +481,7 @@ def import_local_cart(
 
     return {
         "message": "Cart imported successfully.",
+        "skipped_product_ids": skipped_product_ids,
         "items": [
             serialize_cart_item(db, item)
             for item in get_cart_items(db, current_user.id)
